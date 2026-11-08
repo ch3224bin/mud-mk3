@@ -21,7 +21,9 @@
 | 1c | 전체 변경분 모순 검토(A·B) → 수정 | 완료 |
 | 2 | 리뷰: round-2-balance.md(수정 필요 H5·M7·L3), round-2-impl.md(부족 P0 3·P1 13) | 완료 |
 | 2w | 묶음별 반영 G1~G4 (병렬) → 인계·명령어 동기화 → 모순 검토(round-2-contradictions.md) → 수정 | 완료 |
-| 3 | 재검토(balance·impl) | 진행 중 |
+| 3 | 재검토: round-3-balance.md(H3·M2·L6), round-3-impl.md(P0 0·P1 3) | 완료 |
+| 3w | 반영: G1~G3 합본 / G4 (병렬) → 인계(round-3-handoffs.md) → 모순 검토(round-3-contradictions.md) → 커밋 | 완료 |
+| 4 | 재검토(balance·impl) | 진행 중 |
 
 ## 끝난 장 (Round 1 초안 + 통합)
 
