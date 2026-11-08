@@ -19,7 +19,9 @@
 | 1r | 통합: 장 간 모순(round-1-contradictions.md)·인계(round-1-handoffs.md)·문체 통일·용어집 | 완료 |
 | 1b | 명령어 장 G5 (commands.md) | 완료 — 다른 장 인계는 round-2-handoffs.md |
 | 1c | 전체 변경분 모순 검토(A·B) → 수정 | 완료 |
-| 2+ | 리뷰(balance·impl) → 반영 반복 | 대기 |
+| 2 | 리뷰: round-2-balance.md(수정 필요 H5·M7·L3), round-2-impl.md(부족 P0 3·P1 13) | 완료 |
+| 2w | 묶음별 반영 G1~G4 (병렬) → 인계·명령어 동기화 → 모순 검토(round-2-contradictions.md) → 수정 | 완료 |
+| 3 | 재검토(balance·impl) | 진행 중 |
 
 ## 끝난 장 (Round 1 초안 + 통합)
 
