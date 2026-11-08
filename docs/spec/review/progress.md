@@ -15,15 +15,17 @@
 | 라운드 | 내용 | 상태 |
 |---|---|---|
 | 0 | 기준선(design-baseline.md) + 구현 공백 목록(round-0-impl-gaps.md, P0 90개) | 완료 |
-| 1 | 장 묶음별 작성 G1~G4 (병렬) | 진행 중 |
-| 1b | 명령어 장 G5 | 대기 |
+| 1 | 장 묶음별 작성 G1~G4 (병렬) | 완료 — 새 장 technique-list·quest·first-region |
+| 1r | 통합: 장 간 모순(round-1-contradictions.md)·인계(round-1-handoffs.md)·문체 통일·용어집 | 완료 |
+| 1b | 명령어 장 G5 (commands.md) | 완료 — 다른 장 인계는 round-2-handoffs.md |
+| 1c | 전체 변경분 모순 검토(A·B) → 수정 | 완료 |
 | 2+ | 리뷰(balance·impl) → 반영 반복 | 대기 |
 
-## 끝난 장
+## 끝난 장 (Round 1 초안 + 통합)
 
-(없음)
+stats · realm · technique · technique-list(새) · character · combat · recovery · death · party · item · crafting · equipment · world · game-structure · npc · companion · quest(새) · first-region(새) · commands(새) · glossary
 
 ## 다음 할 일
 
-- G1~G4 결과 받으면: 용어집·index·decisions 반영 → 묶음별 모순 검토 → commit & push
-- 그다음 G5 명령어 장 → Round 2 리뷰
+- Round 2: balance-reviewer·impl-reviewer 가 전체 룰북 검토 → round-2-balance.md / round-2-impl.md
+- 리뷰 지적 + round-2-handoffs.md(명령 출력 누락)를 묶음별 writer 가 반영 → 재검토
