@@ -5,7 +5,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
-/** 테스트에서 외부 연동 포트를 대신하는 가짜 빈을 모은다 */
+/** 게임 포트 테스트에서 실제 WebSocket sender 대신 보낸 것을 기록하는 가짜 sender를 쓴다(@Primary) */
 @TestConfiguration
 public class TestFakesConfiguration {
 
