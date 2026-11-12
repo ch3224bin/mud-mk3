@@ -30,10 +30,55 @@
 
 - 1차 이터레이션에서는 맵(방·출구) 만들기만 구현한다. 성·종문 정의와 소유 지정은 다음 이터레이션에서 한다. → [이터레이션 계획](index.md#이터레이션-계획)
 
+## 1차 화면
+
+admin-console은 정적 export이고, 경로는 쿼리스트링으로 id를 받는다. (제안)
+
+- `/` 로그인: `Google로 로그인` 버튼(= `${worldServerUrl}/api/auth/login?client=admin` 으로 이동), 개발용 로그인 폼, `?loginError=1` 이면 `로그인하지 못했습니다. 다시 시도하십시오.`. 로그인 뒤 관리자가 아니면 `관리자만 쓸 수 있습니다.` 와 로그아웃 버튼을 보인다. → [인증](auth.md#1차-로그인-흐름) (제안)
+- `/zones/` 지역 목록(이름·방 수), 지역 만들기 폼, 지역마다 수정·삭제. (제안)
+- `/zone/?id=1` 지역 하나: 방 목록(이름·출구 수, 시작 방 표시)과 방 만들기 폼. (제안)
+- `/room/?id=3` 방 하나: 이름·묘사·지역 수정, 삭제, `시작 방으로 지정` 버튼, 출구 표(방위·대상 방(지역)·삭제), 출구 추가 폼(방위 선택 → 대상 지역 선택 → 대상 방 선택, `반대 방향도` 체크박스 기본 켜짐). (제안)
+- 위쪽 공통 바: 현재 시작 방, 지역 목록 링크, 로그아웃. (제안)
+
+## 1차 REST API
+
+모두 `/api/admin/**` 이고 `ADMIN` 권한이 필요하다(로그인 안 됨 401, 관리자 아님 403). 변경 요청에는 헤더 `X-MUD-Client: 1` 이 있어야 한다. → [인증](auth.md#오리진corscsrf) 오류는 `ProblemDetail`(`title`, `status`, `detail`=한국어 메시지, `timestamp`, `exception`)이다. 검증 실패·잘못된 값·없는 id는 400, 이름 중복·규칙 충돌은 409다. (제안)
+
+| 메서드 · 경로 | 요청 | 응답 |
+|---|---|---|
+| `GET /api/admin/zones` | — | 200 `ZoneResponse[]`(이름순) |
+| `POST /api/admin/zones` | `{name, description}` | 201 `ZoneResponse` |
+| `PUT /api/admin/zones/{zoneId}` | `{name, description}` | 200 `ZoneResponse` |
+| `DELETE /api/admin/zones/{zoneId}` | — | 204. 방이 있으면 409 |
+| `GET /api/admin/zones/{zoneId}/rooms` | — | 200 `RoomSummaryResponse[]`(id순) |
+| `POST /api/admin/rooms` | `{zoneId, name, description}` | 201 `RoomDetailResponse` |
+| `GET /api/admin/rooms/{roomId}` | — | 200 `RoomDetailResponse` |
+| `PUT /api/admin/rooms/{roomId}` | `{zoneId, name, description}` | 200 `RoomDetailResponse` |
+| `DELETE /api/admin/rooms/{roomId}` | — | 204. 이 방으로 오는 출구도 지운다. 시작 방이면 409 |
+| `PUT /api/admin/rooms/{roomId}/exits/{direction}` | `{targetRoomId, twoWay}` | 200 `RoomDetailResponse` |
+| `DELETE /api/admin/rooms/{roomId}/exits/{direction}?twoWay=true` | — | 204. `twoWay` 기본값은 false |
+| `GET /api/admin/world` | — | 200 `WorldResponse` |
+| `PUT /api/admin/world/start-room` | `{roomId}` | 200 `WorldResponse` |
+
+- 응답 모양 (제안): `ZoneResponse {id, name, description, roomCount}`, `RoomSummaryResponse {id, name, exitCount}`, `RoomDetailResponse {id, zoneId, zoneName, name, description, start, exits: [{direction, directionName, targetRoomId, targetRoomName, targetZoneName}]}`(exits는 방위 순서), `WorldResponse {startRoomId, startRoomName, startZoneName}`(시작 방이 없으면 셋 다 null).
+- `{direction}` 경로 값은 `EAST WEST SOUTH NORTH NORTHEAST NORTHWEST SOUTHEAST SOUTHWEST UP DOWN` 이다. (제안)
+
+### 출구 만들기·지우기 규칙
+
+- 반대 방향 출구 자동 생성: `twoWay=true` 면 대상 방에 반대 방위 출구를 같이 만든다. 대상 방의 반대 방위 출구가 이미 이 방을 가리키면 그대로 두고, 다른 방을 가리키면 아무것도 바꾸지 않고 409다. admin-console은 폼의 `반대 방향도` 체크(기본 켜짐)를 따라 `twoWay` 를 보낸다. (제안)
+- 출구 삭제에서 `twoWay=true` 면 대상 방의 반대 출구가 이 방을 가리킬 때만 같이 지운다. (제안)
+- 출구의 대상을 바꿔도 옛 대상 방의 반대 출구는 그대로 남는다. (제안)
+- 없는 방위의 출구를 지우는 요청은 아무것도 하지 않고 204다. (제안)
+
+### 관리 툴 변경의 반영
+
+- 맵(지역·방·출구)의 변경은 실행 중인 게임에 바로 반영된다. 게임이 맵을 캐시하지 않고 명령마다 DB에서 읽기 때문이다. → [플랫폼: 1차 월드 상태와 저장](platform.md#1차-월드-상태와-저장) (제안)
+- 플레이어가 서 있는 방을 지우면 그 플레이어는 시작 방으로 옮겨진다. (제안)
+
 ## 열린 질문
 
 - 위 대상 가운데 각각 어디까지 관리 툴로 다루고 어디를 하드 코딩하는가? (예: 공법·신통의 효과)
 - "배치" 는 방 하나에 두는 것인가, 구역을 정해 돌아다니게 하는 것까지 포함하는가? (룰북에는 특정 방에만 있거나 정해진 구역 안을 돌아다님) → [룰북: 몹](../game-rule/npc.md#몹)
-- 관리 툴에서 바꾼 내용이 실행 중인 게임에 바로 반영되는가, 다시 시작해야 하는가?
+- 관리 툴에서 바꾼 내용이 실행 중인 게임에 바로 반영되는가, 다시 시작해야 하는가? → (제안) 맵은 바로 반영된다. 다른 콘텐츠는 그것이 생기는 이터레이션에서 정한다. → [관리 툴 변경의 반영](#관리-툴-변경의-반영)
 - 관리자 사이에 권한 구분(예: 일부 기능만 쓰는 관리자)이 필요한가?
 - 관리 툴에서 운영 기능(접속자 보기, 플레이어 캐릭터 수정 등)도 하는가?

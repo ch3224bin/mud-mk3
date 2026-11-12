@@ -42,6 +42,7 @@ paths:
 - 월드 상태를 메모리에 두기로 한 결정과 저장 시점은 [platform.md](../../docs/spec/system/platform.md#실시간-통신과-월드-상태)를 따른다. 여기서는 코드 배치만 정한다.
 - 월드 상태를 이루는 개념(방, 방 안의 캐릭터, 전투 등)은 domain에 둔다. 도메인 규칙은 메모리에 있든 DB에 있든 같은 도메인 객체가 지킨다.
 - 메모리에 들고 있는 저장소는 application의 required 포트로 정의하고, 메모리 구현은 adapter에 둔다. DB 저장은 지금처럼 persistence(JPA) 쪽이 맡는다.
+- 메모리 구현은 `adapter/persistence/memory` 에 둔다.
 - 메모리 상태를 다루는 구체 구조(동시성 처리, 저장 포트 이름 등)는 아직 정하지 않았다.
 
 ## 슬라이스 간 의존
