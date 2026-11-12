@@ -22,7 +22,8 @@ paths:
 
 ## null
 
-- `domain`, `application` 패키지 루트의 `package-info.java` 에 `@NonNullApi` 를 붙인다. null이 될 수 있는 곳에만 `@Nullable` 을 붙인다.
+- `domain`, `application` 패키지 루트의 `package-info.java` 에 JSpecify `@org.jspecify.annotations.NullMarked` 를 붙인다. null이 될 수 있는 곳에만 `@org.jspecify.annotations.Nullable` 을 붙인다.
+  - 참고 레포의 Spring `@NonNullApi`·`@Nullable`(`org.springframework.lang`)은 Spring Framework 7에서 deprecated라 쓰지 않는다.
 
 ## Lombok
 

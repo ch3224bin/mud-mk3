@@ -9,7 +9,7 @@ paths:
 
 ## 엔티티
 
-- 엔티티는 `AbstractEntity` 를 상속한다. `AbstractEntity` 는 `@MappedSuperclass` 로 `Long id`(IDENTITY)와 HibernateProxy에 안전한 `final equals/hashCode` 를 제공한다.
+- 엔티티는 `AbstractEntity` 를 상속한다. `AbstractEntity` 는 `@MappedSuperclass` 로 `Long id`(IDENTITY, getter는 JSpecify `@Nullable`)와 HibernateProxy에 안전한 `final equals/hashCode` 를 제공한다.
 - JPA용 기본 생성자는 `@NoArgsConstructor(access = AccessLevel.PROTECTED)` 로 막는다.
 - 생성은 의미 있는 이름의 정적 팩터리 메서드로 한다(예: `Member.register(info, encoder)`). 팩터리 안에서 필드를 채우고 초기 상태를 정한다.
 - 상태 변경은 의미 있는 도메인 메서드로만 한다(`activate()`, `deactivate()`, `updateInfo(...)`). setter를 만들지 않는다.

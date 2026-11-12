@@ -9,6 +9,11 @@ paths:
 
 출처는 [README](README.md).
 
+## DB
+
+- 운영 DB는 PostgreSQL, 테스트는 H2 메모리 DB다. → [build.md](build.md#db)
+- 메모리 월드 상태를 DB에 저장하는 일도 이 계층(JPA)이 맡는다. 저장 주기·시점은 (미정). → [architecture.md](architecture.md#메모리-월드-상태)
+
 ## 매핑
 
 - 도메인 클래스에는 JPA 애노테이션을 최소한으로 둔다(`@Entity`, 관계 `@OneToOne`/`@OneToMany`/`@ManyToOne`, `@NaturalId`).

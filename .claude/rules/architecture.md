@@ -23,7 +23,7 @@ paths:
 ├── application/<aggregate>         // 같은 이름 애그리거트의 서비스 구현
 │   ├── provided                    // 드라이빙 포트(어댑터가 호출) + 요청 DTO
 │   └── required                    // 드리븐 포트(서비스가 필요로 함, 예: Repository)
-├── adapter/{webapi,persistence,integration,security}
+├── adapter/{webapi,websocket,persistence,integration,security}
 └── support/{stereotype,exception}  // 스테레오타입 애노테이션, 공통 예외
 ```
 
@@ -36,6 +36,13 @@ paths:
 - required 포트: 서비스가 필요로 하는 인터페이스(`~Repository`, `~Sender`). 구현은 adapter가 한다.
 - 도메인이 필요로 하는 기술 추상화(예: `PasswordEncoder`)는 도메인 패키지에 인터페이스로 두고, 구현은 adapter에 둔다.
 - 포트 인터페이스에는 한 줄 Javadoc으로 역할을 적는다(예: `/** 회원의 등록과 관련된 기능을 제공한다 */`).
+
+## 메모리 월드 상태
+
+- 월드 상태(방에 누가 있는지, 전투 등)는 메모리에 두고, 주기적으로 또는 중요한 시점에 DB에 저장한다. 저장 주기·시점과 틱은 (미정).
+- 월드 상태를 이루는 개념(방, 방 안의 캐릭터, 전투 등)은 domain에 둔다. 도메인 규칙은 메모리에 있든 DB에 있든 같은 도메인 객체가 지킨다.
+- 메모리에 들고 있는 저장소는 application의 required 포트로 정의하고, 메모리 구현은 adapter에 둔다. DB 저장은 지금처럼 persistence(JPA) 쪽이 맡는다.
+- 메모리 상태를 다루는 구체 구조(동시성 처리, 저장 포트 이름 등)는 (미정).
 
 ## 슬라이스 간 의존
 
