@@ -23,6 +23,6 @@ public record MemberRegisterResponse(Long memberId, String email) {
 
 ## WebSocket 어댑터
 
-- 게임 접속은 WebSocket으로 한다. WebSocket 어댑터는 `adapter/websocket` 에 둔다.
+- 게임 접속 방식(WebSocket)은 [platform.md](../../docs/spec/system/platform.md#실시간-통신과-월드-상태)를 따른다. WebSocket 어댑터는 `adapter/websocket` 에 둔다.
 - 다른 어댑터와 같이 provided 포트 인터페이스에만 의존한다. 플레이어 입력을 받아 provided 포트를 호출한다.
-- 메시지 형식, 세션 관리, 플레이어에게 출력을 밀어 보내는 포트 구조는 (미정).
+- 세션 관리와 플레이어에게 출력을 밀어 보내는 포트 구조는 아직 정하지 않았다.

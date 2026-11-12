@@ -19,7 +19,7 @@ paths:
 
 - Spring Boot 4에서 `@DataJpaTest`·`@WebMvcTest` 는 위 패키지로 옮겨졌고, 각각 `spring-boot-starter-data-jpa-test`·`spring-boot-starter-webmvc-test` 가 있어야 한다. → [build.md](build.md)
 - JSON 직렬화는 Jackson 3(`tools.jackson.databind`)을 쓴다. Jackson 2(`com.fasterxml.jackson.databind`)의 `ObjectMapper` 를 import 하지 않는다.
-- 테스트 DB는 H2 메모리 DB다. → [build.md](build.md#db)
+- 테스트 DB는 H2 메모리 DB다. → [build.md](build.md#db-의존성)
 - 테스트 패키지는 테스트 대상의 패키지(`provided`/`required` 포함)를 그대로 따른다.
 - 외부 연동 포트(메일 등)는 `@TestConfiguration` 클래스에서 람다·가짜 구현 빈으로 바꾼다.
 - 여러 테스트가 같은 준비 과정을 쓰면 `BaseApplicationServiceTest`, `BaseRepositoryTest` 같은 기반 클래스에 `prepare~()` 메서드로 모은다.

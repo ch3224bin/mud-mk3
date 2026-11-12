@@ -11,8 +11,8 @@ paths:
 
 ## DB
 
-- 운영 DB는 PostgreSQL, 테스트는 H2 메모리 DB다. → [build.md](build.md#db)
-- 메모리 월드 상태를 DB에 저장하는 일도 이 계층(JPA)이 맡는다. 저장 주기·시점은 (미정). → [architecture.md](architecture.md#메모리-월드-상태)
+- 운영 DB 선택은 [platform.md](../../docs/spec/system/platform.md#기술-스택)를 따른다. 테스트는 H2 메모리 DB로 돌린다. → [build.md](build.md#db-의존성)
+- 메모리 월드 상태를 DB에 저장하는 일도 이 계층(JPA)이 맡는다. → [architecture.md](architecture.md#메모리-월드-상태)
 
 ## 매핑
 
