@@ -17,7 +17,7 @@
 | 성 · 종문 | 정의한다. 맵보다 먼저 정의되어야 한다 | [월드 구조](world-structure.md#성--종문-소유), [퀘스트 · 공적 교환](quest.md), [룰북: 게임 구성](../game-rule/game-structure.md) |
 | NPC | 생성하고 배치한다. LLM 대화 켬/끔을 NPC마다 설정한다 | [NPC](npc.md), [룰북: 유니크 NPC](../game-rule/npc.md#유니크-npc) |
 | 몹 | 생성하고 배치한다 | [룰북: 몹](../game-rule/npc.md#몹) |
-| 맵 | 만든다 (방·출구). 어떤 맵은 성 또는 종문 소유로 지정한다 | [월드 구조](world-structure.md) |
+| 맵 | 만든다 (방·출구). 어떤 존(지역)은 성 또는 종문 소유로 지정한다 | [월드 구조](world-structure.md) |
 | 아이템 · 장비 | 입력한다 | [룰북: 아이템](../game-rule/item.md), [룰북: 장비](../game-rule/equipment.md) |
 | 공법 · 신통 | 입력한다 | [룰북: 공법](../game-rule/technique.md) |
 | 퀘스트 · 공적 교환 | 입력한다 | [퀘스트 · 공적 교환](quest.md) |
@@ -25,7 +25,7 @@
 | 비경 | 입력한다 | [월드 구조](world-structure.md), [룰북: 비경 탐사](../game-rule/game-structure.md#비경-탐사) |
 | 상점 | 입력한다 | [룰북: 상점](../game-rule/game-structure.md#상점) |
 
-- 1차 이터레이션에서는 맵(방·출구) 만들기부터 구현한다. → [이터레이션 계획](index.md#이터레이션-계획)
+- 1차 이터레이션에서는 맵(방·출구) 만들기만 구현한다. 성·종문 정의와 소유 지정은 다음 이터레이션에서 한다. → [이터레이션 계획](index.md#이터레이션-계획)
 
 ## 열린 질문
 
