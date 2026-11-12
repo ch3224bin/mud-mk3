@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: world-server
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+  docker:
+    compose:
+      enabled: false
+
+server:
+  port: 8080
+
+mud:
+  cors:
+    allowed-origins: ${MUD_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001}
