@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: mud
       POSTGRES_USER: mud
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?.env 에 POSTGRES_PASSWORD 를 채우십시오}
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
@@ -26,7 +26,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mud
       SPRING_DATASOURCE_USERNAME: mud
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?.env 에 POSTGRES_PASSWORD 를 채우십시오}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-not-configured}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-not-configured}
       MUD_ADMIN_EMAILS: ${MUD_ADMIN_EMAILS:-}
