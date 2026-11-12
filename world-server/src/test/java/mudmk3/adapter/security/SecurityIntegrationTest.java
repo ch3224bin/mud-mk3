@@ -1,6 +1,7 @@
 package mudmk3.adapter.security;
 
 import mudmk3.application.account.provided.AccountPrincipal;
+import mudmk3.application.character.required.CharacterRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -27,14 +28,16 @@ import static mudmk3.adapter.security.SecurityFixture.authenticationOf;
 import static mudmk3.adapter.security.SecurityFixture.clientHeader;
 import static mudmk3.adapter.security.SecurityFixture.player;
 import static mudmk3.adapter.security.SecurityFixture.playerPrincipal;
+import static mudmk3.domain.character.CharacterFixture.createCharacter;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 
 /** 실제 보안 필터 체인으로 인증·권한·CSRF 헤더·CORS·로그인 리다이렉트를 확인한다. Google은 부르지 않는다 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(properties = "spring.datasource.url=jdbc:h2:mem:security-it;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE")
-record SecurityIntegrationTest(MockMvcTester mvc) {
+record SecurityIntegrationTest(MockMvcTester mvc, CharacterRepository characterRepository) {
 
     @Test
     void adminApiUnauthenticatedFail() {
@@ -120,12 +123,7 @@ record SecurityIntegrationTest(MockMvcTester mvc) {
 
     @Test
     void meWithGoogleUser() {
-        OidcIdToken idToken = OidcIdToken.withTokenValue("id-token")
-                .subject("google-sub-1")
-                .claim("email", "admin@example.com")
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(60))
-                .build();
+        OidcIdToken idToken = idToken("google-sub-1", "admin@example.com");
         AccountPrincipal principal = new AccountPrincipal(5L, "admin@example.com", true);
         MudOidcUser user = new MudOidcUser(principal, SessionAuthenticator.authoritiesOf(principal), idToken);
 
@@ -134,6 +132,27 @@ record SecurityIntegrationTest(MockMvcTester mvc) {
                 .bodyJson()
                 .isStrictlyEqualTo("""
                         {"id":5,"email":"admin@example.com","admin":true,"characterName":null}""");
+    }
+
+    @Test
+    void meIncludesCharacterName() {
+        characterRepository.save(createCharacter(9001L, "한백", 1L));
+        characterRepository.save(createCharacter(9002L, "한립", 1L));
+        AccountPrincipal player = new AccountPrincipal(9001L, "hanbaek@example.com", false);
+
+        assertThat(mvc.get().with(authentication(authenticationOf(player))).uri("/api/auth/me"))
+                .hasStatusOk()
+                .bodyJson()
+                .isStrictlyEqualTo("""
+                        {"id":9001,"email":"hanbaek@example.com","admin":false,"characterName":"한백"}""");
+
+        // Google 로그인의 getName()은 sub 이므로 계정은 accountId 로 찾아야 한다
+        AccountPrincipal googlePlayer = new AccountPrincipal(9002L, "hanli@example.com", false);
+        MudOidcUser user = new MudOidcUser(googlePlayer, SessionAuthenticator.authoritiesOf(googlePlayer),
+                idToken("9001", "hanli@example.com"));
+        assertThat(mvc.get().with(oidcLogin().oidcUser(user)).uri("/api/auth/me"))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.characterName").isEqualTo("한립");
     }
 
     @Test
@@ -195,6 +214,15 @@ record SecurityIntegrationTest(MockMvcTester mvc) {
 
         assertThat(result).hasStatus(HttpStatus.FORBIDDEN);
         assertThat(result.getResponse().getHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN)).isNull();
+    }
+
+    private static OidcIdToken idToken(String subject, String email) {
+        return OidcIdToken.withTokenValue("id-token")
+                .subject(subject)
+                .claim("email", email)
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(60))
+                .build();
     }
 
     private static String decoded(String value) {

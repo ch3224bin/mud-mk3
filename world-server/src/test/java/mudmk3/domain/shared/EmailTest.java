@@ -25,6 +25,13 @@ class EmailTest {
     }
 
     @Test
+    void invalidFormatMessageHidesAddressFail() {
+        assertThatThrownBy(() -> new Email("secret mail@example.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이메일 형식이 바르지 않습니다");
+    }
+
+    @Test
     void tooLongFail() {
         String local = "a".repeat(64);
         String domain = "b".repeat(260) + ".com";

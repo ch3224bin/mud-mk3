@@ -16,7 +16,8 @@ public record Email(String address) {
     public Email {
         address = requireNonNull(address).strip().toLowerCase(Locale.ROOT);
         if (address.length() > MAX_LENGTH || !EMAIL_PATTERN.matcher(address).matches()) {
-            throw new IllegalArgumentException("이메일 형식이 바르지 않습니다: " + address);
+            // 주소(개인정보)는 메시지에 넣지 않는다. 메시지는 로그·오류 응답으로 나갈 수 있다
+            throw new IllegalArgumentException("이메일 형식이 바르지 않습니다");
         }
     }
 }

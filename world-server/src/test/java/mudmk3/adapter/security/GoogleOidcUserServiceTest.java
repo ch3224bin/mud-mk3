@@ -3,7 +3,11 @@ package mudmk3.adapter.security;
 import mudmk3.application.account.provided.AccountLogin;
 import mudmk3.application.account.provided.AccountLoginRequest;
 import mudmk3.application.account.provided.AccountPrincipal;
+import mudmk3.domain.shared.Email;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
@@ -16,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** 실제 Google을 부르지 않고 ID 토큰 클레임으로 계정 처리 부분만 확인한다 */
+@ExtendWith(OutputCaptureExtension.class)
 class GoogleOidcUserServiceTest {
 
     private final List<AccountLoginRequest> logins = new ArrayList<>();
@@ -71,6 +76,20 @@ class GoogleOidcUserServiceTest {
 
         assertThatThrownBy(() -> rejecting.toMudUser(idToken("google-sub-1", "hanli@example.com", true)))
                 .isInstanceOf(OAuth2AuthenticationException.class);
+    }
+
+    @Test
+    void loginRejectedDoesNotExposeEmailFail(CapturedOutput output) {
+        GoogleOidcUserService rejecting = new GoogleOidcUserService(request -> {
+            new Email(request.email());
+            throw new IllegalStateException("닿지 않는다");
+        });
+
+        assertThatThrownBy(() -> rejecting.toMudUser(idToken("google-sub-1", "secret mail@example.com", true)))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(exception -> assertThat(exception.getMessage()).doesNotContain("mail@example.com"));
+        assertThat(output).contains("Google 계정으로 로그인하지 못했습니다")
+                .doesNotContain("mail@example.com");
     }
 
     private static OidcIdToken idToken(String subject, String email, Boolean emailVerified) {

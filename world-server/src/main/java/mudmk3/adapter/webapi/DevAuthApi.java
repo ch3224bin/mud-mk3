@@ -10,6 +10,7 @@ import mudmk3.adapter.webapi.dto.DevLoginRequest;
 import mudmk3.application.account.provided.AccountLogin;
 import mudmk3.application.account.provided.AccountLoginRequest;
 import mudmk3.application.account.provided.AccountPrincipal;
+import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.domain.shared.Email;
 import mudmk3.support.stereotype.WebApiAdapter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -33,6 +34,7 @@ public class DevAuthApi {
 
     private final AccountLogin accountLogin;
     private final SessionAuthenticator sessionAuthenticator;
+    private final CharacterFinder characterFinder;
 
     @PostMapping("/dev")
     public AuthMeResponse devLogin(@RequestBody @Valid DevLoginRequest request,
@@ -40,6 +42,6 @@ public class DevAuthApi {
         String email = new Email(request.email()).address();
         AccountPrincipal principal = accountLogin.login(new AccountLoginRequest(DEV_SUBJECT_PREFIX + email, email));
         sessionAuthenticator.signIn(principal, httpRequest, httpResponse);
-        return AuthMeResponse.of(principal);
+        return AuthMeResponse.of(principal, characterFinder.findByAccountId(principal.accountId()).orElse(null));
     }
 }

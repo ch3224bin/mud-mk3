@@ -85,6 +85,35 @@
         </attributes>
     </entity>
 
+    <entity class="mudmk3.domain.character.PlayerCharacter">
+        <table name="player_character">
+            <unique-constraint name="UK_PLAYER_CHARACTER_ACCOUNT_ID">
+                <column-name>account_id</column-name>
+            </unique-constraint>
+            <unique-constraint name="UK_PLAYER_CHARACTER_NAME">
+                <column-name>name</column-name>
+            </unique-constraint>
+        </table>
+        <attributes>
+            <basic name="accountId">
+                <column name="account_id" nullable="false"/>
+            </basic>
+            <!-- 방은 지울 때 캐릭터를 다른 방으로 옮기므로 FK를 두지 않는다 -->
+            <basic name="roomId">
+                <column name="room_id" nullable="false"/>
+            </basic>
+            <embedded name="name"/>
+        </attributes>
+    </entity>
+
+    <embeddable class="mudmk3.domain.character.CharacterName">
+        <attributes>
+            <basic name="value">
+                <column name="name" length="6" nullable="false"/>
+            </basic>
+        </attributes>
+    </embeddable>
+
     <embeddable class="mudmk3.domain.shared.Email">
         <attributes>
             <basic name="address">

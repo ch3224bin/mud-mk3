@@ -43,7 +43,8 @@ public class GoogleOidcUserService extends OidcUserService {
         try {
             principal = accountLogin.login(new AccountLoginRequest(idToken.getSubject(), email));
         } catch (IllegalArgumentException | ConstraintViolationException exception) {
-            log.warn("Google 계정으로 로그인하지 못했습니다: {}", exception.getMessage());
+            // 예외 메시지에는 이메일 같은 개인정보가 들어 있을 수 있어 예외 종류만 남긴다
+            log.warn("Google 계정으로 로그인하지 못했습니다: {}", exception.getClass().getSimpleName());
             throw failure("invalid_account", "Google 계정 정보가 올바르지 않습니다");
         }
         return new MudOidcUser(principal, SessionAuthenticator.authoritiesOf(principal), idToken);
