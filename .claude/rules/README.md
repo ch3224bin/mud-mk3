@@ -6,6 +6,7 @@
   - 출처: https://github.com/tobyspringboot/splearn-1-part2 (커밋 `2d1acdffdd0ad2aa4d400d0ed84544fd07ca0401`)
   - 참고 레포는 Spring Boot 3을 쓴다. mud-mk3가 쓰는 Spring Boot 4에서 바뀐 부분(스타터 이름, 테스트 애노테이션 패키지, null 애노테이션, Jackson 3)은 규칙에 맞춰 고쳤다.
 - WebSocket 어댑터·메모리 월드 상태 관례는 참고 레포가 아니라 [platform.md](../../docs/spec/system/platform.md#실시간-통신과-월드-상태)의 결정에서 나온 것이다.
+- 이 규칙은 `world-server`(Java Spring) 모듈의 규칙이다. 경로는 `world-server/` 기준이다. play-client·admin-console(Next.js) 규칙은 아직 없다.
 - 아래에서 `<base>` 는 mud-mk3의 루트 패키지다. 루트 패키지 이름은 아직 정하지 않았다(미정).
 - 시스템 스펙: [docs/spec/system](../../docs/spec/system/index.md). 게임 규칙: [docs/spec/game-rule](../../docs/spec/game-rule/index.md).
 

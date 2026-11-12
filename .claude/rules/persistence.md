@@ -1,8 +1,8 @@
 ---
 paths:
-  - "src/main/java/**/domain/**/*.java"
-  - "src/main/java/**/required/*Repository.java"
-  - "src/main/resources/META-INF/orm.xml"
+  - "world-server/src/main/java/**/domain/**/*.java"
+  - "world-server/src/main/java/**/required/*Repository.java"
+  - "world-server/src/main/resources/META-INF/orm.xml"
 ---
 
 # 영속성

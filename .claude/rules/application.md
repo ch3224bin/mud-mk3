@@ -1,7 +1,7 @@
 ---
 paths:
-  - "src/main/java/**/application/**/*.java"
-  - "src/main/java/**/support/**/*.java"
+  - "world-server/src/main/java/**/application/**/*.java"
+  - "world-server/src/main/java/**/support/**/*.java"
 ---
 
 # 애플리케이션 서비스

@@ -1,6 +1,6 @@
 ---
 paths:
-  - "src/**/*.java"
+  - "world-server/src/**/*.java"
 ---
 
 # 코드 스타일

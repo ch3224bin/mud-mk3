@@ -22,7 +22,7 @@
 | 테스트 라이브러리 (BOM 밖) | ArchUnit 1.5.1, Instancio 6.2.1 |
 | 운영 DB | PostgreSQL (드라이버는 BOM 기준 42.7.14) |
 | 테스트 DB | H2 메모리 DB (BOM 기준 2.4.240). 테스트용으로만 쓴다 |
-| 프론트엔드 | Next.js (버전 미정) |
+| 프론트엔드 | Next.js (버전 미정) — play-client, admin-console |
 | 게임 접속 | WebSocket, 메시지는 JSON → [실시간 통신과 월드 상태](#실시간-통신과-월드-상태) |
 | 배포 | Docker(Dockerfile) + docker-compose → 추후 Kubernetes → [배포](#배포) |
 
@@ -39,15 +39,35 @@
 ## 실시간 통신과 월드 상태
 
 - 게임 접속은 WebSocket으로 한다.
+- 브라우저(play-client)가 world-server에 WebSocket으로 직접 연결한다.
 - WebSocket으로 오가는 데이터는 JSON이다. 프론트엔드는 JSON을 받아 텍스트로 표현한다.
-- JSON 메시지 구조(종류·필드)는 (미정).
+  - 메시지는 종류를 나타내는 `type` 을 가진 JSON이다: `{type, ...}` (예: `room`, `say`, `combat`, `system`, `prompt`).
+  - 강조는 색 코드가 아니라 의미 정보로 보낸다(예: `tone`: `damage`, `npc`, `item`). 텍스트 모양과 테마는 프론트엔드가 정한다.
+  - 구체 메시지 목록과 스키마는 (미정).
 - 월드 상태(방에 누가 있는지, 전투 등)는 메모리에 두고, 주기적으로 또는 중요한 시점에 DB에 저장한다.
 - 저장 주기, 어떤 시점이 "중요한 시점" 인지, 틱은 (미정).
 
 ## 저장소 구성
 
-- mud-mk3 저장소 아래 모듈이 백엔드와 프론트엔드로 나뉜다.
-- 모듈 이름은 `backend`, `frontend` 가 아니라 자기 역할이 드러나는 이름으로 짓는다. 이름은 (미정).
+mud-mk3 저장소 아래 모듈 3개로 나뉜다. 모듈 이름은 역할이 드러나게 지었다(`backend`·`frontend` 같은 이름은 쓰지 않음).
+
+| 모듈 | 역할 | 기술 |
+|---|---|---|
+| `world-server` | 게임 서버. 월드 상태, 명령 처리, 데이터 저장. play-client와는 WebSocket, admin-console과는 REST로 통신 | Java Spring |
+| `play-client` | 플레이 화면 | Next.js |
+| `admin-console` | 관리 툴. play-client와 따로 분리된 앱 → [관리 툴](admin-tool.md) | Next.js |
+
+## 플레이 화면 (play-client)
+
+- 터미널형 화면이다: 스크롤되는 출력 로그 + 아래쪽 입력창.
+- 입력창에서 ↑↓ 로 명령 히스토리를 오가고, 탭으로 자동완성한다(명령어, 대상 이름).
+- 정적 클라이언트로 만든다. SSR 없이 Next.js 정적 export·클라이언트 위주로 쓴다.
+- world-server가 보낸 JSON 메시지를 `type`·`tone` 에 따라 텍스트로 그린다. → [실시간 통신과 월드 상태](#실시간-통신과-월드-상태)
+
+## 관리 툴 (admin-console)
+
+- play-client와 분리된 Next.js 앱이다.
+- world-server와 REST로 통신한다.
 
 ## 배포
 
@@ -69,8 +89,6 @@
 - 루트 패키지 이름은?
 - 월드 상태를 DB에 얼마나 자주 저장하는가? 어떤 시점이 "중요한 시점" 인가? (예: 접속 종료, 돌파, 아이템 획득 등)
 - 게임 틱(전투·회복 등이 도는 주기)을 어떻게 돌리는가?
-- 백엔드·프론트엔드 모듈 이름은? 관리 툴은 프론트엔드 모듈에 같이 두는가, 따로 두는가?
-- JSON 메시지 구조(종류·필드, 색·강조 정보를 넣는지)는?
-- Next.js 버전, 그리고 SSR 등 Next.js 서버 기능을 쓰는가, 정적 클라이언트로 쓰는가?
+- WebSocket JSON 메시지의 구체 목록과 스키마(`type` 종류, `tone` 값)는?
+- Next.js 버전은? admin-console도 play-client처럼 정적 클라이언트로 만드는가?
 - 계정·로그인은 어떤 방식인가? 계정 하나에 캐릭터 여럿을 둘 수 있는가? (미정) → [룰북: 캐릭터 생성](../game-rule/character.md#캐릭터-생성)
-- 관리 화면은 게임 화면과 같은 웹 앱 안에 있는가, 따로인가? (미정)

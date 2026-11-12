@@ -1,6 +1,6 @@
 ---
 paths:
-  - "src/main/java/**/domain/**/*.java"
+  - "world-server/src/main/java/**/domain/**/*.java"
 ---
 
 # 도메인 모델

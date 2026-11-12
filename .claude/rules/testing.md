@@ -1,6 +1,6 @@
 ---
 paths:
-  - "src/test/**"
+  - "world-server/src/test/**"
 ---
 
 # 테스트

@@ -1,6 +1,6 @@
 ---
 paths:
-  - "src/**/*.java"
+  - "world-server/src/**/*.java"
 ---
 
 # 아키텍처

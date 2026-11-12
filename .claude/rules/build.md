@@ -1,9 +1,9 @@
 ---
 paths:
-  - "build.gradle.kts"
-  - "settings.gradle.kts"
-  - "gradle/**"
-  - "compose.yaml"
+  - "world-server/build.gradle.kts"
+  - "world-server/settings.gradle.kts"
+  - "world-server/gradle/**"
+  - "world-server/compose.yaml"
 ---
 
 # 빌드
