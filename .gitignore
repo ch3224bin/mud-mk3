@@ -1,3 +1,6 @@
 # IntelliJ IDEA
 .idea/
 *.iml
+
+# superpowers SDD scratch
+.superpowers/
