@@ -29,6 +29,13 @@ class RoomTest {
     }
 
     @Test
+    void createStripsName() {
+        Room stripped = Room.create(zone, new RoomSaveInfo("  샘터 ", "맑은 샘이 솟는다."));
+
+        assertThat(stripped.getName()).isEqualTo("샘터");
+    }
+
+    @Test
     void update() {
         Zone other = ZoneFixture.createZone("황풍곡");
 

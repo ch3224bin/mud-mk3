@@ -1,6 +1,12 @@
 package mudmk3.domain.zone;
 
+import mudmk3.application.zone.provided.ZoneSaveRequest;
+
 public class ZoneFixture {
+
+    public static ZoneSaveRequest createZoneSaveRequest(String name) {
+        return new ZoneSaveRequest(name, "푸른 돌이 흩어진 숲이다.");
+    }
 
     public static ZoneSaveInfo createZoneSaveInfo(String name) {
         return new ZoneSaveInfo(name, "푸른 돌이 흩어진 숲이다.");

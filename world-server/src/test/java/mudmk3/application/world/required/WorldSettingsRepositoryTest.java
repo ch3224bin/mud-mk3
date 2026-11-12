@@ -43,5 +43,7 @@ record WorldSettingsRepositoryTest(
             assertThat(start.getName()).isEqualTo("청석숲 오솔길");
         });
         assertThat(found.isStartRoom(roomRepository.findById(room.getId()).orElseThrow())).isTrue();
+        // 분리된(detached) 원본으로 물어도 id로 같은 방이다
+        assertThat(found.isStartRoom(room)).isTrue();
     }
 }

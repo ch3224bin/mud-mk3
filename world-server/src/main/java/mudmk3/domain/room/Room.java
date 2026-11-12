@@ -78,7 +78,7 @@ public class Room extends AbstractEntity {
     private void apply(Zone zone, RoomSaveInfo info) {
         requireNonNull(info);
         this.zone = requireNonNull(zone);
-        this.name = requireNonNull(info.name());
+        this.name = requireNonNull(info.name()).strip();
         this.description = requireNonNull(info.description());
     }
 }
