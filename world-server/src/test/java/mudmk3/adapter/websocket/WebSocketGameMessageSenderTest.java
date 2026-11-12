@@ -11,8 +11,9 @@ import mudmk3.application.game.required.GameMessage.RoomMessage.ZoneView;
 import mudmk3.application.game.required.GameMessage.SayMessage;
 import mudmk3.application.game.required.GameMessage.SessionMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -21,19 +22,27 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class WebSocketGameMessageSenderTest {
 
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
     private final WebSocketGameMessageSender sender = new WebSocketGameMessageSender(jsonMapper);
+
+    @AfterEach
+    void stopSender() {
+        sender.destroy();
+    }
 
     @Test
     void sessionJson() {
@@ -97,64 +106,137 @@ class WebSocketGameMessageSenderTest {
     }
 
     @Test
-    void sendToRegisteredSession() throws IOException {
-        WebSocketSession session = openSession("s1");
-        sender.register(session);
+    void sendToRegisteredSession() {
+        FakeSession session = new FakeSession("s1");
+        sender.register(session.mock);
 
         sender.send("s1", SystemMessage.info("안내"));
 
-        ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
-        verify(session).sendMessage(captor.capture());
-        assertThat(jsonMapper.readTree(captor.getValue().getPayload()))
+        session.awaitEvents(1);
+        assertThat(jsonMapper.readTree(session.events().getFirst()))
                 .isEqualTo(jsonMapper.readTree("""
                         {"type":"system","text":"안내","tone":"info"}"""));
     }
 
     @Test
-    void sendToUnknownSessionIgnored() throws IOException {
-        WebSocketSession session = openSession("s1");
-        sender.register(session);
+    void sendToUnknownSessionIgnored() throws InterruptedException {
+        FakeSession session = new FakeSession("s1");
+        sender.register(session.mock);
         sender.unregister("s1");
 
         sender.send("s1", SystemMessage.info("안내"));
         sender.send("nobody", SystemMessage.info("안내"));
         sender.close("nobody", GameCloseReason.QUIT);
 
-        verify(session, never()).sendMessage(any());
+        Thread.sleep(100);
+        assertThat(session.events()).isEmpty();
     }
 
     @Test
-    void sendFailureIsSwallowed() throws IOException {
-        WebSocketSession session = openSession("s1");
-        doThrow(new IOException("끊김")).when(session).sendMessage(any());
-        sender.register(session);
+    void messagesKeepOrder() {
+        FakeSession session = new FakeSession("s1");
+        sender.register(session.mock);
 
-        sender.send("s1", SystemMessage.info("안내"));
+        for (int i = 0; i < 200; i++) {
+            sender.send("s1", SystemMessage.info("줄 " + i));
+        }
+
+        session.awaitEvents(200);
+        List<String> texts = session.events().stream()
+                .map(json -> jsonMapper.readTree(json).get("text").asString())
+                .toList();
+        assertThat(texts).containsExactlyElementsOf(
+                IntStream.range(0, 200).mapToObj(i -> "줄 " + i).toList());
     }
 
     @Test
-    void closeCodes() throws IOException {
+    void closeAfterPendingMessages() {
+        FakeSession session = new FakeSession("s1");
+        session.block();
+        sender.register(session.mock);
+
+        sender.send("s1", SystemMessage.info("하나"));
+        sender.send("s1", SystemMessage.info("둘"));
+        sender.close("s1", GameCloseReason.QUIT);
+        sender.send("s1", SystemMessage.info("닫은 뒤"));
+        session.unblock();
+
+        session.awaitEvents(3);
+        assertThat(session.events()).hasSize(3);
+        assertThat(session.events().get(0)).contains("하나");
+        assertThat(session.events().get(1)).contains("둘");
+        assertThat(session.events().get(2)).isEqualTo("close:1000");
+    }
+
+    @Test
+    void sendDoesNotWaitForBlockedSession() {
+        FakeSession stuck = new FakeSession("stuck");
+        stuck.block();
+        FakeSession other = new FakeSession("other");
+        sender.register(stuck.mock);
+        sender.register(other.mock);
+
+        long started = System.nanoTime();
+        for (int i = 0; i < 50; i++) {
+            sender.send("stuck", SystemMessage.info("안내 " + i));
+            sender.send("other", SystemMessage.info("안내 " + i));
+        }
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+
+        assertThat(elapsedMillis).isLessThan(1000);
+        other.awaitEvents(50);
+        assertThat(stuck.events()).isEmpty();
+        stuck.unblock();
+    }
+
+    @Test
+    void pendingLimitExceededClosesSession() {
+        FakeSession stuck = new FakeSession("stuck");
+        stuck.block();
+        sender.register(stuck.mock);
+        String big = "가".repeat(60_000); // 약 180KB
+
+        sender.send("stuck", SystemMessage.info("첫 메시지에서 막힌다"));
+        stuck.awaitSendStarted();
+        for (int i = 0; i < 4; i++) {
+            sender.send("stuck", SystemMessage.info(big));
+        }
+        sender.send("stuck", SystemMessage.info("넘친 뒤"));
+        stuck.unblock();
+
+        stuck.awaitEvents(2);
+        assertThat(stuck.events()).hasSize(2);
+        assertThat(stuck.events().getFirst()).contains("첫 메시지에서 막힌다");
+        assertThat(stuck.events().get(1)).isEqualTo("close:4500");
+    }
+
+    @Test
+    void sendFailureClosesSession() throws IOException {
+        FakeSession session = new FakeSession("s1");
+        doThrow(new IOException("끊김")).when(session.mock).sendMessage(any());
+        sender.register(session.mock);
+
+        assertThatNoException().isThrownBy(() -> sender.send("s1", SystemMessage.info("안내")));
+
+        session.awaitEvents(1);
+        assertThat(session.events()).containsExactly("close:4500");
+    }
+
+    @Test
+    void closeCodes() {
         assertCloseCode(GameCloseReason.QUIT, 1000);
         assertCloseCode(GameCloseReason.REPLACED, 4409);
         assertCloseCode(GameCloseReason.WORLD_NOT_READY, 1013);
     }
 
-    private void assertCloseCode(GameCloseReason reason, int code) throws IOException {
-        WebSocketSession session = openSession("close-" + reason);
-        sender.register(session);
+    private void assertCloseCode(GameCloseReason reason, int code) {
+        FakeSession session = new FakeSession("close-" + reason);
+        sender.register(session.mock);
 
         sender.close("close-" + reason, reason);
 
-        ArgumentCaptor<CloseStatus> captor = ArgumentCaptor.forClass(CloseStatus.class);
-        verify(session).close(captor.capture());
-        assertThat(captor.getValue().getCode()).isEqualTo(code);
-    }
-
-    private static WebSocketSession openSession(String id) {
-        WebSocketSession session = mock(WebSocketSession.class);
-        when(session.getId()).thenReturn(id);
-        when(session.isOpen()).thenReturn(true);
-        return session;
+        session.awaitEvents(1);
+        assertThat(session.events()).containsExactly("close:" + code);
     }
 
     private void assertJson(GameMessage message, String expected) {
@@ -162,5 +244,63 @@ class WebSocketGameMessageSenderTest {
         JsonNode actual = jsonMapper.readTree(json);
         assertThat(actual).isEqualTo(jsonMapper.readTree(expected));
         assertThat(json).startsWith("{\"type\":\"" + message.type() + "\",");
+    }
+
+    /** 보낸 메시지(payload)와 닫기(close:코드)를 차례로 기록하는 세션. block() 하면 보내기가 unblock() 까지 막힌다 */
+    private static final class FakeSession {
+
+        private final WebSocketSession mock = Mockito.mock(WebSocketSession.class);
+        private final List<String> events = new CopyOnWriteArrayList<>();
+        private final CountDownLatch sendStarted = new CountDownLatch(1);
+        private volatile CountDownLatch gate = new CountDownLatch(0);
+
+        FakeSession(String id) {
+            when(mock.getId()).thenReturn(id);
+            when(mock.isOpen()).thenReturn(true);
+            try {
+                doAnswer(invocation -> {
+                    sendStarted.countDown();
+                    gate.await();
+                    events.add(invocation.<TextMessage>getArgument(0).getPayload());
+                    return null;
+                }).when(mock).sendMessage(any());
+                doAnswer(invocation -> {
+                    events.add("close:" + invocation.<CloseStatus>getArgument(0).getCode());
+                    return null;
+                }).when(mock).close(any());
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        void block() {
+            gate = new CountDownLatch(1);
+        }
+
+        void unblock() {
+            gate.countDown();
+        }
+
+        List<String> events() {
+            return events;
+        }
+
+        void awaitSendStarted() {
+            try {
+                assertThat(sendStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        void awaitEvents(int count) {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (events.size() < count) {
+                if (System.nanoTime() > deadline) {
+                    throw new AssertionError(count + "개를 기다렸으나 " + events.size() + "개: " + events);
+                }
+                Thread.onSpinWait();
+            }
+        }
     }
 }

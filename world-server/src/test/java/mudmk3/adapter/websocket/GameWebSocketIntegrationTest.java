@@ -1,6 +1,7 @@
 package mudmk3.adapter.websocket;
 
 import mudmk3.application.character.provided.CharacterCreator;
+import mudmk3.application.game.provided.GameConnector;
 import mudmk3.application.game.required.PresenceRepository;
 import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
@@ -23,6 +24,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketHttpHeaders;
@@ -32,11 +34,18 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.Socket;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -46,6 +55,10 @@ import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 실제 서버(무작위 포트)에 개발용 로그인 세션 쿠키로 WebSocket 접속한다.
@@ -69,6 +82,8 @@ class GameWebSocketIntegrationTest {
     private final WorldSettingsEditor worldSettingsEditor;
     private final CharacterCreator characterCreator;
     private final PresenceRepository presenceRepository;
+    private final GameConnector gameConnector;
+    private final WebSocketGameMessageSender sender;
     private final JdbcTemplate jdbcTemplate;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
     private final List<Client> clients = new ArrayList<>();
@@ -80,6 +95,8 @@ class GameWebSocketIntegrationTest {
             WorldSettingsEditor worldSettingsEditor,
             CharacterCreator characterCreator,
             PresenceRepository presenceRepository,
+            GameConnector gameConnector,
+            WebSocketGameMessageSender sender,
             JdbcTemplate jdbcTemplate
     ) {
         this.port = port;
@@ -88,6 +105,8 @@ class GameWebSocketIntegrationTest {
         this.worldSettingsEditor = worldSettingsEditor;
         this.characterCreator = characterCreator;
         this.presenceRepository = presenceRepository;
+        this.gameConnector = gameConnector;
+        this.sender = sender;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -159,12 +178,13 @@ class GameWebSocketIntegrationTest {
     }
 
     @Test
-    void foreignOriginRejected() {
+    void foreignOriginRejected() throws Exception {
         String cookie = login("hanbai@example.com").cookie();
 
+        assertThat(handshakeStatus("http://evil.example")).isEqualTo(403);
+        assertThat(handshakeStatus(ALLOWED_ORIGIN)).isEqualTo(101);
         assertThatThrownBy(() -> connect(cookie, "http://evil.example"))
-                .isInstanceOf(ExecutionException.class)
-                .hasStackTraceContaining("403");
+                .isInstanceOf(ExecutionException.class);
     }
 
     @Test
@@ -178,6 +198,8 @@ class GameWebSocketIntegrationTest {
         client.send("{\"type\":\"chat\",\"text\":\"보기\"}");
         assertThat(client.next()).isEqualTo(badMessage);
         client.send("{\"type\":\"command\"}");
+        assertThat(client.next()).isEqualTo(badMessage);
+        client.session().sendMessage(new BinaryMessage(new byte[]{1, 2, 3}));
         assertThat(client.next()).isEqualTo(badMessage);
 
         client.command("보기");
@@ -252,6 +274,40 @@ class GameWebSocketIntegrationTest {
     }
 
     @Test
+    void stuckClientDoesNotDelayOthers() throws Exception {
+        // 받아 가지 않는 클라이언트: 보내기가 풀어 줄 때까지 막힌다
+        CountDownLatch release = new CountDownLatch(1);
+        WebSocketSession stuck = mock(WebSocketSession.class);
+        when(stuck.getId()).thenReturn("stuck-session");
+        when(stuck.isOpen()).thenReturn(true);
+        doAnswer(invocation -> {
+            release.await();
+            return null;
+        }).when(stuck).sendMessage(any());
+        sender.register(stuck);
+        Long stuckAccountId = login("wangsun@example.com").accountId();
+        characterCreator.create(stuckAccountId, "왕선");
+        gameConnector.connect("stuck-session", stuckAccountId);
+        try {
+            Client client = enter("hanbai@example.com", "한백");
+            assertThat(client.lastRoom().get("occupants")).isEqualTo(json("""
+                    [{"name":"왕선","kind":"player"}]"""));
+
+            long started = System.nanoTime();
+            for (int i = 0; i < 20; i++) {
+                client.command("'안녕 " + i);
+                JsonNode said = client.next(1);
+                assertThat(said.get("message").asString()).isEqualTo("안녕 " + i);
+            }
+            assertThat(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)).isLessThan(5000);
+        } finally {
+            release.countDown();
+            gameConnector.disconnect("stuck-session");
+            sender.unregister("stuck-session");
+        }
+    }
+
+    @Test
     void quitClosesWith1000() throws Exception {
         Client client = enter("hanbai@example.com", "한백");
 
@@ -307,6 +363,27 @@ class GameWebSocketIntegrationTest {
         return client;
     }
 
+    /** 쿠키 없이 핸드셰이크 요청만 보내 응답 상태 코드를 본다 */
+    private int handshakeStatus(String origin) throws IOException {
+        try (Socket socket = new Socket("localhost", port)) {
+            socket.setSoTimeout((int) TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS));
+            String request = "GET /ws/game HTTP/1.1\r\n"
+                    + "Host: localhost:" + port + "\r\n"
+                    + "Upgrade: websocket\r\n"
+                    + "Connection: Upgrade\r\n"
+                    + "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+                    + "Sec-WebSocket-Version: 13\r\n"
+                    + "Origin: " + origin + "\r\n\r\n";
+            OutputStream out = socket.getOutputStream();
+            out.write(request.getBytes(StandardCharsets.US_ASCII));
+            out.flush();
+            String statusLine = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII))
+                    .readLine();
+            if (statusLine == null) throw new AssertionError("핸드셰이크 응답이 없다");
+            return Integer.parseInt(statusLine.split(" ")[1]);
+        }
+    }
+
     private JsonNode json(String text) {
         return jsonMapper.readTree(text);
     }
@@ -335,7 +412,11 @@ class GameWebSocketIntegrationTest {
         }
 
         JsonNode next() throws InterruptedException {
-            String payload = received.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return next(TIMEOUT_SECONDS);
+        }
+
+        JsonNode next(long timeoutSeconds) throws InterruptedException {
+            String payload = received.poll(timeoutSeconds, TimeUnit.SECONDS);
             if (payload == null) throw new AssertionError("메시지가 오지 않았다");
             return jsonMapper.readTree(payload);
         }

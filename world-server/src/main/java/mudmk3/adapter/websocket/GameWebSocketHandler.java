@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import mudmk3.application.game.provided.GameConnector;
 import mudmk3.support.stereotype.Adapter;
 import org.jspecify.annotations.Nullable;
+import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -49,6 +50,13 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         gameConnector.handle(session.getId(), inbound.text());
+    }
+
+    /** JSON 텍스트가 아니므로 닫지 않고 알 수 없는 메시지로 답한다(기본 동작은 1003으로 닫음) */
+    @Override
+    protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) {
+        if (!isAuthenticated(session)) return;
+        sender.sendError(session.getId(), BAD_MESSAGE, BAD_MESSAGE_TEXT);
     }
 
     @Override
