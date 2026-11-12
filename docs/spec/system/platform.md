@@ -51,7 +51,7 @@
 
 ## 배포
 
-- 모듈마다 Dockerfile을 만든다.
+- Dockerfile을 만든다. 모듈별로 둘지 등 구성은 (미정).
 - 처음에는 맥북에서 docker-compose로 운영해 본다.
 - 추후 Kubernetes 환경으로 배포한다. 시기와 구성은 (미정).
 
