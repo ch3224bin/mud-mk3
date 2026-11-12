@@ -25,7 +25,7 @@ world-server가 서버 측에서 Spring Security OAuth2 Login으로 Google 로�
   2. world-server가 `client` 값을 세션에 적고 `/oauth2/authorization/google` 로 리다이렉트한다. Google 로그인·동의 뒤 `/login/oauth2/code/google` 로 돌아온다.
   3. 성공하면 Google `sub`·`email` 로 계정을 찾거나 만든다. `email_verified` 가 true가 아니면 실패다. 그리고 세션의 `client` 값에 맞는 클라이언트 주소로 리다이렉트한다: `play` → `MUD_PLAY_CLIENT_URL`, `admin` → `MUD_ADMIN_CONSOLE_URL`. 값이 없거나 다르면 `play` 이고, 임의 URL로는 보내지 않는다(열린 리다이렉트 방지). 실패하면 같은 주소에 `?loginError=1` 을 붙인다.
   4. 클라이언트는 `GET /api/auth/me` 를 `credentials: "include"` 로 불러 로그인 여부를 안다. 401이면 로그인 버튼을 보인다.
-  5. 로그아웃은 `POST /api/auth/logout` 이고 세션을 무효화한 뒤 204를 준다.
+  5. 로그아웃은 `POST /api/auth/logout` 이고 세션을 무효화한 뒤 204를 준다. 세션이 이미 끝났어도 204다(클라이언트도 401을 로그아웃 성공으로 본다). (제안)
 - 인증 REST API (제안):
 
 | 메서드 · 경로 | 응답 |
@@ -36,6 +36,7 @@ world-server가 서버 측에서 Spring Security OAuth2 Login으로 Google 로�
 | `POST /api/auth/dev` | 개발용 로그인(아래). 조건이 아니면 404 |
 
 - 세션 쿠키는 `JSESSIONID` 이고 `HttpOnly`, `SameSite=Lax` 다. `localhost:3000`·`3001` 과 `localhost:8080` 은 오리진은 다르지만 같은 사이트(쿠키는 포트를 가리지 않음)라 Lax 쿠키가 간다. 그래서 브라우저 주소는 항상 `localhost` 로 쓴다. (제안)
+- 세션 유휴 시간은 Spring 기본 30분이다. 열린 WebSocket은 HTTP 세션을 늘리지 않는다. (제안)
 - 세션은 world-server 메모리에 둔다. 서버를 다시 시작하면 다시 로그인해야 한다. 1차에는 이를 허용하고, 세션 저장소를 DB로 옮기는 것(Spring Session JDBC)은 다음 이터레이션이다. (제안)
 - 인증 안 된 `/api/**` 요청은 Google로 리다이렉트하지 않고 401을 준다. 관리자가 아니면 `/api/admin/**` 는 403이다. 401·403 본문은 `ProblemDetail` JSON이고 `detail` 은 각각 `로그인이 필요합니다.`·`권한이 없습니다.` 다. (제안)
 - 세션의 인증 정보(principal)는 계정 id·이메일·관리자 여부 하나로 통일한다(Google 로그인·개발용 로그인 공통). (제안)

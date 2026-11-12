@@ -17,7 +17,23 @@
 | 9. play-client — 터미널형 플레이 화면 | 1194376 | Next 16.4.6 정적 export, dev 포트 3000, 설정·`api.ts`·`auth.ts` 는 admin-console 과 같은 모양(`client=play`). `errorMessage` 는 TypeError만 연결 실패 문구, 그 밖은 `console.error` + `요청을 처리하지 못했습니다.`. `AuthMessage` 는 D4대로 `never`(보낼 인증 메시지 없음). `GameSocket` 은 열리기 전 명령을 모았다가 열리면 보내고, 직접 `close()` 한 뒤의 메시지·닫힘은 알리지 않는다(StrictMode 이중 마운트 대비). 빈 줄은 보내지도 메아리하지도 않음. 끊긴 뒤 Enter 무시. 한글 조합 중(`isComposing`) 키는 무시. 4401 → 로그인 화면, 4409/그 밖 → 로그 줄 + `다시 연결`, 1000 → 버튼만 |
 | 10. Docker·compose·README·.env.example | a3c3c3d, a61362a | 루트 `compose.yaml`(postgres 포트 비공개, 볼륨 `pgdata`) + 모듈별 Dockerfile(world-server JDK→JRE 비루트, 프론트 node→nginx). `world-server/compose.yaml` 은 bootRun `local` 개발 DB 전용으로 그대로 둠(프로젝트 이름이 달라 루트 compose와 안 부딪침). `spring-boot-docker-compose` 는 developmentOnly라 bootJar에 없어 컨테이너에서 `local` 프로필이어도 compose를 찾지 않음. world-server healthcheck 없음(actuator 없음) |
 | 12. 통합 확인 — compose와 smoke-test.mjs | 82dd4b0 | compose 스모크 시나리오 전부 통과, 세 모듈 테스트 통과. 브라우저 수동 확인 목록은 README |
+| 11. 스펙 반영 — 제안 결정을 `(제안)` 으로 | 142264e | docs/spec/system 전반, .claude/rules 루트 패키지 `mudmk3` |
+| 최종 리뷰 수정 | d165e92 | 세션 만료 뒤 로그아웃(permitAll·클라이언트 401=성공), Shift+Tab, 4409 문구 중복, .gitignore |
+
+## 상태
+
+- 1차 이터레이션 구현 완료 (2026-11-13). 검증: world-server 261 테스트 통과, play-client 60, admin-console 27, 두 앱 빌드 성공, compose 스모크(scripts/smoke-test.mjs) 시나리오 통과.
+
+## 리드 판정 (Ruling)
+
+- Task 1: 테스트 설정은 `application-test.yml` + Gradle test 태스크에서 test 프로필 활성화(테스트 yml이 메인 설정을 가리던 문제). 틀렸을 때 비용: 설정 정리 조금.
+- Task 6: 방 삭제 반영을 관리자 트랜잭션 안(게임 락)에서 커밋 뒤(AFTER_COMMIT)로 옮김 — 동시 방 삭제 시 Java 락↔DB 락 교착 방지. 비용: 반영 전 짧은 틈(명령이 오면 그 자리에서 시작 방으로 옮겨 처리).
+- Task 6 (보류): 이웃한 방 두 개를 동시에 지우면 DB가 교착을 감지해 한쪽 관리 요청이 500 — 1차에서는 수용(관리자 전용, 드묾, 다시 하면 됨).
+- Task 7: 게임 락 아래 블로킹 전송을 1차 한계로 받지 않고 연결별 보내기 큐(512KB 한도, 넘으면 4500)로 고침.
+- Task 10: 6줄 수정은 별도 재리뷰 대신 리드가 diff 확인.
+- Task 12: 모듈 코드 변경이 없어 태스크 리뷰 없이 최종 전체 리뷰로 갈음.
 
 ## 다음 할 일
 
-- Task 11: 스펙 반영 (진행 중)
+- 창호: Google OAuth 클라이언트 확인(README), 브라우저 수동 확인(README "수동 확인 — 브라우저" 체크리스트).
+- 다음 이터레이션으로 미룬 Minor(약 45건)는 최종 리뷰에서 머지 막지 않음으로 분류. 대표: play-client 강제 자동 스크롤, admin-console 중간 401 시 로그인 화면 이동, 출구 삭제 확인 문구, 세션 쿠키 secure(HTTPS 때), 세션 저장소 DB화, 동시 방 삭제 500.
