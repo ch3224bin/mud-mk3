@@ -1,5 +1,7 @@
 package mudmk3.adapter.security;
 
+import mudmk3.TestFakesConfiguration;
+import org.springframework.context.annotation.Import;
 import mudmk3.application.account.provided.AccountPrincipal;
 import mudmk3.application.character.required.CharacterRepository;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(properties = "spring.datasource.url=jdbc:h2:mem:security-it;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE")
+@Import(TestFakesConfiguration.class)
 record SecurityIntegrationTest(MockMvcTester mvc, CharacterRepository characterRepository) {
 
     @Test

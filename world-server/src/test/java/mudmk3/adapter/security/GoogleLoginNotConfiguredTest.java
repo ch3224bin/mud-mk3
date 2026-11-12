@@ -1,5 +1,7 @@
 package mudmk3.adapter.security;
 
+import mudmk3.TestFakesConfiguration;
+import org.springframework.context.annotation.Import;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.security.oauth2.client.registration.google.client-secret=not-configured"
 })
 @ExtendWith(OutputCaptureExtension.class)
+@Import(TestFakesConfiguration.class)
 class GoogleLoginNotConfiguredTest {
 
     @Test

@@ -1,5 +1,7 @@
 package mudmk3.adapter.security;
 
+import mudmk3.TestFakesConfiguration;
+import org.springframework.context.annotation.Import;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -18,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "mud.auth.dev-login.enabled=true",
         "spring.datasource.url=jdbc:h2:mem:dev-login-flag-only;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE"
 })
+@Import(TestFakesConfiguration.class)
 record DevLoginFlagWithoutLocalProfileTest(MockMvcTester mvc) {
 
     @Test
