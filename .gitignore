@@ -4,3 +4,6 @@
 
 # superpowers SDD scratch
 .superpowers/
+
+# 로컬 비밀 값 (.env.example 을 복사해 쓴다)
+.env

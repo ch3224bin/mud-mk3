@@ -1,0 +1,58 @@
+# 맥북에서 네 서비스를 함께 띄운다: docker compose up --build
+# 값은 루트 .env 에서 읽는다(.env.example 을 복사해 만든다).
+# world-server/compose.yaml 은 별개다 — ./gradlew bootRun 개발 실행 때 DB만 띄우는 용도(spring-boot-docker-compose).
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_DB: mud
+      POSTGRES_USER: mud
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "mud", "-d", "mud"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  world-server:
+    build: ./world-server
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mud
+      SPRING_DATASOURCE_USERNAME: mud
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-not-configured}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-not-configured}
+      MUD_ADMIN_EMAILS: ${MUD_ADMIN_EMAILS:-}
+      MUD_PLAY_CLIENT_URL: http://localhost:3000/
+      MUD_ADMIN_CONSOLE_URL: http://localhost:3001/
+      MUD_CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      MUD_DEV_LOGIN_ENABLED: ${MUD_DEV_LOGIN_ENABLED:-false}
+
+  play-client:
+    build:
+      context: ./play-client
+      args:
+        NEXT_PUBLIC_WORLD_SERVER_URL: http://localhost:8080
+        NEXT_PUBLIC_DEV_LOGIN: ${MUD_DEV_LOGIN_ENABLED:-false}
+    ports:
+      - "3000:80"
+
+  admin-console:
+    build:
+      context: ./admin-console
+      args:
+        NEXT_PUBLIC_WORLD_SERVER_URL: http://localhost:8080
+        NEXT_PUBLIC_DEV_LOGIN: ${MUD_DEV_LOGIN_ENABLED:-false}
+    ports:
+      - "3001:80"
+
+volumes:
+  pgdata: {}
