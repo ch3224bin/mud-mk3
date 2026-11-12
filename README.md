@@ -160,3 +160,55 @@ cd world-server && ./gradlew build                      # 테스트 + SpotBugs (
 cd play-client && nvm use && npm ci && npm test && npm run build
 cd admin-console && nvm use && npm ci && npm test && npm run build
 ```
+
+### 스모크 테스트 (compose로 띄운 뒤)
+
+`scripts/smoke-test.mjs` 가 떠 있는 world-server에 REST·WebSocket으로 붙어 1차 시나리오를 자동으로 돈다(Node 26 내장 `fetch`·`WebSocket` 만 씀, 설치할 것 없음). 개발용 로그인이 켜져 있어야 한다.
+
+- 관리자 로그인 → 지역·방 `광장`·`북쪽 길`·양방향 출구·시작 방 지정. 플레이어는 관리 API 403, 미로그인 401, `X-MUD-Client` 없는 변경 403.
+- 미로그인 WebSocket → `AUTH_REQUIRED` 후 4401, 허용 밖 `Origin` → 핸드셰이크 거절.
+- 플레이어 두 명 캐릭터 생성 → 나타난다·보기·이동(떠난다·다가온다)·말하기·누구·종료(1000)·사라진다.
+- 관리자가 플레이어가 서 있는 방을 지움 → 시작 방으로 옮겨짐. 같은 계정 재접속 → 앞 연결 4409.
+
+`.env` 는 위 [개발용 로그인](#개발용-로그인) 값에 스모크 테스트의 관리자 이메일 `smoke-admin@example.com` 을 더한다.
+
+```sh
+# .env
+SPRING_PROFILES_ACTIVE=local
+MUD_DEV_LOGIN_ENABLED=true
+MUD_ADMIN_EMAILS=admin@example.com,smoke-admin@example.com
+```
+
+```sh
+docker compose up -d --build
+source "$NVM_DIR/nvm.sh" && nvm use 26.13.1
+node scripts/smoke-test.mjs                      # 기본 http://localhost:8080. 끝에 SMOKE OK, 종료 코드 0
+SMOKE_ADMIN_EMAIL=admin@example.com node scripts/smoke-test.mjs   # .env 를 안 고치고 이미 있는 관리자 이메일로
+docker compose down                              # 볼륨은 남는다
+```
+
+실패하면 어느 단계에서 무엇이 기대와 달랐는지(받은 메시지 포함) 출력하고 종료 코드 1. 실행마다 지역(`스모크 <실행 번호>`)·플레이어 계정·캐릭터(한글 4자)를 새로 만들고 지우지 않는다. 시작 방도 그 실행의 `광장` 으로 바뀐다 — 다른 맵을 쓰고 있으면 끝난 뒤 admin-console에서 시작 방을 다시 지정한다.
+
+### 수동 확인 — 브라우저
+
+스모크 테스트가 못 보는 것(화면·입력·실제 쿠키). 개발용 로그인으로 한다.
+
+- [ ] http://localhost:3001 개발용 로그인(관리자 이메일) → 지역·방·출구(방위 → 대상 지역 → 대상 방, `반대 방향도`)를 만들고 시작 방 지정. 위쪽 바에 시작 방이 보인다.
+- [ ] 관리자 아닌 이메일로 admin-console 로그인 → `관리자만 쓸 수 있습니다.` 와 로그아웃 버튼.
+- [ ] http://localhost:3000 을 두 창(일반 창 + 시크릿 창)에서 서로 다른 이메일로 로그인 → 이름 정하기(한글 입력기로 조합 중인 글자가 Enter에 잘리지 않는지) → `확인`.
+- [ ] 이동·말하기가 다른 창에 보인다. ↑↓ 입력 기록, Tab 으로 명령어·같은 방 사람 이름 자동완성.
+- [ ] 한 창에서 같은 계정으로 새 탭을 열면 앞 탭이 끊기고 "다시 연결" 버튼이 보인다. 탭을 그냥 닫으면 다른 창에 `사라진다`.
+- [ ] 로그아웃 뒤 새로 고침 → 로그인 화면.
+
+### 수동 확인 — Google 로그인
+
+실제 Google 자격 증명으로 한 번 확인한다(자동 테스트는 Google 없이 돈다).
+
+- [ ] `.env` 에 실제 `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET` 을 넣고, 개발용 로그인은 끈다(`MUD_DEV_LOGIN_ENABLED=false`, `SPRING_PROFILES_ACTIVE=` 비움). `MUD_ADMIN_EMAILS` 에 내 Google 이메일. `docker compose up -d --build` (클라이언트 다시 빌드).
+- [ ] world-server 시작 로그에 `Google 로그인이 설정되지 않았습니다` 경고가 **없다**.
+- [ ] Google Cloud Console에서 그 클라이언트의 승인된 리디렉션 URI가 `http://localhost:8080/login/oauth2/code/google` 인지 확인한다.
+- [ ] 두 클라이언트에 개발용 로그인 폼이 보이지 않고, `POST /api/auth/dev` 가 404.
+- [ ] http://localhost:3001 `Google로 로그인` → Google 동의 → admin-console로 돌아와 관리 화면이 보인다.
+- [ ] `MUD_ADMIN_EMAILS` 에 없는 Google 계정으로 admin-console 로그인 → `관리자만 쓸 수 있습니다.`
+- [ ] http://localhost:3000 `Google로 로그인` → 돌아와 캐릭터 생성 → 이동·말하기.
+- [ ] Google 화면에서 취소하면 클라이언트로 돌아와 `로그인하지 못했습니다. 다시 시도하십시오.`
