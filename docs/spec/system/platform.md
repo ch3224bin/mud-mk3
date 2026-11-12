@@ -24,6 +24,7 @@
 | 테스트 DB | H2 메모리 DB (BOM 기준 2.4.240). 테스트용으로만 쓴다 |
 | 프론트엔드 | Next.js (버전 미정) — play-client, admin-console |
 | 게임 접속 | WebSocket, 메시지는 JSON → [실시간 통신과 월드 상태](#실시간-통신과-월드-상태) |
+| 인증 | Google 로그인 → [인증](auth.md) |
 | 배포 | Docker(Dockerfile) + docker-compose → 추후 Kubernetes → [배포](#배포) |
 
 - 버전은 "최신 버전으로" 라는 결정에 따라 2026-11-12 기준 최신 안정판으로 확정했다.
@@ -91,4 +92,3 @@ mud-mk3 저장소 아래 모듈 3개로 나뉜다. 모듈 이름은 역할이 �
 - 게임 틱(전투·회복 등이 도는 주기)을 어떻게 돌리는가?
 - WebSocket JSON 메시지의 구체 목록과 스키마(`type` 종류, `tone` 값)는?
 - Next.js 버전은? admin-console도 play-client처럼 정적 클라이언트로 만드는가?
-- 계정·로그인은 어떤 방식인가? 계정 하나에 캐릭터 여럿을 둘 수 있는가? (미정) → [룰북: 캐릭터 생성](../game-rule/character.md#캐릭터-생성)
