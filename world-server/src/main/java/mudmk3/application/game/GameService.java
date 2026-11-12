@@ -26,14 +26,14 @@ import mudmk3.domain.room.Exit;
 import mudmk3.domain.room.Room;
 import mudmk3.domain.shared.Josa;
 import mudmk3.support.stereotype.ApplicationService;
-import org.springframework.context.event.EventListener;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +86,8 @@ public class GameService implements GameConnector {
     private final ReentrantLock lock = new ReentrantLock(true);
     /** 연결 id → 게임 상태. {@link #lock} 안에서만 다룬다 */
     private final Map<String, GameSession> sessions = new HashMap<>();
+    /** 이번 처리에서 보낼 것. {@link #lock} 안에서만 다룬다 */
+    private final List<Runnable> outbox = new ArrayList<>();
 
     public GameService(
             CharacterFinder characterFinder,
@@ -126,39 +128,40 @@ public class GameService implements GameConnector {
     }
 
     /**
-     * 방이 지워지면(지우는 트랜잭션 안에서 동기로 불림) 그 방의 캐릭터를 시작 방으로 옮긴다.
-     * 락은 지우는 트랜잭션이 끝날 때 푼다. 그 사이에 게임 처리가 아직 커밋되지 않은 방을 읽어
-     * 사라질 방으로 들어가는 일을 막는다.
+     * 방을 지운 트랜잭션이 커밋된 뒤 그 방의 캐릭터를 시작 방으로 옮긴다(D11).
+     * 관리자 트랜잭션 안에서는 게임 락을 잡지 않는다(DB 행 락과 게임 락이 엇갈려 교착하지 않게).
+     * 커밋과 이 반영 사이에 들어온 게임 처리는 사라진 방을 스스로 바로잡는다({@link #relocateIfRoomGone}).
      */
-    @EventListener
-    @Transactional(propagation = Propagation.SUPPORTS)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void onRoomDeleted(RoomDeletedEvent event) {
-        lock.lock();
-        boolean unlockOnCompletion = TransactionSynchronizationManager.isSynchronizationActive();
-        try {
-            if (unlockOnCompletion) {
-                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                    @Override
-                    public void afterCompletion(int status) {
-                        lock.unlock();
-                    }
-                });
-            }
-            transactionTemplate.executeWithoutResult(status -> relocateFrom(event.roomId()));
-        } finally {
-            if (!unlockOnCompletion) {
-                lock.unlock();
-            }
-        }
+        serialized(() -> relocateFrom(event.roomId()));
     }
 
+    /**
+     * 락을 잡고 그 안에서 트랜잭션을 열고 닫는다. 보낼 메시지는 모아 두었다가 커밋이 끝난 뒤(락 안) 보낸다.
+     * 커밋이 실패하면 보내지 않는다(메모리 상태는 되돌리지 않는다 — 1차 한계).
+     */
     private void serialized(Runnable work) {
         lock.lock();
         try {
+            outbox.clear();
             transactionTemplate.executeWithoutResult(status -> work.run());
+            List<Runnable> deliveries = List.copyOf(outbox);
+            outbox.clear();
+            deliveries.forEach(Runnable::run);
         } finally {
+            // 실패한 처리가 남긴 outbox 는 다음 처리가 시작할 때 비운다
             lock.unlock();
         }
+    }
+
+    private void send(String sessionId, GameMessage message) {
+        outbox.add(() -> sender.send(sessionId, message));
+    }
+
+    private void close(String sessionId, GameCloseReason reason) {
+        outbox.add(() -> sender.close(sessionId, reason));
     }
 
     // ---- 접속·끊김
@@ -166,8 +169,8 @@ public class GameService implements GameConnector {
     private void doConnect(String sessionId, Long accountId) {
         Optional<Room> startRoom = worldSettingsFinder.findStartRoom();
         if (startRoom.isEmpty()) {
-            sender.send(sessionId, SystemMessage.error(WORLD_NOT_READY));
-            sender.close(sessionId, GameCloseReason.WORLD_NOT_READY);
+            send(sessionId, SystemMessage.error(WORLD_NOT_READY));
+            close(sessionId, GameCloseReason.WORLD_NOT_READY);
             return;
         }
         replaceOtherSessionsOf(accountId);
@@ -175,8 +178,8 @@ public class GameService implements GameConnector {
         Optional<PlayerCharacter> character = characterFinder.findByAccountId(accountId);
         if (character.isEmpty()) {
             sessions.put(sessionId, GameSession.naming(accountId));
-            sender.send(sessionId, new SessionMessage(SessionMessage.CREATING, null));
-            sender.send(sessionId, new PromptMessage(NAME_PROMPT));
+            send(sessionId, new SessionMessage(SessionMessage.CREATING, null));
+            send(sessionId, new PromptMessage(NAME_PROMPT));
             return;
         }
 
@@ -191,8 +194,10 @@ public class GameService implements GameConnector {
             OnlinePlayer player = online.get();
             player.rebind(sessionId);
             presenceRepository.save(player);
-            sender.send(sessionId, new SessionMessage(SessionMessage.PLAYING, player.getName()));
-            sendRoom(sessionId, session, roomFinder.find(player.getRoomId()));
+            send(sessionId, new SessionMessage(SessionMessage.PLAYING, player.getName()));
+            if (!relocateIfRoomGone(player.getRoomId())) {
+                sendRoom(sessionId, session, roomFinder.find(player.getRoomId()));
+            }
             return;
         }
 
@@ -201,7 +206,7 @@ public class GameService implements GameConnector {
             characterMover.moveTo(characterId, requireNonNull(startRoom.get().getId()));
             return startRoom.get();
         });
-        sender.send(sessionId, new SessionMessage(SessionMessage.PLAYING, found.getName().value()));
+        send(sessionId, new SessionMessage(SessionMessage.PLAYING, found.getName().value()));
         enterWorld(sessionId, session, accountId, found.getName().value(), room);
     }
 
@@ -213,8 +218,8 @@ public class GameService implements GameConnector {
                 .toList();
         for (String previousSessionId : previous) {
             sessions.remove(previousSessionId);
-            sender.send(previousSessionId, SystemMessage.info(REPLACED));
-            sender.close(previousSessionId, GameCloseReason.REPLACED);
+            send(previousSessionId, SystemMessage.info(REPLACED));
+            close(previousSessionId, GameCloseReason.REPLACED);
         }
     }
 
@@ -244,7 +249,7 @@ public class GameService implements GameConnector {
         GameSession session = sessions.get(sessionId);
         if (session == null) return;
         if (text.length() > MAX_COMMAND_LENGTH) {
-            sender.send(sessionId, SystemMessage.error(COMMAND_TOO_LONG));
+            send(sessionId, SystemMessage.error(COMMAND_TOO_LONG));
             return;
         }
         switch (session.getPhase()) {
@@ -266,7 +271,7 @@ public class GameService implements GameConnector {
             return;
         }
         session.confirmName(name);
-        sender.send(sessionId, new PromptMessage(confirmPrompt(name)));
+        send(sessionId, new PromptMessage(confirmPrompt(name)));
     }
 
     private void handleConfirm(String sessionId, GameSession session, String answer) {
@@ -274,9 +279,9 @@ public class GameService implements GameConnector {
             case CONFIRM -> createCharacter(sessionId, session);
             case BACK -> {
                 session.askName();
-                sender.send(sessionId, new PromptMessage(NAME_PROMPT));
+                send(sessionId, new PromptMessage(NAME_PROMPT));
             }
-            default -> sender.send(sessionId, new PromptMessage(confirmPrompt(session.requirePendingName())));
+            default -> send(sessionId, new PromptMessage(confirmPrompt(session.requirePendingName())));
         }
     }
 
@@ -290,14 +295,14 @@ public class GameService implements GameConnector {
         Optional<Room> startRoom = worldSettingsFinder.findStartRoom();
         if (startRoom.isEmpty()) {
             sessions.remove(sessionId);
-            sender.send(sessionId, SystemMessage.error(WORLD_NOT_READY));
-            sender.close(sessionId, GameCloseReason.WORLD_NOT_READY);
+            send(sessionId, SystemMessage.error(WORLD_NOT_READY));
+            close(sessionId, GameCloseReason.WORLD_NOT_READY);
             return;
         }
         PlayerCharacter character = characterCreator.create(session.getAccountId(), name);
         session.startPlaying(requireNonNull(character.getId()));
-        sender.send(sessionId, SystemMessage.info(CHARACTER_CREATED));
-        sender.send(sessionId, new SessionMessage(SessionMessage.PLAYING, name));
+        send(sessionId, SystemMessage.info(CHARACTER_CREATED));
+        send(sessionId, new SessionMessage(SessionMessage.PLAYING, name));
         enterWorld(sessionId, session, session.getAccountId(), name, startRoom.get());
     }
 
@@ -307,8 +312,8 @@ public class GameService implements GameConnector {
 
     private void askNameAgain(String sessionId, GameSession session, String error) {
         session.askName();
-        sender.send(sessionId, SystemMessage.error(error));
-        sender.send(sessionId, new PromptMessage(NAME_PROMPT));
+        send(sessionId, SystemMessage.error(error));
+        send(sessionId, new PromptMessage(NAME_PROMPT));
     }
 
     // ---- 명령
@@ -316,26 +321,31 @@ public class GameService implements GameConnector {
     private void handleCommand(String sessionId, GameSession session, Command command) {
         OnlinePlayer player = presenceRepository.findByCharacterId(session.requireCharacterId())
                 .orElseThrow(() -> new IllegalStateException("세계에 없는 캐릭터입니다. id: " + session.getCharacterId()));
+        boolean needsRoom = !(command instanceof Command.Empty || command instanceof Command.Quit);
+        if (needsRoom && relocateIfRoomGone(player.getRoomId())
+                && command instanceof Command.Look(var argument) && argument == null) {
+            return; // 옮겨지며 시작 방 보기를 이미 받았다
+        }
         switch (command) {
             case Command.Look look -> look(sessionId, player, look);
             case Command.Move move -> move(sessionId, session, player, move.direction());
             case Command.Say say -> say(sessionId, player, say.message());
             case Command.Who _ -> who(sessionId);
-            case Command.Help _ -> sender.send(sessionId, SystemMessage.info(HELP));
+            case Command.Help _ -> send(sessionId, SystemMessage.info(HELP));
             case Command.Quit _ -> quit(sessionId, player);
             case Command.Empty _ -> {
             }
-            case Command.Unknown _ -> sender.send(sessionId, SystemMessage.error(UNKNOWN));
+            case Command.Unknown _ -> send(sessionId, SystemMessage.error(UNKNOWN));
         }
     }
 
     private void look(String sessionId, OnlinePlayer player, Command.Look look) {
         if (look.argument() != null) {
-            sender.send(sessionId, SystemMessage.info(NO_DETAILED_LOOK));
+            send(sessionId, SystemMessage.info(NO_DETAILED_LOOK));
             return;
         }
         Room room = roomFinder.find(player.getRoomId());
-        sender.send(sessionId, RoomViewAssembler.assemble(
+        send(sessionId, RoomViewAssembler.assemble(
                 room, false, presenceRepository.findAllInRoom(player.getRoomId()), player.getCharacterId()));
     }
 
@@ -343,15 +353,15 @@ public class GameService implements GameConnector {
         Room from = roomFinder.find(player.getRoomId());
         Optional<Exit> exit = from.findExit(direction);
         if (exit.isEmpty()) {
-            sender.send(sessionId, SystemMessage.error(NO_EXIT));
+            send(sessionId, SystemMessage.error(NO_EXIT));
             return;
         }
         Long fromId = player.getRoomId();
         Long targetId = requireNonNull(exit.get().getTarget().getId());
         String actor = Josa.withIGa(player.getName());
 
-        notifyOthers(player, fromId, actor + " " + direction.towardPhrase() + " 떠난다.", "leave");
         characterMover.moveTo(player.getCharacterId(), targetId);
+        notifyOthers(player, fromId, actor + " " + direction.towardPhrase() + " 떠난다.", "leave");
         player.moveTo(targetId);
         presenceRepository.save(player);
         notifyOthers(player, targetId, actor + " " + direction.opposite().fromPhrase() + " 다가온다.", "arrive");
@@ -360,37 +370,52 @@ public class GameService implements GameConnector {
 
     private void say(String sessionId, OnlinePlayer player, String message) {
         if (message.isEmpty()) {
-            sender.send(sessionId, SystemMessage.error(SAY_EMPTY));
+            send(sessionId, SystemMessage.error(SAY_EMPTY));
             return;
         }
         if (message.length() > MAX_SAY_LENGTH) {
-            sender.send(sessionId, SystemMessage.error(SAY_TOO_LONG));
+            send(sessionId, SystemMessage.error(SAY_TOO_LONG));
             return;
         }
         String name = player.getName();
-        sender.send(sessionId, SayMessage.speech(name, message, true, name + ": \"" + message + "\""));
+        send(sessionId, SayMessage.speech(name, message, true, name + ": \"" + message + "\""));
         SayMessage heard = SayMessage.speech(name, message, false, Josa.withIGa(name) + " 말한다: \"" + message + "\"");
-        othersInRoom(player, player.getRoomId()).forEach(other -> sender.send(other.getSessionId(), heard));
+        othersInRoom(player, player.getRoomId()).forEach(other -> send(other.getSessionId(), heard));
     }
 
     private void who(String sessionId) {
+        presenceRepository.findAll().stream()
+                .map(OnlinePlayer::getRoomId)
+                .distinct()
+                .toList()
+                .forEach(this::relocateIfRoomGone);
         List<OnlinePlayer> players = presenceRepository.findAll();
         StringBuilder text = new StringBuilder("접속한 사람 (" + players.size() + ")");
         for (OnlinePlayer player : players) {
             String zoneName = roomFinder.find(player.getRoomId()).getZone().getName();
             text.append("\n  ").append(player.getName()).append("    ").append(zoneName);
         }
-        sender.send(sessionId, SystemMessage.info(text.toString()));
+        send(sessionId, SystemMessage.info(text.toString()));
     }
 
     private void quit(String sessionId, OnlinePlayer player) {
-        sender.send(sessionId, SystemMessage.info(QUIT));
+        send(sessionId, SystemMessage.info(QUIT));
         leaveWorld(player);
-        sender.close(sessionId, GameCloseReason.QUIT);
+        close(sessionId, GameCloseReason.QUIT);
         sessions.remove(sessionId);
     }
 
     // ---- 방 삭제 반영
+
+    /**
+     * 그 방이 이미 지워졌으면(삭제 커밋 뒤 {@link #onRoomDeleted} 반영 전) 그 방 사람을 지금 시작 방으로 옮기고 true.
+     * 뒤늦게 오는 반영은 옮길 사람이 없어 아무 일도 하지 않는다.
+     */
+    private boolean relocateIfRoomGone(Long roomId) {
+        if (roomFinder.findOptional(roomId).isPresent()) return false;
+        relocateFrom(roomId);
+        return true;
+    }
 
     private void relocateFrom(Long deletedRoomId) {
         // 시작 방은 지울 수 없고, 시작 방이 없으면 아무도 세계에 들어올 수 없으므로 옮길 사람이 없다
@@ -409,7 +434,7 @@ public class GameService implements GameConnector {
         Set<Long> strandedIds = stranded.stream().map(OnlinePlayer::getCharacterId).collect(Collectors.toSet());
         for (OnlinePlayer player : stranded) {
             String sessionId = player.getSessionId();
-            sender.send(sessionId, SystemMessage.info(RELOCATED));
+            send(sessionId, SystemMessage.info(RELOCATED));
             GameSession session = sessions.get(sessionId);
             if (session != null) {
                 sendRoom(sessionId, session, start);
@@ -417,7 +442,7 @@ public class GameService implements GameConnector {
             NoticeMessage appear = NoticeMessage.movement(Josa.withIGa(player.getName()) + " 나타난다.", player.getName(), "appear");
             presenceRepository.findAllInRoom(startId).stream()
                     .filter(other -> !strandedIds.contains(other.getCharacterId()))
-                    .forEach(other -> sender.send(other.getSessionId(), appear));
+                    .forEach(other -> send(other.getSessionId(), appear));
         }
     }
 
@@ -427,13 +452,13 @@ public class GameService implements GameConnector {
     private void sendRoom(String sessionId, GameSession session, Room room) {
         boolean zoneEntered = session.enterZone(requireNonNull(room.getZone().getId()));
         Long roomId = requireNonNull(room.getId());
-        sender.send(sessionId, RoomViewAssembler.assemble(
+        send(sessionId, RoomViewAssembler.assemble(
                 room, zoneEntered, presenceRepository.findAllInRoom(roomId), session.requireCharacterId()));
     }
 
     private void notifyOthers(OnlinePlayer actor, Long roomId, String text, String event) {
         GameMessage notice = NoticeMessage.movement(text, actor.getName(), event);
-        othersInRoom(actor, roomId).forEach(other -> sender.send(other.getSessionId(), notice));
+        othersInRoom(actor, roomId).forEach(other -> send(other.getSessionId(), notice));
     }
 
     private List<OnlinePlayer> othersInRoom(OnlinePlayer self, Long roomId) {

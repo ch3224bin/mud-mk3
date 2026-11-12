@@ -499,17 +499,20 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(roomIdOf(hanbaek)).isEqualTo(map.entranceId());
     }
 
+    /** 테스트 트랜잭션은 커밋되지 않아 삭제 반영(AFTER_COMMIT)이 오지 않는다 — "지워졌지만 반영 전" 상태다 */
     @Test
-    void roomDeletedWhileOccupiedMovesPlayerToStartRoom() {
+    void lookAfterRoomDeletedBeforeReflectionMovesToStartRoom() {
         GameMap map = prepareMap();
         Long hanbaek = enter("a", "한백");
         enter("b", "한립");
         gameConnector.handle("a", "북");
+        roomEditor.delete(map.wellId());
         sender.clear();
 
-        roomEditor.delete(map.wellId());
+        gameConnector.handle("a", "보기");
 
         List<GameMessage> messages = sender.messagesTo("a");
+        assertThat(messages).hasSize(2);
         assertThat(messages.getFirst())
                 .isEqualTo(new SystemMessage("서 있던 곳이 사라져 시작 장소로 옮겨졌습니다.", "info"));
         RoomMessage room = (RoomMessage) messages.get(1);
@@ -521,9 +524,69 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(roomIdOf(hanbaek)).isEqualTo(map.entranceId());
 
         sender.clear();
-        gameConnector.handle("a", "보기");
-        assertThat(sender.lastTo("a", RoomMessage.class).room().id()).isEqualTo(map.entranceId());
         gameConnector.handle("a", "북");
+        assertThat(sender.messagesTo("a")).containsExactly(new SystemMessage("그쪽으로는 길이 없습니다.", "error"));
+    }
+
+    @Test
+    void moveAfterRoomDeletedBeforeReflectionUsesStartRoom() {
+        GameMap map = prepareMap();
+        enterAt("a", "한백", map.wellId());
+        roomEditor.delete(map.wellId());
+        sender.clear();
+
+        gameConnector.handle("a", "남");
+
+        List<GameMessage> messages = sender.messagesTo("a");
+        assertThat(messages.getFirst())
+                .isEqualTo(new SystemMessage("서 있던 곳이 사라져 시작 장소로 옮겨졌습니다.", "info"));
+        assertThat(sender.lastTo("a", RoomMessage.class).room().id()).isEqualTo(map.entranceId());
         assertThat(sender.lastTo("a", SystemMessage.class).text()).isEqualTo("그쪽으로는 길이 없습니다.");
+    }
+
+    @Test
+    void sayAfterRoomDeletedBeforeReflectionReachesStartRoom() {
+        GameMap map = prepareMap();
+        enterAt("a", "한백", map.wellId());
+        enter("b", "한립");
+        roomEditor.delete(map.wellId());
+        sender.clear();
+
+        gameConnector.handle("a", "'여기가 어디요");
+
+        assertThat(sender.messagesTo("b")).containsExactly(
+                new NoticeMessage("한백이 나타난다.", "movement", "한백", "appear"),
+                new SayMessage("한백", "여기가 어디요", false, "한백이 말한다: \"여기가 어디요\"", "speech"));
+    }
+
+    @Test
+    void whoAfterOthersRoomDeletedBeforeReflection() {
+        GameMap map = prepareMap();
+        enterAt("a", "한백", map.forestEntranceId());
+        enter("b", "한립");
+        roomEditor.delete(map.forestEntranceId());
+        sender.clear();
+
+        gameConnector.handle("b", "누구");
+
+        assertThat(sender.lastTo("b", SystemMessage.class).text())
+                .isEqualTo("접속한 사람 (2)\n  한립    청우촌\n  한백    청우촌");
+        assertThat(sender.messagesTo("a").getFirst())
+                .isEqualTo(new SystemMessage("서 있던 곳이 사라져 시작 장소로 옮겨졌습니다.", "info"));
+    }
+
+    @Test
+    void reconnectAfterRoomDeletedBeforeReflection() {
+        GameMap map = prepareMap();
+        Long hanbaek = enterAt("a1", "한백", map.wellId());
+        roomEditor.delete(map.wellId());
+        sender.clear();
+
+        connect("a2", hanbaek);
+
+        assertThat(sender.messagesTo("a2")).hasSize(3);
+        assertThat(sender.messagesTo("a2").get(1))
+                .isEqualTo(new SystemMessage("서 있던 곳이 사라져 시작 장소로 옮겨졌습니다.", "info"));
+        assertThat(sender.lastTo("a2", RoomMessage.class).room().id()).isEqualTo(map.entranceId());
     }
 }

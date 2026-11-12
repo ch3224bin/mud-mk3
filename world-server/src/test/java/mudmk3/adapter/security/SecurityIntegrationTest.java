@@ -1,12 +1,12 @@
 package mudmk3.adapter.security;
 
 import mudmk3.TestFakesConfiguration;
-import org.springframework.context.annotation.Import;
 import mudmk3.application.account.provided.AccountPrincipal;
 import mudmk3.application.character.required.CharacterRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;

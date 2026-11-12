@@ -7,10 +7,4 @@
     <Match>
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
-    <!-- 방 삭제 반영은 지우는 트랜잭션이 끝날 때(afterCompletion) 락을 푼다. 의도한 설계다 -->
-    <Match>
-        <Class name="mudmk3.application.game.GameService"/>
-        <Method name="onRoomDeleted"/>
-        <Bug pattern="UL_UNRELEASED_LOCK"/>
-    </Match>
 </FindBugsFilter>
