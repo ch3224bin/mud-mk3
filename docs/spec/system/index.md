@@ -16,7 +16,7 @@
 
 | 문서 | 다루는 것 |
 |---|---|
-| [플랫폼](platform.md) | 웹 기반, 기술 스택(버전·DB 선택의 단일 원본), WebSocket + 메모리 월드 상태, 멀티 유저, 단일 월드 운영 |
+| [플랫폼](platform.md) | 웹 기반, 기술 스택(버전·DB 선택의 단일 원본), WebSocket(JSON) + 메모리 월드 상태, 저장소 모듈 구성, 배포, 멀티 유저, 단일 월드 운영 |
 | [관리 툴](admin-tool.md) | 데이터 주도 콘텐츠, 관리 화면에서 만드는 대상(성·종문·NPC·몹·맵·아이템·공법·퀘스트·비경·상점 등) |
 | [월드 구조](world-structure.md) | 월드·존(룰북의 지역)·인스턴스(비경) |
 | [명령어 처리](command.md) | 명령어 분류(대화형·전투·이동·물건·거래) |
@@ -35,6 +35,6 @@
 
 ## 열린 질문
 
-- 월드 상태의 DB 저장 주기·시점과 게임 틱은? 프론트엔드 기술은? (백엔드 Java Spring · PostgreSQL · WebSocket + 메모리 월드는 정함) → [플랫폼](platform.md)
+- 월드 상태의 DB 저장 주기·시점과 게임 틱은? 백엔드·프론트엔드 모듈 이름과 JSON 메시지 구조는? (Java Spring · Next.js · PostgreSQL · WebSocket(JSON) + 메모리 월드 · docker-compose → Kubernetes는 정함) → [플랫폼](platform.md)
 - NPC 대사의 LLM 연동은 언제(어느 이터레이션) 붙이는가? 그 전까지 대사는 어떤 형태로 입력하는가? → [NPC](npc.md)
 - NPC 장기 메모리에 무엇을 어떻게 남기는가? (엔진 자동 기록 / LLM 요약 등) → [NPC](npc.md#함께-쌓는-내러티브)
