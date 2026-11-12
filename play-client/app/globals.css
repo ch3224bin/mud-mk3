@@ -1,0 +1,204 @@
+:root {
+  --bg: #0f1210;
+  --panel: #161a17;
+  --fg: #c9d1c3;
+  --muted: #7d867a;
+  --line: #2a302b;
+  --zone: #d7b56d;
+  --room-name: #f0f3ec;
+  --exits: #6fb3a8;
+  --occupant: #a9c97e;
+  --movement: #8f9a8b;
+  --speech: #e6d38a;
+  --error: #e0796f;
+  --prompt: #8fb8e8;
+  --echo: #6f786c;
+  --accent: #6fb3a8;
+  color-scheme: dark;
+  font-family: "D2Coding", "Nanum Gothic Coding", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+a {
+  color: var(--accent);
+}
+
+input,
+button,
+.button {
+  font: inherit;
+  color: inherit;
+  padding: 4px 8px;
+}
+
+button,
+.button {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+button:hover,
+.button:hover {
+  border-color: var(--accent);
+}
+
+button.small {
+  font-size: 0.8em;
+  padding: 2px 8px;
+}
+
+/* 로그인 화면 */
+.centered {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  margin-top: 15vh;
+  padding: 0 16px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form input {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+/* 플레이 화면: 위 작은 바 + 터미널이 화면 높이를 채운다 */
+.play {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.topbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.terminal {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px;
+  line-height: 1.5;
+}
+
+.line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-height: 1.5em;
+}
+
+.line-zone {
+  color: var(--zone);
+}
+
+.line-room-name {
+  color: var(--room-name);
+  font-weight: bold;
+}
+
+.line-exits {
+  color: var(--exits);
+}
+
+.line-occupant {
+  color: var(--occupant);
+}
+
+.line-movement {
+  color: var(--movement);
+}
+
+.line-speech {
+  color: var(--speech);
+}
+
+.line-error {
+  color: var(--error);
+}
+
+.line-prompt {
+  color: var(--prompt);
+}
+
+.line-echo {
+  color: var(--echo);
+}
+
+.reconnect {
+  padding: 4px 16px;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.input-mark {
+  color: var(--muted);
+}
+
+.input-row input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 4px 0;
+}
+
+.muted {
+  color: var(--muted);
+  padding: 0 16px;
+}
+
+.error {
+  color: var(--error);
+}
