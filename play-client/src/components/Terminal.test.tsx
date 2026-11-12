@@ -99,6 +99,17 @@ describe("Terminal", () => {
     expect(input).toHaveFocus();
   });
 
+  it("Shift+Tab 은 자동완성하지 않고 기본 동작(포커스 이동)으로 둔다", async () => {
+    const user = userEvent.setup();
+    const { input } = renderTerminal();
+
+    await user.type(input, "누");
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+
+    expect(input).toHaveValue("누");
+    expect(input).not.toHaveFocus();
+  });
+
   it("Tab 이름 후보는 room 의 사람에서 notice 로 더하고 뺀다", async () => {
     const user = userEvent.setup();
     const { connection, input } = renderTerminal();
@@ -137,9 +148,12 @@ describe("Terminal", () => {
     const user = userEvent.setup();
     const { connection } = renderTerminal();
 
+    connection.receive({ type: "system", text: "다른 곳에서 접속해 이 연결을 끊습니다.", tone: "info" });
     connection.serverClose(4409);
 
-    expect(screen.getByText("다른 곳에서 접속해 연결이 끊겼습니다.")).toBeInTheDocument();
+    // 까닭은 서버가 닫기 전에 보낸 문구 한 번만 보인다
+    expect(screen.getAllByText(/다른 곳에서 접속해/)).toHaveLength(1);
+    expect(screen.queryByText("연결이 끊겼습니다.")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "다시 연결" }));
     expect(connections).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "다시 연결" })).not.toBeInTheDocument();

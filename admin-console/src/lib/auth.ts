@@ -23,6 +23,14 @@ export function loginForDevelopment(email: string): Promise<AuthMeResponse> {
   return apiFetch<AuthMeResponse>("/api/auth/dev", { method: "POST", body: JSON.stringify({ email }) });
 }
 
-export function logout(): Promise<void> {
-  return apiFetch<void>("/api/auth/logout", { method: "POST" });
+/** 세션이 이미 만료돼 401 이 와도 로그아웃된 것으로 본다(로그인 화면으로 돌아갈 수 있게). */
+export async function logout(): Promise<void> {
+  try {
+    await apiFetch<void>("/api/auth/logout", { method: "POST" });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      return;
+    }
+    throw error;
+  }
 }

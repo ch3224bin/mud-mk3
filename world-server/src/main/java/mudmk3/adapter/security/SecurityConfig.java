@@ -55,6 +55,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/dev").permitAll()
+                        // 세션이 이미 만료됐어도 로그아웃은 성공해야 화면을 빠져나갈 수 있다(CSRF 헤더 검사는 그대로)
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
                         // WebSocket 인증은 핸드셰이크에서 세션을 보고 따로 한다
                         .requestMatchers("/oauth2/**", "/login/oauth2/**", "/ws/**", "/error").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

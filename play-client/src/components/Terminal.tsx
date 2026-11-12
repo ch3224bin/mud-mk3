@@ -61,9 +61,8 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
         setConnected(false);
         if (code === CloseCode.UNAUTHORIZED) {
           onUnauthorizedRef.current();
-        } else if (code === CloseCode.REPLACED) {
-          append([{ text: "다른 곳에서 접속해 연결이 끊겼습니다.", style: "error" }]);
-        } else if (code !== CloseCode.NORMAL) {
+        } else if (code !== CloseCode.NORMAL && code !== CloseCode.REPLACED) {
+          // REPLACED(4409)는 서버가 닫기 전에 까닭을 system 메시지로 보낸다
           append([{ text: "연결이 끊겼습니다.", style: "error" }]);
         }
       },
@@ -120,6 +119,8 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
         setInput(history.current.next());
         break;
       case "Tab":
+        // Shift+Tab 은 기본 동작(앞 요소로 포커스 이동)으로 둔다. 키보드 사용자가 버튼으로 나갈 수 있게.
+        if (event.shiftKey) break;
         event.preventDefault();
         setInput(completer.current.complete(input, names.current));
         break;

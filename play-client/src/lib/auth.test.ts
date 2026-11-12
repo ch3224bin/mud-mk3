@@ -65,6 +65,22 @@ describe("logout", () => {
     expect(init.method).toBe("POST");
     expect(new Headers(init.headers).get("X-MUD-Client")).toBe("1");
   });
+
+  it("세션이 이미 만료돼 401 이어도 로그아웃된 것으로 본다", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ status: 401, detail: "로그인이 필요합니다." }), { status: 401 }),
+    );
+
+    await expect(logout()).resolves.toBeUndefined();
+  });
+
+  it("401 이 아닌 실패는 그대로 던진다", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ status: 403, detail: "권한이 없습니다." }), { status: 403 }),
+    );
+
+    await expect(logout()).rejects.toThrow();
+  });
 });
 
 describe("errorMessage", () => {

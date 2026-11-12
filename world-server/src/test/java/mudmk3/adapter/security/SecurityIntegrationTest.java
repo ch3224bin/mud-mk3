@@ -175,6 +175,16 @@ record SecurityIntegrationTest(MockMvcTester mvc, CharacterRepository characterR
     }
 
     @Test
+    void logoutWithoutSessionSucceeds() {
+        assertThat(mvc.post().uri("/api/auth/logout").with(clientHeader())).hasStatus(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
+    void logoutWithoutSessionAndClientHeaderFail() {
+        assertThat(mvc.post().uri("/api/auth/logout")).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
     void logoutWithoutClientHeaderFail() {
         assertThat(mvc.post().with(player()).uri("/api/auth/logout")).hasStatus(HttpStatus.FORBIDDEN);
     }
