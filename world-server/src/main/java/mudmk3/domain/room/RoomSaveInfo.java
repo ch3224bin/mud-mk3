@@ -1,0 +1,11 @@
+package mudmk3.domain.room;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+/** 방을 만들거나 고칠 때 받는 값 */
+public record RoomSaveInfo(
+        @NotBlank @Size(max = 30) String name,
+        @NotBlank @Size(max = 1000) String description
+) {
+}

@@ -4,4 +4,70 @@
                  xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence/orm https://jakarta.ee/xml/ns/persistence/orm/orm_3_1.xsd"
                  version="3.1">
     <access>FIELD</access>
+
+    <entity class="mudmk3.domain.zone.Zone">
+        <table name="zone">
+            <unique-constraint name="UK_ZONE_NAME">
+                <column-name>name</column-name>
+            </unique-constraint>
+        </table>
+        <attributes>
+            <basic name="name">
+                <column name="name" length="30" nullable="false"/>
+            </basic>
+            <basic name="description">
+                <column name="description" length="500" nullable="false"/>
+            </basic>
+        </attributes>
+    </entity>
+
+    <entity class="mudmk3.domain.room.Room">
+        <table name="room"/>
+        <attributes>
+            <basic name="name">
+                <column name="name" length="30" nullable="false"/>
+            </basic>
+            <basic name="description">
+                <column name="description" length="1000" nullable="false"/>
+            </basic>
+            <many-to-one name="zone" fetch="LAZY" optional="false">
+                <join-column name="zone_id" nullable="false"/>
+            </many-to-one>
+            <one-to-many name="exits" mapped-by="room" orphan-removal="true">
+                <cascade>
+                    <cascade-all/>
+                </cascade>
+            </one-to-many>
+        </attributes>
+    </entity>
+
+    <entity class="mudmk3.domain.room.Exit">
+        <table name="room_exit">
+            <unique-constraint name="UK_ROOM_EXIT_ROOM_ID_DIRECTION">
+                <column-name>room_id</column-name>
+                <column-name>direction</column-name>
+            </unique-constraint>
+        </table>
+        <attributes>
+            <basic name="direction">
+                <column name="direction" length="16" nullable="false" column-definition="varchar(16)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+            <many-to-one name="room" fetch="LAZY" optional="false">
+                <join-column name="room_id" nullable="false"/>
+            </many-to-one>
+            <many-to-one name="target" fetch="LAZY" optional="false">
+                <join-column name="target_room_id" nullable="false"/>
+            </many-to-one>
+        </attributes>
+    </entity>
+
+    <entity class="mudmk3.domain.world.WorldSettings">
+        <table name="world_settings"/>
+        <attributes>
+            <many-to-one name="startRoom" fetch="LAZY">
+                <join-column name="start_room_id" nullable="true"/>
+            </many-to-one>
+        </attributes>
+    </entity>
 </entity-mappings>
