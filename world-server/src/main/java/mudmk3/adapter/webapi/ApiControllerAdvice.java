@@ -15,6 +15,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -47,6 +49,15 @@ public class ApiControllerAdvice extends ResponseEntityExceptionHandler {
     })
     public ProblemDetail handleBadRequest(RuntimeException exception) {
         return problem(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
+    }
+
+    /**
+     * 컨트롤러 안에서 난 보안 예외는 아래의 500 처리기가 삼키지 않도록 그대로 다시 던진다.
+     * 그러면 Spring Security(ExceptionTranslationFilter)가 401/403으로 처리한다.
+     */
+    @ExceptionHandler({AccessDeniedException.class, AuthenticationException.class})
+    public void rethrowSecurityException(RuntimeException exception) {
+        throw exception;
     }
 
     @ExceptionHandler(Exception.class)

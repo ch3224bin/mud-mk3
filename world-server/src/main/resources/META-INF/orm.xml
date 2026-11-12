@@ -70,4 +70,26 @@
             </many-to-one>
         </attributes>
     </entity>
+
+    <entity class="mudmk3.domain.account.Account">
+        <table name="account">
+            <unique-constraint name="UK_ACCOUNT_GOOGLE_SUBJECT">
+                <column-name>google_subject</column-name>
+            </unique-constraint>
+        </table>
+        <attributes>
+            <basic name="googleSubject">
+                <column name="google_subject" length="255" nullable="false"/>
+            </basic>
+            <embedded name="email"/>
+        </attributes>
+    </entity>
+
+    <embeddable class="mudmk3.domain.shared.Email">
+        <attributes>
+            <basic name="address">
+                <column name="email_address" length="320" nullable="false"/>
+            </basic>
+        </attributes>
+    </embeddable>
 </entity-mappings>

@@ -8,10 +8,30 @@ spring:
   docker:
     compose:
       enabled: false
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            # 실제 값은 환경변수로만 받는다. 없으면 앱은 뜨지만 Google 로그인은 실패한다(시작할 때 경고 로그)
+            client-id: ${GOOGLE_CLIENT_ID:not-configured}
+            client-secret: ${GOOGLE_CLIENT_SECRET:not-configured}
+            scope: openid,profile,email
 
 server:
   port: 8080
+  servlet:
+    session:
+      cookie:
+        same-site: lax
+        http-only: true
 
 mud:
+  auth:
+    admin-emails: ${MUD_ADMIN_EMAILS:}
+    play-client-url: ${MUD_PLAY_CLIENT_URL:http://localhost:3000/}
+    admin-console-url: ${MUD_ADMIN_CONSOLE_URL:http://localhost:3001/}
+    dev-login:
+      enabled: false
   cors:
     allowed-origins: ${MUD_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001}

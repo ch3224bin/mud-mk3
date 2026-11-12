@@ -3,3 +3,9 @@ spring:
     compose:
       enabled: true
       file: compose.yaml
+
+mud:
+  auth:
+    dev-login:
+      # local 프로필에서도 MUD_DEV_LOGIN_ENABLED=true 일 때만 POST /api/auth/dev 가 생긴다
+      enabled: ${MUD_DEV_LOGIN_ENABLED:false}
