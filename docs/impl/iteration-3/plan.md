@@ -141,13 +141,13 @@
 
 - **값**: 파는 물건마다 `price`(1~100,000,000) 또는 `null`. `null` 이면 룰북 계산값 판매가 = 기준가 × 하계 판매가 배율 1 을 쓰고 기준가가 바뀌면 따라간다. 숫자를 넣으면 그 값으로 고정한다. 관리 화면은 빈칸(= 계산값)을 기본으로 보이고 자리 표시로 `기준가 3` 을 보인다.
 - **매입가는 입력받지 않는다**: 룰북 식 하계 기준가 × 매입 비율(D33) × 1.0.
-- **불변식 검사**(item.md 불변식 1, 매입가 < 판매가 × 0.5): 파는 물건을 저장할 때, 그리고 그 물건의 기준가를 바꿀 때 검사한다. 정수로 `2 × 기준가 × 매입 비율(%) < 100 × 판매가`. 어기면 400 `판매가는 매입가의 2배보다 커야 합니다: 회춘단 (매입가 0.75, 판매가 1)`(상점 저장) / 409 `상점 값이 매입가 규칙에 맞지 않게 됩니다: 회춘단 (왕씨 1)`(기준가 변경). 기준가 0 인 물건을 `null` 값으로 두면 400 `기준가가 0인 물건은 값을 정해야 합니다: 회춘단` / 409 `기준가가 0이면 상점이 값을 정해야 합니다: 회춘단 (왕씨)`. 불변식 2(제작물)는 제작이 없어 검사하지 않는다.
+- **불변식 검사**(item.md 불변식 1, 매입가 < 판매가 × 0.5): 파는 물건을 저장할 때, 그리고 그 물건의 기준가를 바꿀 때 검사한다. 정수로 `2 × 기준가 × 매입 비율(%) < 100 × 판매가`. 어기면 400 `판매가는 매입가의 2배보다 커야 합니다: 회춘단 (매입가 0.75, 판매가 1)`(상점 저장) / 409 `상점 값이 매입가 규칙에 맞지 않게 됩니다: 회춘단 (왕씨 1)`(기준가 변경 — `ItemTypeInUseException` 으로 던져 409, 아래 기준가 0 문구도 같음). 기준가 0 인 물건을 `null` 값으로 두면 400 `기준가가 0인 물건은 값을 정해야 합니다: 회춘단` / 409 `기준가가 0이면 상점이 값을 정해야 합니다: 회춘단 (왕씨)`. 불변식 2(제작물)는 제작이 없어 검사하지 않는다.
 - 영석은 둘 수 없다(400 `영석은 상점에서 팔 수 없습니다.`), 같은 물건 두 번 400 `같은 물건이 두 번 있습니다: 회춘단`, 51개 이상 400 `상점에 둘 수 있는 물건은 50개까지입니다.`.
 - 재고는 무한, 가격은 바뀌지 않는다, 판 물건은 사라진다, 매입 수량 한도 없음(룰북 그대로). 상점 이름은 `{NPC 이름} {상점 종류}`(룰북 목록 머리 `[왕씨 단약방]`).
 - 상점 역할은 배치와 상관없이 정할 수 있고, 게임에서는 그 NPC가 있는 방에서만 쓴다.
 
 **D42. 상점 명령** (룰북 commands.md NPC · 상점 · 거래, npc.md 역할별 이용 — 문구 그대로)
-- **상점 고르기**: 같은 방의 상점 NPC(배치 순 = id 순). 없으면 `이곳에서는 할 수 없습니다.`(공통 오류). 하나면 NPC 이름을 빼고, 인자 첫 낱말이 그 NPC 이름 전체와 같으면 떼어 낸다. 둘 이상이면 첫 낱말이 상점 NPC 이름(전체 또는 앞부분, 2차 `대화` 규칙)이어야 하고, 아니면 `상인이 여럿입니다. 상인 이름을 붙이십시오: 왕씨 · 이씨`.
+- **상점 고르기**: 같은 방의 상점 NPC(배치 순 = id 순). 없으면 `이곳에서는 할 수 없습니다.`(공통 오류). 하나면 NPC 이름을 빼고, 인자 첫 낱말이 그 NPC 이름 전체와 같으면 떼어 낸다. 둘 이상이면 첫 낱말이 상점 NPC 이름(전체 또는 앞부분, 2차 `대화` 규칙)이어야 하고, 아니면 `상인이 여럿입니다. 상인 이름을 붙이십시오: 왕씨 · 이씨`. `목록` 은 물건 인자가 없으므로, 인자가 있는데 상점 NPC 이름(전체 또는 앞부분)에 맞지 않으면 상점이 하나여도 `여기에 그런 상대는 없습니다.`(2차 `대화` 문구).
 - `목록 [NPC]`:
   ```
   [왕씨 단약방]  파는 것  값(하품)
@@ -157,7 +157,7 @@
   ```
   파는 물건이 없으면 둘째 줄 `  파는 물건이 없습니다.`, 사 주는 것이 없으면 `사 주는 것: 없음`. 룰북 예의 `(기혈 회복)` 효과 설명과 칸 맞춤 공백은 효과가 없는 3차에 빼고 두 칸 띄운다.
 - `사기 [NPC] <물건> [수량]`(수량 빼면 1, `전부` 는 수량 오류): 상점의 파는 물건에서 이름으로 찾는다. 성공 `회춘단(연기 초) 5개를 샀습니다. (하품 영석 -15)`. 실패 순서: 인자 없음 `무엇을 사시겠습니까? (예: 사기 회춘단 5)` → 수량 오류 → 없는 물건 `왕씨: "그런 물건은 팔지 않소."` → `영석이 모자랍니다. (필요 15, 가진 것 9)`(가진 것 = 하품 기준 합) → `저물대는 세 개까지만 찰 수 있습니다.` → `저물대에 자리가 없습니다.` → `거스름을 받을 자리가 없습니다. (하품 9,880개, 1칸 필요)` → 상위 등급 확인 `값을 치르려면 상품 영석 1개를 깨야 합니다. 거스름 하품 9,880개를 받습니다. 계속하려면 '확인'.`(깨는 영석이 둘 이상 등급이면 `상품 영석 1개, 극품 영석 1개` 처럼 `, ` 로 잇고, 거스름이 0이면 가운데 문장을 뺀다).
-- `확인`: 10초 안이면 같은 상점·같은 물건·같은 수로 지금 값을 다시 계산해 확인 없이 산다(그 사이 바뀐 것은 다시 검사해 해당 실패 문구). 확인 대기는 하나만, `확인`·`취소` 가 아닌 명령이 오면 조용히 취소된다. 10초가 지났거나 대기가 없으면 `확인할 것이 없습니다.`. `취소` 는 `그만두었습니다.`(룰북), 대기가 없으면 `그만둘 것이 없습니다.`. 근거: commands.md 확인이 필요한 명령(10초, 다른 명령이면 취소, `취소`, `그만두었습니다.`).
+- `확인`: 10초 안이면 같은 상점·같은 물건·같은 수로 지금 값을 다시 계산해 확인 없이 산다(그 사이 바뀐 것은 다시 검사해 해당 실패 문구). 확인 대기는 하나만, `확인`·`취소` 가 아닌 명령이 오면 조용히 취소된다(빈 입력 `Command.Empty` 는 명령이 아니므로 취소하지 않는다). 10초가 지났거나 대기가 없으면 `확인할 것이 없습니다.`. `취소` 는 `그만두었습니다.`(룰북), 대기가 없으면 `그만둘 것이 없습니다.`. 근거: commands.md 확인이 필요한 명령(10초, 다른 명령이면 취소, `취소`, `그만두었습니다.`).
 - `팔기 [NPC] <물건> [수량]`(빼면 1, `전부` 는 가진 것 모두): 내 소지품에서 찾는다. 성공 `늑대 가죽 10개를 팔았습니다. (하품 영석 +8)`. 실패 순서: 인자 없음 `무엇을 파시겠습니까? (예: 팔기 늑대 가죽 3)` → 수량 오류 → `그런 물건은 가지고 있지 않습니다.` → 영석 `왕씨: "그런 물건은 받지 않소."` → 퀘스트 물건 `왕씨: "그건 내가 살 물건이 아니오."` → 귀속 `왕씨: "귀속된 물건은 사 줄 수 없소."` → 종류가 사 주는 것에 없음 `왕씨: "그런 물건은 받지 않소."` 와, 그 종류를 사 주는 상점 종류가 있으면(표 순서 첫째) 뒤에 ` (재료는 재료상에 팔 수 있습니다)` → `늑대 가죽은 2개뿐입니다.` → 매입가 합계(내림) 1 미만 `왕씨: "값이 너무 적어 사 줄 수가 없소. 더 모아 오시오."` → 저물대를 팔아 칸이 모자라게 됨 `저물대에 든 물건을 먼저 비우십시오.` → 받을 하품이 들어갈 칸 없음 `저물대에 자리가 없습니다.`. 상점이 주는 영석은 하품뿐(item.md 얻는 영석의 등급).
 - `값 [NPC] <물건> [수량]`: `늑대 가죽 1개에 하품 영석 0.8 — 10개면 8`. 개당 값은 소수 끝 0을 지운 값(`0.75`, `10`), 뒤의 수는 적은 수량, 없으면 가진 수. 실패는 `팔기` 와 같은 순서·문구(인자 없음은 `무엇의 값을 보시겠습니까? (예: 값 늑대 가죽)`, 수 넘침 검사와 1 미만 검사는 하지 않는다). `값` 을 3차에 넣는다 — 룰북 역할별 이용에 있고 새 규칙이 없다.
 - 명령은 묻는 사람에게만 답한다(같은 방 알림 없음).
@@ -173,9 +173,10 @@
 - 대상: 같은 방에 접속해 있는 다른 플레이어(들어온 순서). 이름 전체가 같으면 그 사람, 없으면 이름이 입력으로 시작하는 첫 사람. 없으면(접속 안 함·다른 방·NPC·생성 중) `여기에 한립은 없습니다.`(룰북, 입력 그대로 + `은/는`). 내 이름이면 `자기 자신에게는 줄 수 없습니다.`.
 - 받는 쪽 칸이 모자라면 넘어가지 않는다(item.md). 수수료 없음, 성 밖에서도 된다.
 - 문구: 주는 쪽 `한립에게 회춘단 2개를 주었습니다.` / 받는 쪽 `여소이가 회춘단 2개를 건넸습니다.` / `한립의 저물대에 자리가 없습니다.` / `여기에 한립은 없습니다.` / `귀속된 물건은 남에게 줄 수 없습니다.` / `퀘스트 물건은 남에게 줄 수 없습니다.`(이상 룰북). 새 문구: 인자 없음 `누구에게 무엇을 주시겠습니까? (예: 주기 한립 회춘단 2)`, 거래 불가 `회춘단은 남에게 줄 수 없는 물건입니다.`, 받는 쪽 저물대 3개 `한립은 저물대를 더 찰 수 없습니다.`, 주는 쪽이 저물대를 줘 칸이 모자라게 됨 `저물대에 든 물건을 먼저 비우십시오.`.
+- 검사 순서(글자 그대로 위 문구): 대상이나 물건 인자가 없음 → 수량 오류 → 대상 없음(`여기에 …`) → 자기 자신 → 내 소지품에 물건 없음 → 퀘스트 물건 → 귀속(D46 대로 귀속 안 된 묶음이 있으면 그것을 씀) → 거래 불가 → 수 넘침(`…은 2개뿐입니다.`) → 주는 쪽 저물대 칸(`GIVER_BAG_IN_USE`) → 받는 쪽 저물대 3개(`RECEIVER_BAG_LIMIT`) → 받는 쪽 칸(`RECEIVER_NO_ROOM`).
 
 **D45. 줍기·버리기·소지품·물건 보기**
-- `줍기 <물건> [수량]`(빼면 1, `전부` 는 바닥의 그 물건 모두): 바닥(D40 묶음)에서 찾는다. 성공 `늑대 가죽 3개를 주웠습니다.` / 일부 `저물대에 자리가 없어 늑대 가죽 3개 중 1개만 주웠습니다.`(룰북) / 하나도 못 넣음 `저물대에 자리가 없습니다.`(저물대 3개 때문이면 `저물대는 세 개까지만 찰 수 있습니다.`) / 인자 없음 `무엇을 주우시겠습니까? (예: 줍기 늑대 가죽)`(룰북) / 없음 `이곳에 '가죽'은 없습니다.`(룰북 공통 오류 '방에 대상 없음', 입력 그대로) / 수 넘침 `늑대 가죽은 2개뿐입니다.`. 바닥에서는 버린 것(오래된 것부터) 다음 배치(id 순)에서 덜어 낸다.
+- `줍기 <물건> [수량]`(빼면 1, `전부` 는 바닥의 그 물건 모두): 바닥(D40 묶음)에서 찾는다. 성공 `늑대 가죽 3개를 주웠습니다.` / 일부 `저물대에 자리가 없어 늑대 가죽 3개 중 1개만 주웠습니다.`(룰북) / 하나도 못 넣음 `저물대에 자리가 없습니다.`(저물대 3개 때문이면 `저물대는 세 개까지만 찰 수 있습니다.`) / 인자 없음 `무엇을 주우시겠습니까? (예: 줍기 늑대 가죽)`(룰북) / 없음 `이곳에 '가죽'은 없습니다.`(룰북 공통 오류 '방에 대상 없음', 입력 그대로) / 수 넘침 `늑대 가죽은 2개뿐입니다.`. 바닥에서는 버린 것(오래된 것부터) 다음 배치(id 순)에서 덜어 낸다. 줍는 수는 먼저 `min(요청 수, 바닥 수, Inventory.roomFor)` 로 정하고, 그 수만큼 `RoomFloor.take` → `InventoryEditor.addUpTo` 한다(두 쪽 수가 어긋나지 않게, D53).
 - `버리기 <물건> [수량]`(빼면 1, `전부` 는 가진 것 모두): 성공 `늑대 이빨 4개를 버렸습니다.` / `그런 물건은 가지고 있지 않습니다.` / `늑대 이빨은 2개뿐입니다.` / `퀘스트 물건은 버릴 수 없습니다.` / `귀속된 물건은 버릴 수 없습니다.`(이상 룰북) / 인자 없음 `무엇을 버리시겠습니까? (예: 버리기 늑대 가죽)` / 저물대를 버려 칸이 모자라게 됨 `저물대에 든 물건을 먼저 비우십시오.`.
 - 수량 오류(0, 10자리 이상): `수량은 1 이상의 수로 적으십시오.`(룰북 공통 오류).
 - `소지품`(`ㅈ`): 룰북 형식.
@@ -184,7 +185,7 @@
   하급 저물대   회춘단(연기 초) x3   회기단(연기 초) x3
   ```
   첫 줄 `[소지품 {쓴 칸}/{전체 칸}칸]`, 영석이 있으면 두 칸 띄우고 가진 등급만 `하품 영석 132 · 중품 영석 1`. 둘째 줄부터 영석 밖 물건을 표시 순서(D37)로 한 줄에 셋씩, 사이 공백 셋. 2개 이상이면 ` x{수}`, 귀속이면 ` (귀속)`, 퀘스트 물건이면 ` (퀘스트)`. 영석도 물건도 없으면 둘째 줄 `가진 물건이 없습니다.`. 룰북 예의 `(꺼냄)`·내구도는 3차에 없다.
-- `보기 <물건>`: 바닥 → 내 소지품 순서로 찾는다(룰북 대상 지정 — 대상은 방에서, 물건은 소지품에서). 출력 `늑대 가죽 — 거칠고 질긴 늑대의 가죽이다.`(묘사가 비면 이름만). 물건이 없고 같은 방 플레이어·NPC 이름에 맞으면 2차 그대로 `아직 자세히 볼 수 없습니다.`(사람·NPC 자세히 보기는 3차 범위가 아님), 아무것도 아니면 `그런 것은 보이지 않습니다.`(룰북).
+- `보기 <대상>`: 먼저 방의 대상을 방 보기 순서(같은 방 플레이어 → NPC → 바닥 물건, D40)로 한 목록으로 보고 D46 규칙(전체 일치 우선, 번호)으로 고른다. 방에 맞는 것이 없으면 내 소지품(D37 순서)에서 찾는다(룰북 commands.md 대상 지정 — 대상은 방에서, 물건은 소지품에서, 여럿이면 방 보기에 보이는 순서로 첫째). 고른 것이 물건이면 출력 `늑대 가죽 — 거칠고 질긴 늑대의 가죽이다.`(묘사가 비면 이름만), 사람·NPC면 2차 그대로 `아직 자세히 볼 수 없습니다.`(info, 사람·NPC 자세히 보기는 3차 범위가 아님), 아무것도 아니면 `그런 것은 보이지 않습니다.`(룰북). 리뷰 수정: 처음 계획은 바닥 → 소지품 → 사람·NPC 순이었으나 룰북 대상 지정(방 보기 순서 = 사람이 바닥 물건보다 앞)과 달라 바꿨다.
 
 **D46. 물건 이름 찾기와 수량 문법** (commands.md 입력 문법·대상 지정)
 - 인자 해석 `ItemArguments.parse`: 마지막 낱말이 `전부` 면 모두, 수(`^\d+$`)면 수량(1~999,999,999, 0이나 10자리 이상은 수량 오류), 나머지가 이름. 이름이 비면 인자 없음.
@@ -245,13 +246,14 @@
 
 **D52. 슬라이스·의존·스키마** — 새 슬라이스(domain·application): `item`, `inventory`, `floor`. 의존: `inventory → item, world`, `floor → item, room`, `npc → item, room`, `world → item, room`, `character → inventory`(+2차), `game → inventory, floor, item, npc`(+2차). `item` 은 아무 슬라이스도 쓰지 않는다 — 쓰이는지 검사는 `ItemTypeRepository` 의 JPQL로 센다(2차 `FactionRepository.countZones` 관례). 순환 없음.
 - 테이블(`ddl-auto=update` 로 생김, 마이그레이션 도구 없음): `item_type`(UK `UK_ITEM_TYPE_NAME`, `UK_ITEM_TYPE_SPIRIT_STONE_GRADE`), `inventory`(UK `UK_INVENTORY_CHARACTER_ID`), `inventory_entry`(FK `inventory_id`·`item_type_id`), `floor_placement`(FK `item_type_id`, `room_id` FK 없음), `dropped_item`(같음), `npc.shop_kind` 열, `npc_shop_item`(`position` 순서 열, `item_type_id` FK 없음), `world_starting_item`(`position` 순서 열, `item_type_id` FK 없음).
+- enum 열(`item_type.category`·`bag_grade`·`spirit_stone_grade`, `npc.shop_kind`)은 1·2차 관례대로 `<enumerated>STRING</enumerated>` + `column-definition="varchar(N)"` 로 적는다(H2가 enum 타입을 만들지 않게, 1차 Task 2 메모).
 - `inventory_entry` 에 `(inventory_id, item_type_id, bound)` DB 유니크 제약은 두지 않는다. 묶음 유일은 도메인이 지킨다(결제에서 하품을 다 내고 거스름 하품을 받는 것처럼 한 트랜잭션에서 같은 묶음을 비웠다 채울 때 생기는 일시 충돌을 피함 — 2차 `npc_topic` 과 같은 까닭).
 
 **D53. 동시성·트랜잭션** — 게임 명령은 1차대로 서버 전체 게임 락 하나로 직렬화되고, 락 안에서 명령마다 트랜잭션 하나를 열고 닫는다. 그래서:
 - 같은 바닥 물건을 둘이 동시에 주워도 한 사람씩 처리되고, 뒤 사람은 앞 사람이 커밋한 남은 수를 읽는다(겹쳐 줍기 없음).
 - 주기는 받는 사람이 그 순간 같은 방에 접속해 있는지(메모리 presence)와 두 소지품 변경을 한 명령 안에서 처리한다. 상대가 나가거나 끊는 처리도 같은 락을 지나므로 '주는 중에 나감' 이 끼어들 수 없다. 끊긴 뒤라면 `여기에 한립은 없습니다.` 이고 물건은 그대로다.
 - 사기·팔기·주기·줍기·버리기는 검사를 다 한 뒤에 바꾼다(도메인 메서드가 실패하면 아무것도 바꾸지 않는다). 커밋이 실패하면 메시지를 보내지 않는다(1차 outbox).
-- 관리 요청은 게임 락 밖이다. 관리자 배치 수정과 게임 줍기가 겹치면 나중 커밋이 이긴다(관리 수정은 남은 수를 처음 수로 되돌리는 동작이라 받아들임 — 2차 동시 편집 경합과 같은 판정). 쓰이는 아이템 종류 지우기 경합은 FK가 막고 409(D49).
+- 관리 요청은 게임 락 밖이다. 관리자 배치 수정과 게임 줍기가 겹치면 나중 커밋이 이긴다(관리 수정은 남은 수를 처음 수로 되돌리는 동작이라 받아들임 — 2차 동시 편집 경합과 같은 판정). 쓰이는 아이템 종류 지우기 경합은 FK가 막고 409(D49). 관리자가 배치를 지우는 커밋과 게임 줍기가 겹쳐 게임 쪽이 지워진 행을 고치면 그 명령은 예외로 롤백된다(드묾, 1·2차 드문 경합과 같이 받아들임).
 
 **D54. 관리 변경 반영과 아이템 종류 바꾸기·지우기**
 - 아이템 종류·바닥 배치·시작 소지품·상점 역할의 변경은 실행 중인 게임에 바로 반영된다(게임이 명령마다 DB에서 읽음). 바닥은 다음 방 보기부터, 시작 소지품은 그 뒤 만드는 캐릭터부터, 상점은 다음 상점 명령부터. 같은 방 사람에게 따로 알리지 않는다.
@@ -468,10 +470,11 @@ docs/spec/system/*.md  README.md  scripts/smoke-test.mjs
 - Produces:
   - `record StartingItem(Long itemTypeId, int count)` embeddable. `WorldSettings`: `List<StartingItem> getStartingItems()`(바꿀 수 없음), `void replaceStartingItems(List<StartingItem>)`. 매핑 `<element-collection name="startingItems">` → `world_starting_item`(`world_settings_id`), `<order-column name="position"/>`, `item_type_id` bigint not null, `count` int not null.
   - `record StartingItemRequest(@NotNull Long itemTypeId, @Min(1) @Max(999_999) int count)`.
+  - 세계 설정 행은 지금 시작 방을 정할 때만 생긴다(`designateStartRoom` 의 `orElseGet(WorldSettings::create)`). 그래서 `findStartingItems()` 는 행이 없으면 빈 목록, `replaceStartingItems` 는 행이 없으면 만들어 저장한다. 요소 컬렉션은 LAZY이고 REST 응답은 트랜잭션 밖에서 만들므로, 서비스가 트랜잭션 안에서 `List.copyOf` 로 복사해 돌려준다(또는 리포지토리 `@EntityGraph("startingItems")`).
   - `WorldSettingsFinder` + `List<StartingItem> findStartingItems()`. `WorldSettingsEditor` + `List<StartingItem> replaceStartingItems(@NotNull @Size(max=30) List<@NotNull @Valid StartingItemRequest> items)` — D38 검사(칸은 `Slots` 로 계산), 400 문구 D38.
   - `InventoryEditor.createWithStartingItems(Long characterId)`: 새 소지품에 시작 소지품을 순서대로 넣고 저장. `CharacterModifyService.create` 가 캐릭터 저장 직후 같은 트랜잭션에서 부른다.
   - `ItemTypeRepository` + `@Query("select count(w) from WorldSettings w join w.startingItems s where s.itemTypeId = :itemTypeId") long countInStartingItems(Long itemTypeId)`.
-  - REST: `GET/PUT /api/admin/world/starting-items` — 요청 `StartingItemsSaveRequest(List<StartingItemRequest> items)`, 응답 `StartingItemResponse(Long itemTypeId, String itemName, int count)[]`(이름은 `ItemTypeFinder.findAllById`).
+  - REST: `GET/PUT /api/admin/world/starting-items` — 요청 `StartingItemsSaveRequest(List<StartingItemRequest> items)`, 응답 `StartingItemResponse(Long itemTypeId, String itemName, int count)[]`(이름은 `ItemTypeFinder.findAllById`). `WorldApiWebMvcTest` 의 `@MockitoBean` 에 `ItemTypeFinder` 를 더한다.
 
 - [ ] **Step 1: 테스트** — `WorldSettingsEditorTest`: `replaceStartingItems`(순서 유지), `duplicateItemFail`, `overCapacityFail`(저물대 없이 영석 30·회춘단 3·비검 1 → `시작 소지품이 칸을 넘습니다. (필요 3칸, 칸 2)`), `fourBagsFail`, `unknownItemFail`. `CharacterCreatorTest`: `createGivesStartingItems`(룰북 넷 → 소지품 3/22칸, 하품 30), `createWithoutStartingItems`(빈 소지품 0/2칸). `ItemTypeEditorTest`: `deleteItemTypeInStartingItemsFail`. `WorldApiWebMvcTest`: `PUT` 200 본문, `count:0` 400, `detail` 그대로. 통합: `manageStartingItems`(트랜잭션 밖 이름 직렬화).
 - [ ] **Step 2: 실패 확인 → 구현 → 통과.**
@@ -510,7 +513,7 @@ docs/spec/system/*.md  README.md  scripts/smoke-test.mjs
   - `RoomFloor`(`/** 게임에서 방 바닥 물건을 보고 줍고 버린다 */`): `List<FloorStack> look(Long roomId)`(그 방의 사라진 버린 물건을 지우고 재등장할 배치를 채운 뒤 묶음), `int take(Long roomId, Long itemTypeId, int count)`(버린 것 오래된 것부터 → 배치 id 순, 꺼낸 수), `void drop(Long roomId, Long itemTypeId, int count)`.
   - `FloorModifyService` 의 `@EventListener void onRoomDeleted(RoomDeletedEvent)` — 그 방의 배치·버린 물건 지우기(같은 트랜잭션).
   - `ItemTypeRepository` + `countInFloorPlacements`, `countInDroppedItems(Long itemTypeId, Instant now)`(사라지지 않은 것), `@Modifying deleteExpiredDroppedItems(Long itemTypeId, Instant now)` — 지우기 전에 부른다.
-  - REST: D49 바닥 세 개(`FloorItemApi`), `RoomDetailResponse.floorItems`(`FloorPlacementResponse.of(FloorPlacement, Instant now)`).
+  - REST: D49 바닥 세 개(`FloorItemApi`), `RoomDetailResponse.floorItems`(`FloorPlacementResponse.of(FloorPlacement, Instant now)`). `now` 는 어댑터가 `Clock` 을 주입받아 잰다. `@WebMvcTest` 는 `@Configuration` 을 읽지 않으므로 `FloorItemApiWebMvcTest`·`RoomApiWebMvcTest` 는 `@Import(ClockConfig.class)` 를 더하고, `RoomApiWebMvcTest` 의 `@MockitoBean` 에 `FloorPlacementFinder` 를 더한다. 2차 `RoomApiWebMvcTest` 의 `isStrictlyEqualTo` 기대 JSON에는 `"floorItems":[]` 를 더한다.
 
 - [ ] **Step 1: 도메인 테스트** — `FloorPlacementTest`: `takeReducesRemaining`, `respawnsAfterMinutes`(3개 모두 줍기 → 9분 59초에 0 → 10분에 3), `noRespawnStaysEmpty`, `partialTakeDoesNotStartRespawn`, `updateResets`. `DroppedItemTest`: `expiresAfterFiveMinutes`(4분 59초 false, 5분 true). `FloorStacksTest`: 배치 가죽 2 + 버린 가죽 1 + 버린 하품 3 → `[가죽 3, 하품 영석 3]`, 사라진 것 뺌.
 - [ ] **Step 2: 실패 확인 → 구현.**
@@ -549,7 +552,7 @@ docs/spec/system/*.md  README.md  scripts/smoke-test.mjs
   - `record ShopItemRequest(@NotNull Long itemTypeId, @Nullable @Min(1) @Max(100_000_000) Integer price)`, `record ShopSaveRequest(@NotNull ShopKind kind, @NotNull @Size(max=50) List<@NotNull @Valid ShopItemRequest> items)`.
   - `NpcEditor` + `Npc openShop(Long npcId, @Valid ShopSaveRequest)`(물건은 `ItemTypeFinder.find`), `void closeShop(Long npcId)`.
   - `ItemTypeRepository` + `@Query("select count(n) from Npc n join n.shopItems s where s.itemTypeId = :itemTypeId") long countInShops(Long)`, `@Query("select n.name, s.price from Npc n join n.shopItems s where s.itemTypeId = :itemTypeId") List<Object[]> findShopPrices(Long)`(또는 이름·값 투영 record). `ItemTypeModifyService.update` 가 기준가를 바꿀 때 D41 409 문구로 검사.
-  - REST: D49 `PUT/DELETE /api/admin/npcs/{npcId}/shop`, `NpcDetailResponse.shop`, `NpcSummaryResponse.shopKindName`.
+  - REST: D49 `PUT/DELETE /api/admin/npcs/{npcId}/shop`, `NpcDetailResponse.shop`, `NpcSummaryResponse.shopKindName`. 2차 `NpcApiWebMvcTest` 의 엄격 비교 JSON에 `"shop":null`·`"shopKindName":null` 을 더하고, 이름을 찾는 `ItemTypeFinder` 를 `@MockitoBean` 에 더한다.
 
 - [ ] **Step 1: 도메인 테스트** — `ShopKindTest`: D41 표, `buyerOf(MATERIAL) == MATERIAL_SHOP`, `buyerOf(BEAST_EGG)` 비어 있음. `NpcTest` 추가: `openShop`(순서 유지, `shopName`), `sellCategoryFail`(단약방에 법기 → `단약방은 법기를 팔 수 없습니다.`), `spiritStoneFail`, `duplicateItemFail`, `unfairPriceFail`(회춘단 3에 값 1 → `판매가는 매입가의 2배보다 커야 합니다: 회춘단 (매입가 0.75, 판매가 1)`), `zeroBaseNeedsPriceFail`, `nullPriceFollowsBase`, `closeShop`, `greetingTooLongFail`, `topicsOver30Fail`.
 - [ ] **Step 2: 실패 확인 → 구현.**
@@ -590,6 +593,13 @@ docs/spec/system/*.md  README.md  scripts/smoke-test.mjs
   - `GameService`: 생성자에 `RoomFloor`·`ItemCommandHandler` 추가. 방 보기를 만드는 모든 곳이 `roomFloor.look(roomId)` 를 넣는다. `Look(argument)` 가 null이 아니면 `ItemCommandHandler` 의 물건 보기로(D45).
 
 - [ ] **Step 1: 파서 테스트** — `ItemArgumentsTest` 위 예 전부. `CommandParserTest`: `소지품`·`ㅈ` → Inventory, `줍기` → Pick(null, Count 1), `버리기 하품 10`, `줍기 2.가죽`, `소지품 x` → Unknown.
+- **기존 테스트 기반과 맞추기(사전 점검):**
+  - `BaseGameTest` 는 생성자로 빈을 받는다. `ItemTypeEditor`·`FloorPlacementEditor`·`InventoryFinder`·`InventoryEditor`·`MutableClock` 을 생성자 인자로 더하고, 이를 상속하는 `GameConnectorTest` 생성자도 고친다.
+  - `GameConnectorConcurrencyTest` 는 `BaseGameTest` 를 상속하지 않고 테스트 트랜잭션 없이 커밋하는 따로 쓰는 DB다. `concurrentPickNeverDuplicates` 는 이 클래스 안에서 테스트마다 다른 물건 이름(예 `동시가죽`)을 직접 만든다.
+  - `GameWebSocketIntegrationTest.cleanUp` 은 테스트마다 모든 표를 `TRUNCATE` 한다. 그러면 서버가 뜰 때 한 번 심은 영석 4종도 지워져 다음 테스트의 결제·영석 주기가 `IllegalStateException` 이 된다. `item_type` 은 `TRUNCATE` 에서 빼고 `DELETE FROM item_type WHERE spirit_stone_grade IS NULL` 로 비운다(같은 `REFERENTIAL_INTEGRITY FALSE` 구간 안).
+  - 같은 컨텍스트를 함께 쓰는 `MutableClock` 은 싱글턴이다. 시계를 쓰는 모든 테스트 클래스(`GameConnectorTest`·`RoomFloorTest`·`FloorPlacementEditorTest`·`ItemTypeEditorTest` 등)가 `@BeforeEach` 에서 `reset()` 한다.
+  - 커밋하는 통합 테스트(`AdminApiIntegrationTest`·`GameWebSocketIntegrationTest`·`GameConnectorConcurrencyTest`)에서 시작 소지품을 바꾸면 테스트 끝에 `[]` 로 되돌린다(같은 DB의 다른 테스트 캐릭터가 받지 않게).
+  - 2차 `WebSocketGameMessageSenderTest` 의 `room` 기대 JSON에 `"items":[]` 를 더한다.
 - [ ] **Step 2: 포트 테스트** — `BaseGameTest` 에 `prepareItems()`(아이템: `회춘단(연기 초)` 단약 3, `회기단(연기 초)` 단약 4, `늑대 가죽` 재료 2 묘사 `거칠고 질긴 늑대의 가죽이다.`, `늑대 이빨` 재료 1, `비검` 법기 40, `하급 저물대` 저물대 하급 30, `왕씨의 약초 꾸러미` 퀘스트 0)와 `@BeforeEach` 시계 `reset()` 추가. `GameConnectorTest`:
   - `inventoryShowsStartingItems` — 시작 소지품(하급 저물대 1·하품 영석 30·회춘단 3·회기단 3)으로 만든 캐릭터 `소지품` → `inventory` text `[소지품 3/22칸]  하품 영석 30\n하급 저물대   회춘단(연기 초) x3   회기단(연기 초) x3`, `usedSlots 3`, `totalSlots 22`.
   - `emptyInventory` — `[소지품 0/2칸]\n가진 물건이 없습니다.`
@@ -604,6 +614,7 @@ docs/spec/system/*.md  README.md  scripts/smoke-test.mjs
   - `droppedItemDisappearsAfterFiveMinutes` — 버리고 시계 5분 → 다음 `보기` 에 없음, `줍기` → `이곳에 '이빨'은 없습니다.`
   - `placementRespawns` — 재등장 10분 배치를 다 줍고 10분 → 다시 보임.
   - `lookAtItem` — 바닥 `보기 가죽` → `늑대 가죽 — 거칠고 질긴 늑대의 가죽이다.`, 소지품만 있는 물건도 보임, `보기 왕씨`(NPC) → `아직 자세히 볼 수 없습니다.`, `보기 곰` → `그런 것은 보이지 않습니다.`
+  - `lookPrefersRoomTargets` — 소지품에 `왕씨의 약초 꾸러미` 가 있어도 같은 방에 NPC 왕씨가 있으면 `보기 왕씨` → `아직 자세히 볼 수 없습니다.`; 바닥에 `늑대 가죽`, 소지품에 다른 `늑대 이빨` 이 있을 때 `보기 늑대` → 바닥의 `늑대 가죽` 묘사(D45 방 → 소지품 순서).
   - `oldCharacterGetsEmptyInventory` — 소지품 행이 없는 캐릭터의 `소지품` → `0/2칸`.
   - 2차 테스트의 `room` 기대값에 `items: []` 를 더한다.
   - `GameConnectorConcurrencyTest.concurrentPickNeverDuplicates` — 바닥 가죽 50, A·B가 동시에 `줍기 가죽 전부` 를 여러 번 → 두 소지품 합 50, 바닥 0.
@@ -632,7 +643,7 @@ docs/spec/system/*.md  README.md  scripts/smoke-test.mjs
 - Consumes: Task 3 `InventoryEditor.purchase/sell/give/bind/unbind`, Task 6 `Npc.findShopKind/getShopItems/shopName`·`ShopKind`·`ShopItem.effectivePrice`, `Pricing`, `NpcFinder.findAllInRoom`, `Clock`.
 - Produces:
   - `Command`: `ShopList(String args)`, `Buy(String args)`, `Sell(String args)`, `Appraise(String args)`, `Give(@Nullable String target, String args)`, `Bind(String args)`, `Unbind(String args)`, `Confirm()`, `Cancel()`. 파서: `목록`·`사기`·`팔기`·`값` → 나머지 그대로(NPC 이름 떼기는 핸들러가 함, 방의 상점 수를 알아야 하므로), `주기` → 첫 낱말 대상·나머지, `귀속 해제 X` → Unbind(`X`), `귀속 X` → Bind(`X`), `확인`·`취소`(인자 있으면 Unknown).
-  - `GameSession`: `record PendingPurchase(Long npcId, Long itemTypeId, int count, Instant askedAt)`, `void askConfirm(PendingPurchase)`, `Optional<PendingPurchase> findPending()`, `void clearPending()`. `GameService.handleCommand` 는 `Confirm`·`Cancel` 이 아니면 먼저 `clearPending()`.
+  - `GameSession`: `record PendingPurchase(Long npcId, Long itemTypeId, int count, Instant askedAt)`, `void askConfirm(PendingPurchase)`, `Optional<PendingPurchase> findPending()`, `void clearPending()`. `GameService.handleCommand` 는 `Confirm`·`Cancel`·`Empty` 가 아니면 먼저 `clearPending()`.
   - `ShopCommandHandler`: `void handle(Command command, OnlinePlayer player, GameSession session, BiConsumer<String, GameMessage> send)` — D42 상점 고르기·목록·사기·팔기·값·확인·취소. `ItemCommandHandler` 에 주기·귀속·귀속 해제(D43·D44)를 더한다.
   - `GameService.HELP` = D56 문구.
 
@@ -640,10 +651,11 @@ docs/spec/system/*.md  README.md  scripts/smoke-test.mjs
 - [ ] **Step 2: 포트 테스트** — `BaseGameTest` 에 `prepareShop()`(마을 어귀의 2차 NPC `왕씨` 에 단약방 `[회춘단(연기 초) null, 회기단(연기 초) null]`). `GameConnectorTest`:
   - `shopList` — `목록` → `[왕씨 단약방]  파는 것  값(하품)\n  1. 회춘단(연기 초)  3\n  2. 회기단(연기 초)  4\n사 주는 것: 단약·영약`.
   - `noShopHereFail` — 상점 없는 방 `사기 회춘단` → `이곳에서는 할 수 없습니다.`
-  - `twoShopsNeedName` — 같은 방에 상점 NPC 둘 → `사기 회춘단` → `상인이 여럿입니다. 상인 이름을 붙이십시오: 왕씨 · 이씨`, `사기 왕 회춘단` 은 됨. 상점 하나일 때 `사기 왕씨 회춘단` 도 됨.
+  - `twoShopsNeedName` — 같은 방에 상점 NPC 둘 → `사기 회춘단` → `상인이 여럿입니다. 상인 이름을 붙이십시오: 왕씨 · 이씨`, `사기 왕 회춘단` 은 됨. 상점 하나일 때 `사기 왕씨 회춘단` 도 됨, `목록 곰` → `여기에 그런 상대는 없습니다.`
+  - `giveCheckOrder` — D44 검사 순서대로 둘 이상 걸리는 입력(예: 없는 사람에게 귀속 물건 → `여기에 …`, 귀속 물건 수 넘침 → 귀속 문구).
   - `buy` — 하품 30 → `사기 회춘단 5` → `회춘단(연기 초) 5개를 샀습니다. (하품 영석 -15)`, 소지품 하품 15.
   - `buyFails` — `사기` → `무엇을 사시겠습니까? (예: 사기 회춘단 5)`, `사기 비검` → `왕씨: "그런 물건은 팔지 않소."`, 하품 9로 15 → `영석이 모자랍니다. (필요 15, 가진 것 9)`, 칸 없음 → `저물대에 자리가 없습니다.`(영석 그대로), `사기 회춘단 전부` → 수량 문구.
-  - `buyBreaksHighStoneNeedsConfirm` — 하품 0·상품 1로 회춘단 40개(120) → `값을 치르려면 상품 영석 1개를 깨야 합니다. 거스름 하품 9,880개를 받습니다. 계속하려면 '확인'.` → `확인` → 산다(상품 0, 하품 9,880). 다시 같은 질문 뒤 `보기` 를 하고 `확인` → `확인할 것이 없습니다.`; 질문 뒤 11초 → `확인할 것이 없습니다.`; `취소` → `그만두었습니다.`; 대기 없이 `취소` → `그만둘 것이 없습니다.`
+  - `buyBreaksHighStoneNeedsConfirm` — 하품 0·상품 1로 회춘단 40개(120) → `값을 치르려면 상품 영석 1개를 깨야 합니다. 거스름 하품 9,880개를 받습니다. 계속하려면 '확인'.` → `확인` → 산다(상품 0, 하품 9,880). 다시 같은 질문 뒤 `보기` 를 하고 `확인` → `확인할 것이 없습니다.`; 질문 뒤 11초 → `확인할 것이 없습니다.`; 질문 뒤 빈 입력(Enter) 다음 `확인` → 산다(빈 입력은 대기를 취소하지 않음); `취소` → `그만두었습니다.`; 대기 없이 `취소` → `그만둘 것이 없습니다.`
   - `buyChangeOverflowFail` — 거스름이 칸에 안 들어감 → `거스름을 받을 자리가 없습니다. (하품 9,880개, 1칸 필요)`.
   - `sell` — 회춘단 2 → `팔기 회춘단 2` → `회춘단(연기 초) 2개를 팔았습니다. (하품 영석 +1)`.
   - `sellFails` — `팔기 하품` → `왕씨: "그런 물건은 받지 않소."`, 퀘스트 → `왕씨: "그건 내가 살 물건이 아니오."`, 귀속 비검 → `왕씨: "귀속된 물건은 사 줄 수 없소."`, 늑대 가죽 → `왕씨: "그런 물건은 받지 않소." (재료는 재료상에 팔 수 있습니다)`, 회춘단 1 → `왕씨: "값이 너무 적어 사 줄 수가 없소. 더 모아 오시오."`, `회춘단(연기 초)는 3개뿐입니다.`
@@ -806,13 +818,13 @@ docs/spec/system/*.md  README.md  scripts/smoke-test.mjs
 **시나리오 추가** (2차 단계 1~15 뒤에 이어서. 이름에는 2차처럼 숫자 6자리 실행 번호 `<n>` 을 붙인다 — 숫자로 끝나는 이름은 조사 규칙상 받침 없음으로 본다(`회춘단<n>는`·`<n>를`·`<n>와`·`<n>가`), 기대 문구도 그렇게 만든다):
 16. 관리자 — 아이템 종류 `하급 저물대<n>`(저물대·하급, 30), `회춘단<n>`(단약, 3), `늑대 가죽<n>`(재료, 2, 묘사 `거칠고 질긴 늑대의 가죽이다.`), `비검<n>`(법기, 40) 만들기. `GET /api/admin/item-types` 앞 넷이 `하품 영석`~`극품 영석`.
 17. 관리자 — 광장 바닥에 `늑대 가죽<n>` 3개(재등장 없음) → `GET /rooms/{광장}` 의 `floorItems[].remaining == 3`.
-18. 관리자 — 지금 시작 소지품을 읽어 두고(끝에 되돌림) `[하급 저물대<n> 1, 하품 영석 30, 회춘단<n> 3, 비검<n> 1]` 로 저장. 칸 넘침 요청(저물대 빼고 같은 것) → 400 `detail` `시작 소지품이 칸을 넘습니다. (필요 3칸, 칸 2)`.
+18. 관리자 — 지금 시작 소지품을 읽어 두고(끝에 되돌림 — 스크립트 `finally` 에서도 되돌린다) `[]` 로 저장 → 새 플레이어 D(새 계정) 접속·캐릭터 생성(광장, 빈 소지품 `0/2칸` 확인) → `[하급 저물대<n> 1, 하품 영석 30, 회춘단<n> 3, 비검<n> 1]` 로 저장. 칸 넘침 요청(저물대 빼고 같은 것) → 400 `detail` `시작 소지품이 칸을 넘습니다. (필요 3칸, 칸 2)`. (리뷰 수정: 2차 플레이어 B는 단계 4에서 그때의 시작 소지품으로 만들어지므로, `pgdata` 에 관리자가 시작 소지품을 넣어 두었으면 B가 저물대를 가져 단계 24의 '받는 쪽 2칸' 확인이 깨진다. 그래서 받는 쪽은 빈 시작 소지품으로 만든 D다.)
 19. 관리자 — NPC `상인<n>` 을 광장에 배치하고 상점 단약방 `[회춘단<n> 값 빈칸]` → 응답 `shop.items[0].effectivePrice == 3`. 값 1로 저장 → 400 `detail` `판매가는 매입가의 2배보다 커야 합니다: 회춘단<n> (매입가 0.75, 판매가 1)`. 쓰이는 `회춘단<n>` 삭제 → 409.
-20. 새 플레이어 C(새 계정) 접속 → 캐릭터 생성 → `소지품` → `inventory.usedSlots == 3`, `totalSlots == 22`, `stones == [{하품 영석, 30}]`, text 첫 줄 `[소지품 3/22칸]  하품 영석 30`. 2차 플레이어 B도 다시 접속(광장).
-21. C `보기` → `room.items` 에 `{늑대 가죽<n>, 3}`. C `줍기 늑대 가죽<n> 2` → `늑대 가죽<n> 2개를 주웠습니다.`, B가 notice event `pick`. C `버리기 늑대 가죽<n> 1` → `늑대 가죽<n> 1개를 버렸습니다.`, B가 event `drop`. C `보기` → `{늑대 가죽<n>, 2}`(배치 1 + 버린 1 묶음). C `보기 늑대 가죽<n>` → `늑대 가죽<n> — 거칠고 질긴 늑대의 가죽이다.`
+20. 새 플레이어 C(새 계정) 접속 → 캐릭터 생성 → `소지품` → `inventory.usedSlots == 3`, `totalSlots == 22`, `stones == [{하품 영석, 30}]`, text 첫 줄 `[소지품 3/22칸]  하품 영석 30`. D는 접속한 채 광장에 있다.
+21. C `보기` → `room.items` 에 `{늑대 가죽<n>, 3}`. C `줍기 늑대 가죽<n> 2` → `늑대 가죽<n> 2개를 주웠습니다.`, D가 notice event `pick`. C `버리기 늑대 가죽<n> 1` → `늑대 가죽<n> 1개를 버렸습니다.`, D가 event `drop`. C `보기` → `{늑대 가죽<n>, 2}`(배치 1 + 버린 1 묶음). C `보기 늑대 가죽<n>` → `늑대 가죽<n> — 거칠고 질긴 늑대의 가죽이다.`
 22. C `목록` → `[상인<n> 단약방]` 과 `  1. 회춘단<n>  3`, `사 주는 것: 단약·영약`. C `사기 회춘단<n> 2` → `회춘단<n> 2개를 샀습니다. (하품 영석 -6)` → `소지품` stones 24. C `팔기 회춘단<n> 2` → `회춘단<n> 2개를 팔았습니다. (하품 영석 +1)` → 25. C `값 회춘단<n>` → `회춘단<n> 1개에 하품 영석 0.75 — 3개면 2`. C `팔기 늑대 가죽<n>` → `상인<n>: "그런 물건은 받지 않소." (재료는 재료상에 팔 수 있습니다)`.
-23. C `귀속 비검<n>` → `비검<n>에 정혈을 한 방울 떨어뜨린다. 비검<n>가 당신에게 귀속되었습니다.` → `소지품` items 에 `{비검<n>, bound: true}`. C `버리기 비검<n>` → `귀속된 물건은 버릴 수 없습니다.`, `팔기 비검<n>` → `상인<n>: "귀속된 물건은 사 줄 수 없소."`, `주기 <B> 비검<n>` → `귀속된 물건은 남에게 줄 수 없습니다.`. C `귀속 해제 비검<n>` → `비검<n>와 이어진 정혈의 끈을 끊었습니다. 귀속이 풀렸습니다.`
-24. C `주기 <B> 회춘단<n> 1` → C `<B>에게 회춘단<n> 1개를 주었습니다.`, B `system` tone `item` `<C>{이/가} 회춘단<n> 1개를 건넸습니다.`. C `주기 <B> 하품 5` → B `소지품` stones `[{하품 영석, 5}]`. B는 저물대 없이 2칸이므로 C `주기 <B> 늑대 가죽<n> 1` → `<B>의 저물대에 자리가 없습니다.`. C `주기 없는사람 회춘단<n>` → `여기에 없는사람은 없습니다.`. C `도움말` 에 `주기 <대상> <물건> [수량]`·`귀속 해제 <물건>`.
+23. C `귀속 비검<n>` → `비검<n>에 정혈을 한 방울 떨어뜨린다. 비검<n>가 당신에게 귀속되었습니다.` → `소지품` items 에 `{비검<n>, bound: true}`. C `버리기 비검<n>` → `귀속된 물건은 버릴 수 없습니다.`, `팔기 비검<n>` → `상인<n>: "귀속된 물건은 사 줄 수 없소."`, `주기 <D> 비검<n>` → `귀속된 물건은 남에게 줄 수 없습니다.`. C `귀속 해제 비검<n>` → `비검<n>와 이어진 정혈의 끈을 끊었습니다. 귀속이 풀렸습니다.`
+24. C `주기 <D> 회춘단<n> 1` → C `<D>에게 회춘단<n> 1개를 주었습니다.`, D `system` tone `item` `<C>{이/가} 회춘단<n> 1개를 건넸습니다.`. C `주기 <D> 하품 5` → D `소지품` stones `[{하품 영석, 5}]`. D는 저물대 없이 2칸이므로 C `주기 <D> 늑대 가죽<n> 1` → `<D>의 저물대에 자리가 없습니다.`. C `주기 없는사람 회춘단<n>` → `여기에 없는사람은 없습니다.`. C `도움말` 에 `주기 <대상> <물건> [수량]`·`귀속 해제 <물건>`.
 25. 관리자 — 18에서 읽어 둔 시작 소지품으로 되돌린다.
 
 - [ ] **Step 1: 스크립트 수정** — 2차 단계는 그대로 두고 위 단계를 더한다(Node 26 내장 `fetch`·`WebSocket` 만).
@@ -826,7 +838,7 @@ docs/spec/system/*.md  README.md  scripts/smoke-test.mjs
 **완료 조건:** compose 환경에서 단계 1~25 `SMOKE OK`, 세 모듈 검증 통과, 정리 뒤 dangling 이미지 없음.
 **progress.md 한 줄:** 스모크 단계 16~25, compose 빌드 한 번, 디스크 전후 값, 고친 것.
 
-**완료 시나리오 대응** (decisions.md 끝 → 스모크 단계): 관리자 로그인 1 · 아이템 종류 정의 16 · 바닥 배치 17 · 시작 소지품 18 · 상점 역할 19 · 새 캐릭터 시작 소지품·영석 20 · 줍기·버리기 21 · 물건 보기 21 · 사기·팔기(영석 증감) 22 · 저물대(칸 22, 받는 쪽 2칸 거절)·귀속 20·23·24 · 같은 방 다른 플레이어에게 주기 24.
+**완료 시나리오 대응** (decisions.md 끝 → 스모크 단계): 관리자 로그인 1 · 아이템 종류 정의 16 · 바닥 배치 17 · 시작 소지품 18 · 상점 역할 19 · 새 캐릭터 시작 소지품·영석 20 · 줍기·버리기 21 · 물건 보기 21 · 사기·팔기(영석 증감) 22 · 저물대(칸 22, 받는 쪽 2칸 거절)·귀속 20·23·24 · 같은 방 다른 플레이어(D)에게 주기 24.
 
 ---
 
