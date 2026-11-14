@@ -6,7 +6,7 @@
 
 | 태스크 | 커밋 | 메모 |
 |---|---|---|
-| 1 경지·오행·영근 도메인과 캐릭터 저장 | | `Realm`·`Element`(shared), `SpiritRoot`(record, 엔트리 오행 순 정렬, `of(List)` 더함, 없는 오행 `aptitude` 0)·`SpiritRootEntry`, `player_character.realm`(nullable)·`character_spirit_root`(FK `character_id`, 순서 열 없음 — 도메인이 정렬), 시작 채우기(`@Order(0)`, 영석 심기 `@Order(10)`), `Josa` 으로/로, `CharacterFinder.find`, `CharacterCreator.create(…, SpiritRoot)`·`chooseSpiritRoot`. 경지 null 읽기 문구 `캐릭터의 경지가 비어 있습니다`(IllegalStateException). |
+| 1 경지·오행·영근 도메인과 캐릭터 저장 | fb63e93 (리뷰 ✅, Minor 3) | `Realm`·`Element`(shared), `SpiritRoot`(record, 엔트리 오행 순 정렬, `of(List)` 더함, 없는 오행 `aptitude` 0)·`SpiritRootEntry`, `player_character.realm`(nullable)·`character_spirit_root`(FK `character_id`, 순서 열 없음 — 도메인이 정렬), 시작 채우기(`@Order(0)`, 영석 심기 `@Order(10)`), `Josa` 으로/로, `CharacterFinder.find`, `CharacterCreator.create(…, SpiritRoot)`·`chooseSpiritRoot`. 경지 null 읽기 문구 `캐릭터의 경지가 비어 있습니다`(IllegalStateException). |
 
 ## 상태
 
