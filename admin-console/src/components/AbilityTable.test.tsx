@@ -33,7 +33,7 @@ describe("AbilityTable", () => {
 
     await user.click(screen.getByRole("button", { name: "신통 추가" }));
 
-    expect(screen.getByLabelText("이름")).toHaveValue("");
+    expect(screen.getByLabelText("신통 이름")).toHaveValue("");
     expect(selectedText(screen.getByLabelText("배우는 단계"))).toBe("1성");
     expect(selectedText(screen.getByLabelText("종류"))).toBe("공격");
     const elements = within(screen.getByRole("group", { name: "속성" }));
@@ -47,6 +47,14 @@ describe("AbilityTable", () => {
     expect(screen.getByLabelText("시전(초)")).toHaveValue(0);
     expect(screen.getByLabelText("대기(초)")).toHaveValue(3);
     expect(selectedText(screen.getByLabelText("쓸 수 있는 때"))).toBe("전투 중만");
+  });
+
+  it("소모 양·시전·대기 칸은 브라우저가 소수 자리를 막지 않는다(서버 400 을 보인다)", () => {
+    render(<Harness initial={[newAbility()]} stageCount={9} />);
+
+    for (const label of ["소모 양", "시전(초)", "대기(초)"]) {
+      expect(screen.getByLabelText(label)).toHaveAttribute("step", "any");
+    }
   });
 
   it("배우는 단계 선택지는 1성 ~ 단계 수 다", () => {
@@ -90,6 +98,6 @@ describe("AbilityTable", () => {
 
     await user.click(screen.getAllByRole("button", { name: "삭제" })[0]);
 
-    expect(screen.getAllByLabelText("이름").map((input) => (input as HTMLInputElement).value)).toEqual(["천안술"]);
+    expect(screen.getAllByLabelText("신통 이름").map((input) => (input as HTMLInputElement).value)).toEqual(["천안술"]);
   });
 });

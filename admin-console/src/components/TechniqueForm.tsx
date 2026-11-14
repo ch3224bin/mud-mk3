@@ -89,12 +89,15 @@ export default function TechniqueForm({ initial, realms, onSaved }: Props) {
     if (!window.confirm(`'${target.name}' 공법을 지울까요?`)) {
       return;
     }
+    setSubmitting(true);
     setError(null);
     try {
       await deleteTechnique(target.id);
       router.push("/techniques/");
     } catch (e) {
       setError(errorMessage(e));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -141,7 +144,7 @@ export default function TechniqueForm({ initial, realms, onSaved }: Props) {
           저장
         </button>
         {initial && (
-          <button type="button" onClick={() => handleDelete(initial)}>
+          <button type="button" disabled={submitting} onClick={() => handleDelete(initial)}>
             삭제
           </button>
         )}

@@ -10,7 +10,10 @@ import {
   deleteFloorItem,
   deleteShop,
   deleteTechnique,
+  designateRealm,
+  getCharacter,
   getTechnique,
+  listCharacters,
   listRealms,
   listTechniques,
   listZones,
@@ -288,6 +291,32 @@ describe("경지·공법", () => {
     expect(lastCall().url).toBe("http://localhost:8080/api/admin/techniques/2");
     expect(lastCall().init.method).toBe("DELETE");
     expect(headersOf(lastCall().init).get("X-MUD-Client")).toBe("1");
+  });
+});
+
+describe("캐릭터", () => {
+  it("listCharacters·getCharacter 는 GET 이고 X-MUD-Client 를 붙이지 않는다", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(200, []));
+
+    await listCharacters();
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/characters");
+    expect(lastCall().init.method).toBe("GET");
+    await getCharacter(3);
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/characters/3");
+    expect(lastCall().init.method).toBe("GET");
+    expect(headersOf(lastCall().init).has("X-MUD-Client")).toBe(false);
+  });
+
+  it("designateRealm 은 PUT /api/admin/characters/{id}/realm 에 { realm } 을 보내고 상세를 돌려준다", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { id: 3, realm: "QI_7" }));
+
+    await expect(designateRealm(3, "QI_7")).resolves.toEqual({ id: 3, realm: "QI_7" });
+
+    const { url, init } = lastCall();
+    expect(url).toBe("http://localhost:8080/api/admin/characters/3/realm");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ realm: "QI_7" });
+    expect(headersOf(init).get("X-MUD-Client")).toBe("1");
   });
 });
 

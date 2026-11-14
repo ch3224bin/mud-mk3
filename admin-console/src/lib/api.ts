@@ -265,6 +265,39 @@ export type TechniqueDetailResponse = {
   scrollItems: { id: number; name: string }[];
 };
 
+/** spiritRootName 은 `목·화 진영근`(정하지 않았으면 null), online 은 지금 접속해 세계에 있는지 */
+export type CharacterSummaryResponse = {
+  id: number;
+  name: string;
+  realm: RealmCode;
+  realmName: string;
+  spiritRootName: string | null;
+  techniqueCount: number;
+  online: boolean;
+};
+/** aptitude 는 처음 자질 + 공법 증가(소수) */
+export type CharacterRootResponse = { element: ElementCode; elementName: string; aptitude: number };
+/** 스탯 최대치(정수) */
+export type CharacterStatsResponse = {
+  qiBlood: number;
+  mana: number;
+  sense: number;
+  essence: number;
+  spirit: number;
+  body: number;
+  strength: number;
+};
+/** spiritRoot 는 정하지 않았으면 null, techniques 는 익힌 순서 */
+export type CharacterDetailResponse = {
+  id: number;
+  name: string;
+  realm: RealmCode;
+  realmName: string;
+  spiritRoot: { name: string; roots: CharacterRootResponse[] } | null;
+  stats: CharacterStatsResponse;
+  techniques: { id: number; name: string; stage: number; stageCount: number }[];
+};
+
 export type FactionSaveRequest = { kind: FactionKind; name: string; description: string };
 export type ZoneSaveRequest = { name: string; description: string; ownerId: number | null };
 /** llmEnabled 는 서버에서 필수 값이라 늘 보낸다. roomId 가 null 이면 배치하지 않는다 */
@@ -392,6 +425,14 @@ export const updateTechnique = (techniqueId: number, request: TechniqueSaveReque
   apiFetch<TechniqueDetailResponse>(`/api/admin/techniques/${techniqueId}`, jsonBody("PUT", request));
 export const deleteTechnique = (techniqueId: number) =>
   apiFetch<void>(`/api/admin/techniques/${techniqueId}`, { method: "DELETE" });
+
+/** 캐릭터 목록(이름순) */
+export const listCharacters = () => apiFetch<CharacterSummaryResponse[]>("/api/admin/characters");
+export const getCharacter = (characterId: number) =>
+  apiFetch<CharacterDetailResponse>(`/api/admin/characters/${characterId}`);
+/** 수위·돌파 없이 경지를 바로 지정한다. 지정한 뒤의 상세를 돌려준다 */
+export const designateRealm = (characterId: number, realm: RealmCode) =>
+  apiFetch<CharacterDetailResponse>(`/api/admin/characters/${characterId}/realm`, jsonBody("PUT", { realm }));
 
 /** 화면에 보일 오류 문구. 서버가 준 ProblemDetail detail 을 그대로 쓴다. */
 export function errorMessage(error: unknown): string {

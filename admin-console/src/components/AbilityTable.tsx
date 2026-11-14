@@ -63,7 +63,7 @@ export default function AbilityTable({ abilities, stageCount, onChange }: Props)
                 <tr key={index}>
                   <td>
                     <input
-                      aria-label="이름"
+                      aria-label="신통 이름"
                       value={ability.name}
                       maxLength={12}
                       onChange={(e) => change(index, { name: e.target.value })}
@@ -148,7 +148,7 @@ export default function AbilityTable({ abilities, stageCount, onChange }: Props)
                       <input
                         type="number"
                         min={0}
-                        step={0.1}
+                        step="any"
                         className="number"
                         aria-label="소모 양"
                         value={ability.costAmount}
@@ -168,7 +168,7 @@ export default function AbilityTable({ abilities, stageCount, onChange }: Props)
                     <input
                       type="number"
                       min={0}
-                      step={0.1}
+                      step="any"
                       className="number"
                       aria-label="시전(초)"
                       value={ability.castSeconds}
@@ -179,7 +179,7 @@ export default function AbilityTable({ abilities, stageCount, onChange }: Props)
                     <input
                       type="number"
                       min={0}
-                      step={0.1}
+                      step="any"
                       className="number"
                       aria-label="대기(초)"
                       value={ability.cooldownSeconds}

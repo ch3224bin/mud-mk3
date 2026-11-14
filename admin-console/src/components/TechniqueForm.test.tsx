@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../lib/api";
@@ -108,7 +108,7 @@ describe("TechniqueForm", () => {
     await user.clear(screen.getByLabelText("2성 필요 깨달음"));
     await user.type(screen.getByLabelText("2성 필요 깨달음"), "120");
     await user.click(screen.getByRole("button", { name: "신통 추가" }));
-    await user.type(screen.getByLabelText("이름", { selector: "td input" }), "화탄술");
+    await user.type(screen.getByLabelText("신통 이름"), "화탄술");
     await user.click(screen.getByRole("button", { name: "저장" }));
 
     expect(api.createTechnique).toHaveBeenCalledWith({
@@ -216,6 +216,22 @@ describe("TechniqueForm", () => {
     expect(confirm).toHaveBeenCalledWith("'장춘공' 공법을 지울까요?");
     expect(api.deleteTechnique).toHaveBeenCalledWith(2);
     expect(push).toHaveBeenCalledWith("/techniques/");
+  });
+
+  it("삭제 요청이 끝나기 전에는 삭제·저장 버튼을 누를 수 없다", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    let finish: () => void = () => {};
+    vi.mocked(api.deleteTechnique).mockReturnValue(new Promise<void>((resolve) => (finish = resolve)));
+    render(<TechniqueForm initial={changchun} realms={realms} onSaved={vi.fn()} />);
+
+    await user.click(deleteButton());
+
+    expect(deleteButton()).toBeDisabled();
+    expect(screen.getByRole("button", { name: "저장" })).toBeDisabled();
+    finish();
+    await waitFor(() => expect(screen.getByRole("button", { name: "저장" })).toBeEnabled());
+    expect(api.deleteTechnique).toHaveBeenCalledTimes(1);
   });
 
   it("삭제 확인을 취소하면 지우지 않고, 서버가 409 를 주면 detail 을 보인다", async () => {
