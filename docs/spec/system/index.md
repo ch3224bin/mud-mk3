@@ -91,7 +91,7 @@
 ## 열린 질문
 
 - 월드 상태의 DB 저장 주기·시점과 게임 틱은? — 1차 저장 시점(캐릭터 위치는 이동할 때마다)과 3차 소지품(바뀌는 명령의 트랜잭션에서 바로)·바닥 물건(DB, 읽을 때 시각 비교)은 제안으로 정했다. 이후 상태·틱은 열려 있다. → [플랫폼](platform.md#열린-질문), [3차 월드 상태와 저장](platform.md#3차-월드-상태와-저장)
-- WebSocket JSON 메시지 목록·스키마는? → (제안) 1차 메시지를 정했다. 2·3차 변경도 정했다. → [플랫폼: 1차 WebSocket 메시지](platform.md#1차-websocket-메시지), [3차 WebSocket 메시지 변경](platform.md#3차-websocket-메시지-변경)
+- WebSocket JSON 메시지 목록·스키마는? → (제안) 1차 메시지를 정했다. 2·3차 변경도 정했다. → [플랫폼: 1차 WebSocket 메시지](platform.md#1차-websocket-메시지), [2차 WebSocket 메시지 변경](platform.md#2차-websocket-메시지-변경), [3차 WebSocket 메시지 변경](platform.md#3차-websocket-메시지-변경)
 - NPC 대사의 LLM 연동은 LLM 이터레이션(순서 미정)의 후보로 정했다(예정, [4차 이후 후보](#4차-이후-후보-예정)). 그 전까지 대사는 낱말 묻기 방식으로 입력한다([2차 범위](#2차-범위-npc-배치--기본-대화--성종문-정의)). → [NPC](npc.md)
 - NPC 장기 메모리에 무엇을 어떻게 남기는가? (엔진 자동 기록 / LLM 요약 등) → [NPC](npc.md#함께-쌓는-내러티브)
 
