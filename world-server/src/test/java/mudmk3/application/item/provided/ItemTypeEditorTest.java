@@ -416,6 +416,23 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
     }
 
     @Test
+    void changeCategoryDroppingTechniqueFail() {
+        Long techniqueId = techniqueEditor.create(changchunRequest("장춘공")).id();
+        ItemType scroll = itemTypeEditor.create(scrollRequest(ItemCategory.SCROLL, techniqueId));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThatThrownBy(() -> itemTypeEditor.update(scroll.getId(), scrollRequest(ItemCategory.MATERIAL, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("공법은 옥간·서책에만 담을 수 있습니다.");
+        entityManager.clear();
+
+        ItemType found = itemTypeFinder.find(scroll.getId());
+        assertThat(found.getCategory()).isEqualTo(ItemCategory.SCROLL);
+        assertThat(found.findTechnique()).map(technique -> technique.getId()).contains(techniqueId);
+    }
+
+    @Test
     void removeTechniqueThenChangeCategory() {
         Long techniqueId = techniqueEditor.create(changchunRequest("장춘공")).id();
         ItemType scroll = itemTypeEditor.create(scrollRequest(ItemCategory.SCROLL, techniqueId));

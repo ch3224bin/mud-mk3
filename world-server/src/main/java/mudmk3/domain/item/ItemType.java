@@ -131,7 +131,9 @@ public class ItemType extends AbstractEntity {
         if (newCategory != ItemCategory.BAG && info.bagGrade() != null) {
             throw new IllegalArgumentException("저물대 등급은 저물대에만 정합니다.");
         }
-        if (newCategory != ItemCategory.SCROLL && info.technique() != null) {
+        // 담긴 공법이 있으면 먼저 빼야 종류를 바꿀 수 있다(같은 요청에서 빼며 바꾸는 것도 막는다)
+        boolean categoryChangesWithTechnique = this.technique != null && newCategory != this.category;
+        if ((newCategory != ItemCategory.SCROLL && info.technique() != null) || categoryChangesWithTechnique) {
             throw new IllegalArgumentException("공법은 옥간·서책에만 담을 수 있습니다.");
         }
 

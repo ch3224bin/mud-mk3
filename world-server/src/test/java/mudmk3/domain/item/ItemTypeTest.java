@@ -62,6 +62,20 @@ class ItemTypeTest {
     }
 
     @Test
+    void changeCategoryDroppingTechniqueFail() {
+        Technique changchun = TechniqueFixture.changchun();
+        ItemType scroll = ItemType.create(
+                new ItemTypeSaveInfo("장춘공 옥간", null, ItemCategory.SCROLL, 30, null, changchun));
+
+        assertThatThrownBy(() -> scroll.update(
+                new ItemTypeSaveInfo("장춘공 옥간", null, ItemCategory.MATERIAL, 30, null, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("공법은 옥간·서책에만 담을 수 있습니다.");
+        assertThat(scroll.getCategory()).isEqualTo(ItemCategory.SCROLL);
+        assertThat(scroll.findTechnique()).containsSame(changchun);
+    }
+
+    @Test
     void createWithDescription() {
         ItemType itemType = ItemType.create(new ItemTypeSaveInfo("비검", "날이 선 작은 검이다.", ItemCategory.ARTIFACT, 50, null, null));
 

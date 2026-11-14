@@ -6,11 +6,14 @@ import mudmk3.application.technique.provided.TechniqueFinder;
 import mudmk3.application.technique.provided.TechniqueInUseException;
 import mudmk3.application.technique.provided.TechniqueSaveRequest;
 import mudmk3.application.technique.provided.TechniqueView;
+import mudmk3.application.technique.required.ScrollItem;
 import mudmk3.application.technique.required.TechniqueRepository;
 import mudmk3.domain.technique.DuplicateTechniqueNameException;
 import mudmk3.domain.technique.Technique;
 import mudmk3.domain.technique.TechniqueSaveInfo;
 import mudmk3.support.stereotype.ValidatedApplicationService;
+
+import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
@@ -58,10 +61,9 @@ public class TechniqueModifyService implements TechniqueEditor {
 
     /** 익힌 캐릭터·담긴 물건이 있으면 {@code TechniqueInUseException}(409). 익힌 캐릭터는 Task 5가 채운다 */
     private void checkDeletable(Technique technique) {
-        Long techniqueId = requireNonNull(technique.getId());
-        if (techniqueRepository.countScrollItems(techniqueId) > 0) {
-            String firstItem = techniqueRepository.findScrollItems(techniqueId).getFirst().name();
-            throw new TechniqueInUseException("이 공법이 담긴 물건이 있어 지울 수 없습니다: " + firstItem);
+        List<ScrollItem> scrollItems = techniqueRepository.findScrollItems(requireNonNull(technique.getId()));
+        if (!scrollItems.isEmpty()) {
+            throw new TechniqueInUseException("이 공법이 담긴 물건이 있어 지울 수 없습니다: " + scrollItems.getFirst().name());
         }
     }
 

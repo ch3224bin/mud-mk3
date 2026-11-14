@@ -108,7 +108,12 @@ record TechniqueApiWebMvcTest(MockMvcTester mvc, TechniqueFinder techniqueFinder
         String nullStartRealm = CHANGCHUN_JSON.replace("\"startRealm\":\"MORTAL\"", "\"startRealm\":null");
         String nullKind = CHANGCHUN_JSON.replace("\"kind\":\"ATTACK\"", "\"kind\":null");
 
-        for (String json : List.of(wrongKind, nullStartRealm, nullKind)) {
+        // 신통의 boolean 칸은 빠지면 0 으로 채우는 숫자 칸과 달리 꼭 보내야 한다
+        String missingCostPerTick = CHANGCHUN_JSON.replace("\"costPerTick\":false,", "");
+        String missingBodyRefining = CHANGCHUN_JSON.replace("\"bodyRefining\":false,", "");
+
+        for (String json : List.of(wrongKind, nullStartRealm, nullKind, missingCostPerTick, missingBodyRefining)) {
+            assertThat(json).isNotEqualTo(CHANGCHUN_JSON);
             assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/techniques")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(json))
