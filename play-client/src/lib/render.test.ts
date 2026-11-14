@@ -109,6 +109,25 @@ describe("renderMessage", () => {
     ]);
   });
 
+  it("room: 바닥 물건 수는 천 단위 쉼표(서버 Numbers.count 와 같게)", () => {
+    const lines = renderMessage(
+      roomMessage({
+        zoneEntered: false,
+        items: [
+          { name: "하품 영석", count: 50000 },
+          { name: "늑대 가죽", count: 999 },
+          { name: "중품 영석", count: 1234567 },
+        ],
+      }),
+    );
+
+    expect(lines.slice(-3)).toEqual([
+      { text: "하품 영석 50,000개", style: "item" },
+      { text: "늑대 가죽 999개", style: "item" },
+      { text: "중품 영석 1,234,567개", style: "item" },
+    ]);
+  });
+
   it("inventory: text 를 줄마다 나누고 style 은 item", () => {
     const lines = renderMessage({
       type: "inventory",

@@ -45,9 +45,14 @@ function renderRoom(msg: RoomMessage): OutputLine[] {
     lines.push({ text: occupant.name, style: occupant.kind === "npc" ? "npc" : "occupant" });
   }
   for (const item of msg.items) {
-    lines.push({ text: item.count > 1 ? `${item.name} ${item.count}개` : item.name, style: "item" });
+    lines.push({ text: item.count > 1 ? `${item.name} ${formatCount(item.count)}개` : item.name, style: "item" });
   }
   return lines;
+}
+
+/** 서버 Numbers.count(%,d, Locale.ROOT) 와 같은 천 단위 쉼표. 실행 환경 로캘에 기대지 않는다. */
+function formatCount(value: number): string {
+  return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 function splitLines(text: string, style: string): OutputLine[] {
