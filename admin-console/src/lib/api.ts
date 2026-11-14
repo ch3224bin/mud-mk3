@@ -78,6 +78,51 @@ export type NpcDetailResponse = {
   zoneName: string | null;
 };
 
+export type ItemCategoryCode =
+  | "ARTIFACT"
+  | "PILL"
+  | "ELIXIR"
+  | "TALISMAN"
+  | "FORMATION_DISK"
+  | "SPIRIT_STONE"
+  | "MATERIAL"
+  | "SCROLL"
+  | "TOOL"
+  | "BAG"
+  | "BEAST_EGG"
+  | "BEAST_FOOD"
+  | "PUPPET"
+  | "PASS"
+  | "QUEST";
+export type BagGradeCode = "LOW" | "MIDDLE" | "HIGH";
+/** stackSize 는 저물대 0, bagSlots 는 저물대 밖 0, buyRatePercent 는 상점이 사지 않으면 0 */
+export type ItemTypeResponse = {
+  id: number;
+  name: string;
+  description: string;
+  category: ItemCategoryCode;
+  categoryName: string;
+  stackSize: number;
+  baseValue: number;
+  tradable: boolean;
+  bagGrade: BagGradeCode | null;
+  bagGradeName: string | null;
+  bagSlots: number;
+  spiritStone: boolean;
+  buyRatePercent: number;
+};
+/** bagGrade 는 종류가 저물대일 때만 보내고 나머지는 null */
+export type ItemTypeSaveRequest = {
+  name: string;
+  description: string;
+  category: ItemCategoryCode;
+  baseValue: number;
+  tradable: boolean;
+  bagGrade: BagGradeCode | null;
+};
+export type StartingItem = { itemTypeId: number; count: number };
+export type StartingItemResponse = { itemTypeId: number; itemName: string; count: number };
+
 export type FactionSaveRequest = { kind: FactionKind; name: string; description: string };
 export type ZoneSaveRequest = { name: string; description: string; ownerId: number | null };
 /** llmEnabled 는 서버에서 필수 값이라 늘 보낸다. roomId 가 null 이면 배치하지 않는다 */
@@ -165,6 +210,20 @@ export const deleteNpc = (npcId: number) => apiFetch<void>(`/api/admin/npcs/${np
 export const getWorld = () => apiFetch<WorldResponse>("/api/admin/world");
 export const setStartRoom = (roomId: number) =>
   apiFetch<WorldResponse>("/api/admin/world/start-room", jsonBody("PUT", { roomId }));
+
+export const listItemTypes = () => apiFetch<ItemTypeResponse[]>("/api/admin/item-types");
+export const getItemType = (itemTypeId: number) => apiFetch<ItemTypeResponse>(`/api/admin/item-types/${itemTypeId}`);
+export const createItemType = (request: ItemTypeSaveRequest) =>
+  apiFetch<ItemTypeResponse>("/api/admin/item-types", jsonBody("POST", request));
+export const updateItemType = (itemTypeId: number, request: ItemTypeSaveRequest) =>
+  apiFetch<ItemTypeResponse>(`/api/admin/item-types/${itemTypeId}`, jsonBody("PUT", request));
+export const deleteItemType = (itemTypeId: number) =>
+  apiFetch<void>(`/api/admin/item-types/${itemTypeId}`, { method: "DELETE" });
+
+/** 시작 소지품(입력 순서). 저장은 목록을 통째로 바꾼다 */
+export const getStartingItems = () => apiFetch<StartingItemResponse[]>("/api/admin/world/starting-items");
+export const saveStartingItems = (items: StartingItem[]) =>
+  apiFetch<StartingItemResponse[]>("/api/admin/world/starting-items", jsonBody("PUT", { items }));
 
 /** 화면에 보일 오류 문구. 서버가 준 ProblemDetail detail 을 그대로 쓴다. */
 export function errorMessage(error: unknown): string {

@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiFetch, createNpc, deleteExit, listZones, putExit, updateZone } from "./api";
+import {
+  ApiError,
+  apiFetch,
+  createItemType,
+  createNpc,
+  deleteExit,
+  listZones,
+  putExit,
+  saveStartingItems,
+  updateZone,
+} from "./api";
 
 const fetchMock = vi.fn();
 
@@ -138,5 +148,50 @@ describe("updateZone", () => {
     expect(url).toBe("http://localhost:8080/api/admin/zones/2");
     expect(init.method).toBe("PUT");
     expect(JSON.parse(init.body as string)).toEqual({ name: "청석숲", description: "", ownerId: 7 });
+  });
+});
+
+describe("createItemType", () => {
+  it("POST /api/admin/item-types 에 아이템 종류를 보낸다", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, { id: 7 }));
+
+    await createItemType({
+      name: "하급 저물대",
+      description: "",
+      category: "BAG",
+      baseValue: 50,
+      tradable: true,
+      bagGrade: "LOW",
+    });
+
+    const { url, init } = lastCall();
+    expect(url).toBe("http://localhost:8080/api/admin/item-types");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({
+      name: "하급 저물대",
+      description: "",
+      category: "BAG",
+      baseValue: 50,
+      tradable: true,
+      bagGrade: "LOW",
+    });
+    expect(headersOf(init).get("X-MUD-Client")).toBe("1");
+  });
+});
+
+describe("saveStartingItems", () => {
+  it("PUT /api/admin/world/starting-items 에 { items } 를 입력 순서대로 보낸다", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, []));
+
+    await saveStartingItems([
+      { itemTypeId: 5, count: 1 },
+      { itemTypeId: 1, count: 30 },
+    ]);
+
+    const { url, init } = lastCall();
+    expect(url).toBe("http://localhost:8080/api/admin/world/starting-items");
+    expect(init.method).toBe("PUT");
+    expect(init.body).toBe('{"items":[{"itemTypeId":5,"count":1},{"itemTypeId":1,"count":30}]}');
+    expect(headersOf(init).get("X-MUD-Client")).toBe("1");
   });
 });
