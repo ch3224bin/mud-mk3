@@ -25,9 +25,14 @@ public final class Pricing {
 
     /** 불변식: 매입가 &lt; 판매가 × 0.5, 정수로 {@code 2 × 기준가 × 비율 < 100 × 판매가}. 사지 않는 종류는 늘 맞다 */
     public static boolean isFairSellPrice(ItemType itemType, long price) {
-        long rate = rate(itemType);
+        return isFairSellPrice(itemType.getCategory(), itemType.getBaseValue(), price);
+    }
+
+    /** 기준가를 바꾸기 전에 검사할 수 있게 종류·기준가를 따로 받는다. 넘치면 {@code ArithmeticException} */
+    public static boolean isFairSellPrice(ItemCategory category, long baseValue, long price) {
+        long rate = category.buyRatePercent();
         if (rate == 0) return true;
-        return 2 * itemType.getBaseValue() * rate < 100 * price;
+        return Math.multiplyExact(Math.multiplyExact(2, baseValue), rate) < Math.multiplyExact(100, price);
     }
 
     private static long rate(ItemType itemType) {

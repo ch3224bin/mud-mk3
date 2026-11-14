@@ -1,20 +1,27 @@
 package mudmk3.application.npc.provided;
 
 import jakarta.persistence.EntityManager;
+import jakarta.validation.ConstraintViolationException;
 import mudmk3.ApplicationServiceTest;
+import mudmk3.application.item.provided.ItemTypeEditor;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.room.provided.StartRoomDeletionException;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
+import mudmk3.domain.item.ItemCategory;
+import mudmk3.domain.item.ItemType;
 import mudmk3.domain.npc.DuplicateNpcNameException;
 import mudmk3.domain.npc.Npc;
 import mudmk3.domain.npc.NpcTopic;
+import mudmk3.domain.npc.ShopItem;
+import mudmk3.domain.npc.ShopKind;
 import mudmk3.domain.room.Room;
 import mudmk3.domain.zone.Zone;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static mudmk3.domain.item.ItemTypeFixture.createItemTypeSaveRequest;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
@@ -23,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ApplicationServiceTest
 record NpcEditorTest(NpcEditor npcEditor, NpcFinder npcFinder, ZoneEditor zoneEditor, RoomEditor roomEditor,
-                     WorldSettingsEditor worldSettingsEditor, EntityManager entityManager) {
+                     WorldSettingsEditor worldSettingsEditor, ItemTypeEditor itemTypeEditor, EntityManager entityManager) {
 
     @Test
     void createPlaced() {
@@ -170,6 +177,93 @@ record NpcEditorTest(NpcEditor npcEditor, NpcFinder npcFinder, ZoneEditor zoneEd
         flushAndClear();
 
         assertThat(npcFinder.find(npc.getId()).isLlmEnabled()).isTrue();
+    }
+
+    @Test
+    void openShopAndReplace() {
+        ItemType pill = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        ItemType other = itemTypeEditor.create(createItemTypeSaveRequest("청심단", ItemCategory.PILL, 5));
+        ItemType hide = itemTypeEditor.create(createItemTypeSaveRequest("늑대 가죽", ItemCategory.MATERIAL, 2));
+        Npc npc = npcEditor.create(createNpcSaveRequest("왕씨", null));
+
+        Npc opened = npcEditor.openShop(npc.getId(), new ShopSaveRequest(ShopKind.PILL_SHOP, List.of(
+                new ShopItemRequest(other.getId(), 12), new ShopItemRequest(pill.getId(), null))));
+        assertThat(opened.shopName()).isEqualTo("왕씨 단약방");
+        flushAndClear();
+
+        Npc found = npcFinder.find(npc.getId());
+        assertThat(found.findShopKind()).contains(ShopKind.PILL_SHOP);
+        assertThat(found.getShopItems()).containsExactly(new ShopItem(other.getId(), 12), new ShopItem(pill.getId(), null));
+
+        npcEditor.openShop(npc.getId(), new ShopSaveRequest(ShopKind.MATERIAL_SHOP, List.of(new ShopItemRequest(hide.getId(), 5))));
+        flushAndClear();
+
+        Npc replaced = npcFinder.find(npc.getId());
+        assertThat(replaced.shopName()).isEqualTo("왕씨 재료상");
+        assertThat(replaced.getShopItems()).containsExactly(new ShopItem(hide.getId(), 5));
+        // NPC를 고쳐도 상점은 그대로다
+        npcEditor.update(npc.getId(), createNpcSaveRequest("왕노인", null));
+        flushAndClear();
+        assertThat(npcFinder.find(npc.getId()).shopName()).isEqualTo("왕노인 재료상");
+    }
+
+    @Test
+    void closeShop() {
+        ItemType pill = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        Npc npc = npcEditor.create(createNpcSaveRequest("왕씨", null));
+        npcEditor.openShop(npc.getId(), new ShopSaveRequest(ShopKind.PILL_SHOP, List.of(new ShopItemRequest(pill.getId(), null))));
+        flushAndClear();
+
+        npcEditor.closeShop(npc.getId());
+        flushAndClear();
+
+        Npc found = npcFinder.find(npc.getId());
+        assertThat(found.hasShop()).isFalse();
+        assertThat(found.getShopItems()).isEmpty();
+        // 상점이 없어도 된다
+        npcEditor.closeShop(npc.getId());
+        // 상점을 없애면 그 물건 종류를 지울 수 있다
+        itemTypeEditor.delete(pill.getId());
+    }
+
+    @Test
+    void unknownItemFail() {
+        Npc npc = npcEditor.create(createNpcSaveRequest("왕씨", null));
+
+        assertThatThrownBy(() -> npcEditor.openShop(npc.getId(),
+                new ShopSaveRequest(ShopKind.PILL_SHOP, List.of(new ShopItemRequest(999L, null)))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("물건 종류를 찾을 수 없습니다. id: 999");
+        assertThatThrownBy(() -> npcEditor.openShop(999L, new ShopSaveRequest(ShopKind.PILL_SHOP, List.of())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("NPC를 찾을 수 없습니다. id: 999");
+        assertThatThrownBy(() -> npcEditor.closeShop(999L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("NPC를 찾을 수 없습니다. id: 999");
+    }
+
+    @Test
+    void openShopRuleFail() {
+        ItemType sword = itemTypeEditor.create(createItemTypeSaveRequest("비검", ItemCategory.ARTIFACT, 50));
+        Npc npc = npcEditor.create(createNpcSaveRequest("왕씨", null));
+
+        assertThatThrownBy(() -> npcEditor.openShop(npc.getId(),
+                new ShopSaveRequest(ShopKind.PILL_SHOP, List.of(new ShopItemRequest(sword.getId(), null)))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("단약방은 법기를 팔 수 없습니다.");
+        flushAndClear();
+        assertThat(npcFinder.find(npc.getId()).hasShop()).isFalse();
+    }
+
+    @Test
+    void openShopInvalidRequestFail() {
+        Npc npc = npcEditor.create(createNpcSaveRequest("왕씨", null));
+
+        assertThatThrownBy(() -> npcEditor.openShop(npc.getId(),
+                new ShopSaveRequest(ShopKind.PILL_SHOP, List.of(new ShopItemRequest(1L, 0)))))
+                .isInstanceOf(ConstraintViolationException.class);
+        assertThatThrownBy(() -> npcEditor.openShop(npc.getId(), new ShopSaveRequest(null, List.of())))
+                .isInstanceOf(ConstraintViolationException.class);
     }
 
     private Room prepareRoom(String name) {

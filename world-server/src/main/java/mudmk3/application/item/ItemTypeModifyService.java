@@ -7,10 +7,13 @@ import mudmk3.application.item.provided.ItemTypeInUseException;
 import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.item.provided.SpiritStoneChangeException;
 import mudmk3.application.item.required.ItemTypeRepository;
+import mudmk3.application.item.required.ShopPrice;
 import mudmk3.domain.item.DuplicateItemTypeNameException;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.item.ItemTypeSaveInfo;
+import mudmk3.domain.item.Pricing;
 import mudmk3.domain.item.SpiritStoneGrade;
+import mudmk3.domain.shared.Numbers;
 import mudmk3.support.stereotype.ValidatedApplicationService;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -18,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @ValidatedApplicationService
 @RequiredArgsConstructor
@@ -49,6 +54,9 @@ public class ItemTypeModifyService implements ItemTypeEditor {
         if (slotRuleChanges && isInUse(itemTypeId, clock.instant())) {
             throw new ItemTypeInUseException("쓰이는 물건은 종류·저물대 등급을 바꿀 수 없습니다: " + itemType.getName());
         }
+        if (itemType.getBaseValue() != info.baseValue()) {
+            ensureShopPricesStayFair(itemTypeId, itemType, info.baseValue());
+        }
         itemType.update(info);
         return itemTypeRepository.save(itemType);
     }
@@ -78,14 +86,40 @@ public class ItemTypeModifyService implements ItemTypeEditor {
 
     /**
      * 소지품·바닥 배치·사라지지 않은 버린 물건·상점·시작 소지품 어디서든 쓰이는지. 리포지토리 count 들의 합으로 보며,
-     * 쓰는 슬라이스가 생기는 태스크가 count를 하나씩 더한다(지금은 소지품·시작 소지품·바닥 배치·버린 물건)
+     * 쓰는 슬라이스가 생기는 태스크가 count를 하나씩 더한다
      */
     private boolean isInUse(Long itemTypeId, Instant now) {
         long uses = itemTypeRepository.countInInventories(itemTypeId)
+                + itemTypeRepository.countInShops(itemTypeId)
                 + itemTypeRepository.countInStartingItems(itemTypeId)
                 + itemTypeRepository.countInFloorPlacements(itemTypeId)
                 + itemTypeRepository.countInDroppedItems(itemTypeId, now);
         return uses > 0;
+    }
+
+    /**
+     * 기준가를 바꿔도 그 물건을 파는 상점 값이 룰북 불변식(매입가 &lt; 판매가 × 0.5)을 지키는지 본다.
+     * 상점에서 쓰이는 물건은 종류를 바꿀 수 없으므로 매입 비율은 지금 종류의 것이다
+     */
+    private void ensureShopPricesStayFair(Long itemTypeId, ItemType itemType, long newBaseValue) {
+        List<ShopPrice> shopPrices = itemTypeRepository.findShopPrices(itemTypeId);
+        if (newBaseValue == 0) {
+            String unpriced = shopPrices.stream()
+                    .filter(shopPrice -> shopPrice.price() == null)
+                    .map(ShopPrice::npcName)
+                    .collect(Collectors.joining(", "));
+            if (!unpriced.isEmpty()) {
+                throw new ItemTypeInUseException("기준가가 0이면 상점이 값을 정해야 합니다: " + itemType.getName() + " (" + unpriced + ")");
+            }
+        }
+        String unfair = shopPrices.stream()
+                .filter(shopPrice -> !Pricing.isFairSellPrice(itemType.getCategory(), newBaseValue,
+                        shopPrice.effectivePrice(newBaseValue)))
+                .map(shopPrice -> shopPrice.npcName() + " " + Numbers.count(shopPrice.effectivePrice(newBaseValue)))
+                .collect(Collectors.joining(", "));
+        if (!unfair.isEmpty()) {
+            throw new ItemTypeInUseException("상점 값이 매입가 규칙에 맞지 않게 됩니다: " + itemType.getName() + " (" + unfair + ")");
+        }
     }
 
     private static void ensureNotSpiritStone(ItemType itemType) {

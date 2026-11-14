@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PricingTest {
 
@@ -54,5 +55,19 @@ class PricingTest {
 
         assertThat(Pricing.isFairSellPrice(hide, 1)).isFalse();
         assertThat(Pricing.isFairSellPrice(hide, 2)).isTrue();
+    }
+
+    @Test
+    void isFairSellPriceByCategoryAndBaseValue() {
+        // 기준가·판매가가 상한(100,000,000)이어도 넘치지 않는다
+        assertThat(Pricing.isFairSellPrice(ItemCategory.MATERIAL, 100_000_000, 100_000_000)).isTrue();
+        assertThat(Pricing.isFairSellPrice(ItemCategory.MATERIAL, 100_000_000, 80_000_000)).isFalse();
+        assertThat(Pricing.isFairSellPrice(ItemCategory.QUEST, 100_000_000, 1)).isTrue();
+    }
+
+    @Test
+    void isFairSellPriceOverflowFail() {
+        assertThatThrownBy(() -> assertThat(Pricing.isFairSellPrice(ItemCategory.PILL, 1, Long.MAX_VALUE / 10)).isTrue())
+                .isInstanceOf(ArithmeticException.class);
     }
 }

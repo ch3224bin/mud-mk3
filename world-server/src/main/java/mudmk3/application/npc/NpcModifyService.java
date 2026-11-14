@@ -1,18 +1,23 @@
 package mudmk3.application.npc;
 
 import lombok.RequiredArgsConstructor;
+import mudmk3.application.item.provided.ItemTypeFinder;
 import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.npc.provided.NpcSaveRequest;
+import mudmk3.application.npc.provided.ShopSaveRequest;
 import mudmk3.application.npc.required.NpcRepository;
 import mudmk3.application.room.provided.RoomDeletedEvent;
 import mudmk3.application.room.provided.RoomFinder;
 import mudmk3.domain.npc.DuplicateNpcNameException;
 import mudmk3.domain.npc.Npc;
 import mudmk3.domain.npc.NpcSaveInfo;
+import mudmk3.domain.npc.ShopOffer;
 import mudmk3.support.stereotype.ValidatedApplicationService;
 import org.jspecify.annotations.Nullable;
 import org.springframework.context.event.EventListener;
+
+import java.util.List;
 
 @ValidatedApplicationService
 @RequiredArgsConstructor
@@ -21,6 +26,7 @@ public class NpcModifyService implements NpcEditor {
     private final NpcFinder npcFinder;
     private final NpcRepository npcRepository;
     private final RoomFinder roomFinder;
+    private final ItemTypeFinder itemTypeFinder;
 
     @Override
     public Npc create(NpcSaveRequest request) {
@@ -48,6 +54,23 @@ public class NpcModifyService implements NpcEditor {
     @Override
     public void delete(Long npcId) {
         npcRepository.delete(npcFinder.find(npcId));
+    }
+
+    @Override
+    public Npc openShop(Long npcId, ShopSaveRequest request) {
+        Npc npc = npcFinder.find(npcId);
+        List<ShopOffer> offers = request.items().stream()
+                .map(item -> new ShopOffer(itemTypeFinder.find(item.itemTypeId()), item.price()))
+                .toList();
+        npc.openShop(request.kind(), offers);
+        return npcRepository.save(npc);
+    }
+
+    @Override
+    public void closeShop(Long npcId) {
+        Npc npc = npcFinder.find(npcId);
+        npc.closeShop();
+        npcRepository.save(npc);
     }
 
     /** 방이 지워지면 그 방의 NPC 배치를 푼다(방을 지우는 트랜잭션 안에서) */

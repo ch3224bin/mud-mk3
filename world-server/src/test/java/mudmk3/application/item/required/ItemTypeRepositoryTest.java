@@ -6,6 +6,10 @@ import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.item.ItemTypeFixture;
 import mudmk3.domain.item.SpiritStoneGrade;
+import mudmk3.domain.npc.Npc;
+import mudmk3.domain.npc.NpcFixture;
+import mudmk3.domain.npc.ShopKind;
+import mudmk3.domain.npc.ShopOffer;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -96,5 +100,25 @@ record ItemTypeRepositoryTest(ItemTypeRepository itemTypeRepository, EntityManag
         entityManager.flush();
 
         assertThat(itemTypeRepository.findById(pill.getId())).isEmpty();
+    }
+
+    @Test
+    void countInShopsAndShopPrices() {
+        ItemType pill = itemTypeRepository.save(ItemTypeFixture.createItemType("회춘단", ItemCategory.PILL, 3));
+        ItemType other = itemTypeRepository.save(ItemTypeFixture.createItemType("청심단", ItemCategory.PILL, 5));
+        Npc lee = NpcFixture.createNpc("이씨");
+        lee.openShop(ShopKind.PILL_SHOP, List.of(new ShopOffer(pill, 10)));
+        Npc wang = NpcFixture.createNpc("왕씨");
+        wang.openShop(ShopKind.PILL_SHOP, List.of(new ShopOffer(other, null), new ShopOffer(pill, null)));
+        entityManager.persist(lee);
+        entityManager.persist(wang);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(itemTypeRepository.countInShops(pill.getId())).isEqualTo(2);
+        assertThat(itemTypeRepository.countInShops(other.getId())).isEqualTo(1);
+        assertThat(itemTypeRepository.findShopPrices(pill.getId()))
+                .containsExactly(new ShopPrice("왕씨", null), new ShopPrice("이씨", 10));
+        assertThat(itemTypeRepository.findShopPrices(999L)).isEmpty();
     }
 }

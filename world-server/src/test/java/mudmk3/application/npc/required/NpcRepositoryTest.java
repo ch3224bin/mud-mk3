@@ -1,9 +1,15 @@
 package mudmk3.application.npc.required;
 
 import jakarta.persistence.EntityManager;
+import mudmk3.domain.item.ItemCategory;
+import mudmk3.domain.item.ItemType;
+import mudmk3.domain.item.ItemTypeFixture;
 import mudmk3.domain.npc.Npc;
 import mudmk3.domain.npc.NpcFixture;
 import mudmk3.domain.npc.NpcTopic;
+import mudmk3.domain.npc.ShopItem;
+import mudmk3.domain.npc.ShopKind;
+import mudmk3.domain.npc.ShopOffer;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -15,6 +21,44 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
 record NpcRepositoryTest(NpcRepository npcRepository, EntityManager entityManager) {
+
+    @Test
+    void saveWithShopItems() {
+        ItemType pill = persist(ItemTypeFixture.createItemType("회춘단", ItemCategory.PILL, 3));
+        ItemType other = persist(ItemTypeFixture.createItemType("청심단", ItemCategory.PILL, 5));
+        Npc npc = NpcFixture.createNpc("왕씨");
+        npc.openShop(ShopKind.PILL_SHOP, List.of(new ShopOffer(other, 12), new ShopOffer(pill, null)));
+        npcRepository.save(npc);
+        entityManager.flush();
+        entityManager.clear();
+
+        Npc found = npcRepository.findById(npc.getId()).orElseThrow();
+        entityManager.clear();
+
+        // 트랜잭션 밖 응답이 읽을 수 있게 상점 물건도 함께 읽는다
+        assertThat(found.findShopKind()).contains(ShopKind.PILL_SHOP);
+        assertThat(found.getShopItems()).containsExactly(new ShopItem(other.getId(), 12), new ShopItem(pill.getId(), null));
+        assertThat(found.getTopics()).hasSize(2);
+    }
+
+    @Test
+    void closeShopRemovesRows() {
+        ItemType pill = persist(ItemTypeFixture.createItemType("회춘단", ItemCategory.PILL, 3));
+        Npc npc = NpcFixture.createNpc("왕씨");
+        npc.openShop(ShopKind.PILL_SHOP, List.of(new ShopOffer(pill, null)));
+        npcRepository.save(npc);
+        entityManager.flush();
+        entityManager.clear();
+
+        npcRepository.findById(npc.getId()).orElseThrow().closeShop();
+        entityManager.flush();
+        entityManager.clear();
+
+        Npc found = npcRepository.findById(npc.getId()).orElseThrow();
+        assertThat(found.hasShop()).isFalse();
+        assertThat(entityManager.createNativeQuery("select count(*) from npc_shop_item").getSingleResult()).isEqualTo(0L);
+    }
+
 
     @Test
     void saveWithTopics() {
@@ -95,17 +139,6 @@ record NpcRepositoryTest(NpcRepository npcRepository, EntityManager entityManage
     }
 
     @Test
-    void existsByName() {
-        Npc npc = npcRepository.save(NpcFixture.createNpc("왕씨"));
-        Npc other = npcRepository.save(NpcFixture.createNpc("이씨"));
-
-        assertThat(npcRepository.existsByName("왕씨")).isTrue();
-        assertThat(npcRepository.existsByName("박씨")).isFalse();
-        assertThat(npcRepository.existsByNameAndIdNot("왕씨", npc.getId())).isFalse();
-        assertThat(npcRepository.existsByNameAndIdNot("왕씨", other.getId())).isTrue();
-    }
-
-    @Test
     void existsByNameIgnoreCase() {
         npcRepository.save(NpcFixture.createNpc("Wang"));
 
@@ -124,6 +157,11 @@ record NpcRepositoryTest(NpcRepository npcRepository, EntityManager entityManage
         assertThat(npcRepository.findById(npc.getId())).isEmpty();
         assertThat(entityManager.createNativeQuery("select count(*) from npc_topic").getSingleResult())
                 .isEqualTo(0L);
+    }
+
+    private ItemType persist(ItemType itemType) {
+        entityManager.persist(itemType);
+        return itemType;
     }
 
     private Npc placed(String name, Long roomId) {

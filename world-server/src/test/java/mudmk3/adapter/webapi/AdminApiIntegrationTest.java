@@ -263,6 +263,53 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
                 .hasStatus(HttpStatus.NO_CONTENT);
     }
 
+    @Test
+    void manageShop() {
+        long pillId = id(post("/api/admin/item-types", """
+                {"name":"보원단","category":"PILL","baseValue":3,"tradable":true}"""));
+        long swordId = id(post("/api/admin/item-types", """
+                {"name":"청강검","category":"ARTIFACT","baseValue":50,"tradable":true}"""));
+        long npcId = id(post("/api/admin/npcs", """
+                {"name":"주씨","greeting":"어서 오시오.","defaultAnswer":"글쎄.","llmEnabled":false}"""));
+
+        var opened = assertThat(put("/api/admin/npcs/%d/shop".formatted(npcId), """
+                {"kind":"PILL_SHOP","items":[{"itemTypeId":%d,"price":null}]}""".formatted(pillId))).hasStatusOk().bodyJson();
+        opened.extractingPath("$.shop.kindName").isEqualTo("단약방");
+        opened.extractingPath("$.shop.items[0].effectivePrice").isEqualTo(3);
+
+        // 트랜잭션 밖에서 응답을 만들어도 상점 물건 이름을 낸다
+        var detail = assertThat(mvc.get().with(admin()).uri("/api/admin/npcs/%d".formatted(npcId))).hasStatusOk().bodyJson();
+        detail.extractingPath("$.shop.kind").isEqualTo("PILL_SHOP");
+        detail.extractingPath("$.shop.items[0].itemName").isEqualTo("보원단");
+        detail.extractingPath("$.shop.items[0].price").isNull();
+        assertThat(mvc.get().with(admin()).uri("/api/admin/npcs")).hasStatusOk().bodyJson()
+                .extractingPath("$[?(@.id==%d)].shopKindName".formatted(npcId)).asArray().containsExactly("단약방");
+
+        assertThat(put("/api/admin/npcs/%d/shop".formatted(npcId), """
+                {"kind":"PILL_SHOP","items":[{"itemTypeId":%d}]}""".formatted(swordId)))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson().extractingPath("$.detail").isEqualTo("단약방은 법기를 팔 수 없습니다.");
+        assertThat(put("/api/admin/item-types/%d".formatted(pillId), """
+                {"name":"보원단","category":"PILL","baseValue":0,"tradable":true}"""))
+                .hasStatus(HttpStatus.CONFLICT)
+                .bodyJson().extractingPath("$.detail").isEqualTo("기준가가 0이면 상점이 값을 정해야 합니다: 보원단 (주씨)");
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(pillId)))
+                .hasStatus(HttpStatus.CONFLICT);
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/npcs/%d/shop".formatted(npcId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.get().with(admin()).uri("/api/admin/npcs/%d".formatted(npcId))).hasStatusOk().bodyJson()
+                .extractingPath("$.shop").isNull();
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(pillId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+
+        // 같은 DB를 쓰는 다른 테스트를 흐리지 않게 지운다
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/npcs/%d".formatted(npcId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(swordId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+    }
+
     private MvcTestResult post(String uri, String json) {
         return mvc.post().with(admin()).with(clientHeader()).uri(uri).contentType(MediaType.APPLICATION_JSON).content(json).exchange();
     }

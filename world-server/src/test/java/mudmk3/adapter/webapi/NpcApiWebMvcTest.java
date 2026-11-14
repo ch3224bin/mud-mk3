@@ -1,15 +1,23 @@
 package mudmk3.adapter.webapi;
 
 import mudmk3.adapter.security.WebMvcSecurityTestConfiguration;
+import mudmk3.application.item.provided.ItemTypeFinder;
 import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.npc.provided.NpcSaveRequest;
 import mudmk3.application.npc.provided.NpcTopicRequest;
+import mudmk3.application.npc.provided.ShopItemRequest;
+import mudmk3.application.npc.provided.ShopSaveRequest;
 import mudmk3.application.room.provided.RoomFinder;
+import mudmk3.domain.item.ItemCategory;
+import mudmk3.domain.item.ItemType;
+import mudmk3.domain.item.ItemTypeFixture;
 import mudmk3.domain.npc.DuplicateNpcNameException;
 import mudmk3.domain.npc.Npc;
 import mudmk3.domain.npc.NpcSaveInfo;
 import mudmk3.domain.npc.NpcTopic;
+import mudmk3.domain.npc.ShopKind;
+import mudmk3.domain.npc.ShopOffer;
 import mudmk3.domain.room.Room;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -21,6 +29,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -40,8 +49,9 @@ import static org.mockito.Mockito.when;
 
 @WebMvcTest(NpcApi.class)
 @Import(WebMvcSecurityTestConfiguration.class)
-@MockitoBean(types = {NpcFinder.class, NpcEditor.class, RoomFinder.class})
-record NpcApiWebMvcTest(MockMvcTester mvc, NpcFinder npcFinder, NpcEditor npcEditor, RoomFinder roomFinder) {
+@MockitoBean(types = {NpcFinder.class, NpcEditor.class, RoomFinder.class, ItemTypeFinder.class})
+record NpcApiWebMvcTest(MockMvcTester mvc, NpcFinder npcFinder, NpcEditor npcEditor, RoomFinder roomFinder,
+                        ItemTypeFinder itemTypeFinder) {
 
     @Test
     void create() {
@@ -63,7 +73,7 @@ record NpcApiWebMvcTest(MockMvcTester mvc, NpcFinder npcFinder, NpcEditor npcEdi
                 .isStrictlyEqualTo("""
                         {"id":4,"name":"왕씨","greeting":"어서 오시오.","defaultAnswer":"글쎄, 잘 모르겠구려.",
                          "topics":[{"word":"일거리","answer":"숲의 늑대를 잡아 주시오."},{"word":"단약","answer":"단약은 귀한 물건이오."}],
-                         "llmEnabled":true,"roomId":10,"roomName":"마을 어귀","zoneId":1,"zoneName":"청우촌"}""");
+                         "llmEnabled":true,"roomId":10,"roomName":"마을 어귀","zoneId":1,"zoneName":"청우촌","shop":null}""");
         verify(npcEditor).create(new NpcSaveRequest("왕씨", "어서 오시오.", "글쎄, 잘 모르겠구려.",
                 List.of(new NpcTopicRequest("[일거리]", "숲의 늑대를 잡아 주시오."), new NpcTopicRequest("단약", "단약은 귀한 물건이오.")),
                 true, 10L));
@@ -165,8 +175,8 @@ record NpcApiWebMvcTest(MockMvcTester mvc, NpcFinder npcFinder, NpcEditor npcEdi
                 .hasStatusOk()
                 .bodyJson()
                 .isStrictlyEqualTo("""
-                        [{"id":4,"name":"왕씨","llmEnabled":false,"topicCount":2,"roomId":10,"roomName":"마을 어귀","zoneName":"청우촌"},
-                         {"id":5,"name":"이씨","llmEnabled":false,"topicCount":2,"roomId":null,"roomName":null,"zoneName":null}]""");
+                        [{"id":4,"name":"왕씨","llmEnabled":false,"topicCount":2,"roomId":10,"roomName":"마을 어귀","zoneName":"청우촌","shopKindName":null},
+                         {"id":5,"name":"이씨","llmEnabled":false,"topicCount":2,"roomId":null,"roomName":null,"zoneName":null,"shopKindName":null}]""");
     }
 
     @Test
@@ -226,6 +236,90 @@ record NpcApiWebMvcTest(MockMvcTester mvc, NpcFinder npcFinder, NpcEditor npcEdi
                         {"name":"왕씨","greeting":"어서 오시오.","defaultAnswer":"글쎄.","llmEnabled":false}"""))
                 .hasStatus(HttpStatus.FORBIDDEN);
         verifyNoInteractions(npcEditor);
+    }
+
+    @Test
+    void openShop() {
+        ItemType pill = itemType(7L, "회춘단", ItemCategory.PILL, 3);
+        ItemType other = itemType(8L, "청심단", ItemCategory.PILL, 5);
+        Npc npc = npc(4L, "왕씨");
+        npc.openShop(ShopKind.PILL_SHOP, List.of(new ShopOffer(pill, null), new ShopOffer(other, 12)));
+        when(npcEditor.openShop(any(), any())).thenReturn(npc);
+        when(itemTypeFinder.findAllById(List.of(7L, 8L))).thenReturn(Map.of(7L, pill, 8L, other));
+
+        assertThat(mvc.put().with(admin()).with(clientHeader()).uri("/api/admin/npcs/4/shop")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"kind":"PILL_SHOP","items":[{"itemTypeId":7,"price":null},{"itemTypeId":8,"price":12}]}"""))
+                .hasStatusOk()
+                .bodyJson()
+                .isLenientlyEqualTo("""
+                        {"id":4,"name":"왕씨","shop":{"kind":"PILL_SHOP","kindName":"단약방","items":[
+                          {"itemTypeId":7,"itemName":"회춘단","price":null,"effectivePrice":3},
+                          {"itemTypeId":8,"itemName":"청심단","price":12,"effectivePrice":12}]}}""");
+        verify(npcEditor).openShop(4L, new ShopSaveRequest(ShopKind.PILL_SHOP,
+                List.of(new ShopItemRequest(7L, null), new ShopItemRequest(8L, 12))));
+    }
+
+    @Test
+    void openShopInvalidKindFail() {
+        assertThat(mvc.put().with(admin()).with(clientHeader()).uri("/api/admin/npcs/4/shop")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"kind":"WEAPON_SHOP","items":[]}"""))
+                .hasStatus(HttpStatus.BAD_REQUEST);
+        verifyNoInteractions(npcEditor);
+    }
+
+    @Test
+    void openShopZeroPriceFail() {
+        assertThat(mvc.put().with(admin()).with(clientHeader()).uri("/api/admin/npcs/4/shop")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"kind":"PILL_SHOP","items":[{"itemTypeId":7,"price":0}]}"""))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .extractingPath("$.detail").isEqualTo("입력 값이 올바르지 않습니다: items[0].price");
+        verifyNoInteractions(npcEditor);
+    }
+
+    @Test
+    void openShopRuleFail() {
+        when(npcEditor.openShop(any(), any())).thenThrow(new IllegalArgumentException("단약방은 법기를 팔 수 없습니다."));
+
+        assertThat(mvc.put().with(admin()).with(clientHeader()).uri("/api/admin/npcs/4/shop")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"kind":"PILL_SHOP","items":[{"itemTypeId":9}]}"""))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .extractingPath("$.detail").isEqualTo("단약방은 법기를 팔 수 없습니다.");
+    }
+
+    @Test
+    void closeShop() {
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/npcs/4/shop"))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        verify(npcEditor).closeShop(4L);
+    }
+
+    @Test
+    void listShopKindName() {
+        Npc npc = npc(4L, "왕씨");
+        npc.openShop(ShopKind.MATERIAL_SHOP, List.of());
+        when(npcFinder.findAll()).thenReturn(List.of(npc));
+
+        assertThat(mvc.get().with(admin()).uri("/api/admin/npcs"))
+                .hasStatusOk()
+                .bodyJson()
+                .isLenientlyEqualTo("""
+                        [{"id":4,"shopKindName":"재료상"}]""");
+    }
+
+    static ItemType itemType(Long id, String name, ItemCategory category, long baseValue) {
+        ItemType itemType = ItemTypeFixture.createItemType(name, category, baseValue);
+        ReflectionTestUtils.setField(itemType, "id", id);
+        return itemType;
     }
 
     static Npc npc(Long id, String name) {

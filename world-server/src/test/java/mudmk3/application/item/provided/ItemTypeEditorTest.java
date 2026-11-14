@@ -7,6 +7,9 @@ import mudmk3.MutableClock;
 import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.floor.provided.RoomFloor;
 import mudmk3.application.inventory.provided.InventoryEditor;
+import mudmk3.application.npc.provided.NpcEditor;
+import mudmk3.application.npc.provided.ShopItemRequest;
+import mudmk3.application.npc.provided.ShopSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.StartingItemRequest;
 import mudmk3.application.world.provided.WorldSettingsEditor;
@@ -16,6 +19,8 @@ import mudmk3.domain.item.DuplicateItemTypeNameException;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.item.SpiritStoneGrade;
+import mudmk3.domain.npc.ShopKind;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -24,6 +29,7 @@ import java.util.Map;
 
 import static mudmk3.domain.floor.FloorFixture.createFloorPlacementSaveRequest;
 import static mudmk3.domain.item.ItemTypeFixture.createItemTypeSaveRequest;
+import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,8 +39,8 @@ import static org.assertj.core.api.Assertions.tuple;
 @ApplicationServiceTest
 record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemTypeFinder, InventoryEditor inventoryEditor,
                           WorldSettingsEditor worldSettingsEditor, FloorPlacementEditor floorPlacementEditor,
-                          RoomFloor roomFloor, ZoneEditor zoneEditor, RoomEditor roomEditor, MutableClock clock,
-                          EntityManager entityManager) {
+                          RoomFloor roomFloor, ZoneEditor zoneEditor, RoomEditor roomEditor, NpcEditor npcEditor,
+                          MutableClock clock, EntityManager entityManager) {
 
     @Test
     void spiritStonesSeeded() {
@@ -306,5 +312,70 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
 
         assertThat(itemTypeFinder.findAllById(List.of(itemType.getId()))).isEmpty();
         assertThat(roomFloor.look(3L)).isEmpty();
+    }
+
+    @Test
+    void deleteItemTypeInShopFail() {
+        ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        openShop("왕씨", itemType, null);
+
+        assertThatThrownBy(() -> itemTypeEditor.delete(itemType.getId()))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 지울 수 없습니다: 회춘단");
+        assertThatThrownBy(() -> itemTypeEditor.update(itemType.getId(), createItemTypeSaveRequest("회춘단", ItemCategory.ELIXIR, 3)))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 종류·저물대 등급을 바꿀 수 없습니다: 회춘단");
+    }
+
+    @Test
+    void lowerBaseValueKeepsFairPrices() {
+        ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        openShop("왕씨", itemType, 2);
+        openShop("이씨", itemType, null);
+
+        ItemType updated = itemTypeEditor.update(itemType.getId(), createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 1));
+
+        assertThat(updated.getBaseValue()).isEqualTo(1);
+    }
+
+    @Test
+    void raiseBaseValueBreaksFixedPriceFail() {
+        ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        openShop("왕씨", itemType, 2);
+        openShop("이씨", itemType, null);
+
+        // 기준가 4: 매입가 1, 왕씨 값 2 는 정확히 2배라 안 된다. 값을 정하지 않은 이씨는 기준가를 따라가 괜찮다
+        assertThatThrownBy(() -> itemTypeEditor.update(itemType.getId(), createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 4)))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("상점 값이 매입가 규칙에 맞지 않게 됩니다: 회춘단 (왕씨 2)");
+        entityManager.clear();
+        assertThat(itemTypeFinder.find(itemType.getId()).getBaseValue()).isEqualTo(3);
+        // 기준가를 그대로 두면 다른 것은 고칠 수 있다
+        itemTypeEditor.update(itemType.getId(), new ItemTypeSaveRequest("회춘단", "바뀐 묘사다.", ItemCategory.PILL, 3, false, null));
+    }
+
+    @Test
+    void zeroBaseWithNullPriceFail() {
+        ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        openShop("왕씨", itemType, null);
+        openShop("이씨", itemType, 2);
+
+        assertThatThrownBy(() -> itemTypeEditor.update(itemType.getId(), createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 0)))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("기준가가 0이면 상점이 값을 정해야 합니다: 회춘단 (왕씨)");
+    }
+
+    @Test
+    void zeroBaseWithFixedPrices() {
+        ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        openShop("이씨", itemType, 2);
+
+        assertThat(itemTypeEditor.update(itemType.getId(), createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 0))
+                .getBaseValue()).isZero();
+    }
+
+    private void openShop(String npcName, ItemType itemType, @Nullable Integer price) {
+        Long npcId = npcEditor.create(createNpcSaveRequest(npcName, null)).getId();
+        npcEditor.openShop(npcId, new ShopSaveRequest(ShopKind.PILL_SHOP, List.of(new ShopItemRequest(itemType.getId(), price))));
     }
 }

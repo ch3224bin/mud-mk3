@@ -4,7 +4,7 @@ import mudmk3.domain.npc.Npc;
 
 import java.util.List;
 
-/** NPC를 찾는다. 돌려주는 NPC는 낱말 대답까지 읽혀 있다 */
+/** NPC를 찾는다. 돌려주는 NPC는 낱말 대답·상점 물건까지 읽혀 있다 */
 public interface NpcFinder {
 
     Npc find(Long npcId);

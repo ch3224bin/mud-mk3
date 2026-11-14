@@ -38,6 +38,15 @@ public interface ItemTypeRepository extends Repository<ItemType, Long> {
     @Query("select count(w) from WorldSettings w join w.startingItems s where s.itemTypeId = :itemTypeId")
     long countInStartingItems(Long itemTypeId);
 
+    /** 그 종류를 파는 상점 물건 줄 수 */
+    @Query("select count(n) from Npc n join n.shopItems s where s.itemTypeId = :itemTypeId")
+    long countInShops(Long itemTypeId);
+
+    /** 그 종류를 파는 상점의 NPC 이름과 판매가(NPC 이름순) */
+    @Query("select new mudmk3.application.item.required.ShopPrice(n.name, s.price) from Npc n join n.shopItems s"
+            + " where s.itemTypeId = :itemTypeId order by n.name")
+    List<ShopPrice> findShopPrices(Long itemTypeId);
+
     /** 그 종류를 둔 바닥 배치 수(남은 수가 0이어도 센다) */
     @Query("select count(p) from FloorPlacement p where p.itemType.id = :itemTypeId")
     long countInFloorPlacements(Long itemTypeId);
