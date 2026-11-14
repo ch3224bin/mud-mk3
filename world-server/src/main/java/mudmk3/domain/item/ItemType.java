@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import mudmk3.domain.AbstractEntity;
+import mudmk3.domain.technique.Technique;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Optional;
@@ -16,7 +17,7 @@ import static java.util.Objects.requireNonNullElse;
 import static org.springframework.util.Assert.state;
 
 /**
- * 아이템 종류: 이름·묘사·종류·기준가(하품 영석)·저물대 등급. 이름은 영문 대소문자를 무시하고 하나뿐이다.
+ * 아이템 종류: 이름·묘사·종류·기준가(하품 영석)·저물대 등급·담긴 공법(옥간·서책만). 이름은 영문 대소문자를 무시하고 하나뿐이다.
  * 영석 네 등급은 엔진이 {@link #spiritStone} 으로 심고 고치지 않는다
  */
 @Entity
@@ -47,6 +48,10 @@ public class ItemType extends AbstractEntity {
     @Getter(AccessLevel.NONE)
     private @Nullable SpiritStoneGrade spiritStoneGrade;
 
+    @Getter(AccessLevel.NONE)
+    @ToString.Exclude
+    private @Nullable Technique technique;
+
     public static ItemType create(ItemTypeSaveInfo info) {
         ItemType itemType = new ItemType();
         itemType.apply(info);
@@ -71,6 +76,11 @@ public class ItemType extends AbstractEntity {
 
     public Optional<BagGrade> findBagGrade() {
         return Optional.ofNullable(bagGrade);
+    }
+
+    /** 옥간·서책에 담긴 공법 */
+    public Optional<Technique> findTechnique() {
+        return Optional.ofNullable(technique);
     }
 
     public Optional<SpiritStoneGrade> findSpiritStoneGrade() {
@@ -121,12 +131,16 @@ public class ItemType extends AbstractEntity {
         if (newCategory != ItemCategory.BAG && info.bagGrade() != null) {
             throw new IllegalArgumentException("저물대 등급은 저물대에만 정합니다.");
         }
+        if (newCategory != ItemCategory.SCROLL && info.technique() != null) {
+            throw new IllegalArgumentException("공법은 옥간·서책에만 담을 수 있습니다.");
+        }
 
         this.name = newName;
         this.description = newDescription;
         this.category = newCategory;
         this.baseValue = info.baseValue();
         this.bagGrade = info.bagGrade();
+        this.technique = info.technique();
     }
 
     /** 명령 문법(수량·{@code 전부}·번호·영석 등급 낱말)과 헷갈리지 않는 이름인지 본다 */

@@ -174,7 +174,7 @@ abstract class BaseGameTest {
 
     private Long item(String name, String description, ItemCategory category, long baseValue, @Nullable BagGrade bagGrade) {
         ItemType itemType = itemTypeEditor.create(
-                new ItemTypeSaveRequest(name, description, category, baseValue, bagGrade));
+                new ItemTypeSaveRequest(name, description, category, baseValue, bagGrade, null));
         return id(itemType.getId());
     }
 

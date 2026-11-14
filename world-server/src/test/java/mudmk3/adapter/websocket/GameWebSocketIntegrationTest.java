@@ -287,7 +287,7 @@ class GameWebSocketIntegrationTest {
     @Test
     void pickAndInventory() throws Exception {
         ItemType hide = itemTypeEditor.create(
-                new ItemTypeSaveRequest("늑대 가죽", "거칠고 질긴 늑대의 가죽이다.", ItemCategory.MATERIAL, 2, null));
+                new ItemTypeSaveRequest("늑대 가죽", "거칠고 질긴 늑대의 가죽이다.", ItemCategory.MATERIAL, 2, null, null));
         floorPlacementEditor.create(requireNonNull(entranceId), new FloorPlacementSaveRequest(hide.getId(), 3, null));
         Client a = enter("hanbai@example.com", "한백");
         Client b = enter("hanli@example.com", "한립");
@@ -315,7 +315,7 @@ class GameWebSocketIntegrationTest {
     @Test
     void giveBetweenTwoSessions() throws Exception {
         ItemType pill = itemTypeEditor.create(
-                new ItemTypeSaveRequest("회춘단(연기 초)", "", ItemCategory.PILL, 3, null));
+                new ItemTypeSaveRequest("회춘단(연기 초)", "", ItemCategory.PILL, 3, null, null));
         Client a = enter("hanbai@example.com", "한백");
         Client b = enter("hanli@example.com", "한립");
         assertThat(a.next().get("event").asString()).isEqualTo("appear");

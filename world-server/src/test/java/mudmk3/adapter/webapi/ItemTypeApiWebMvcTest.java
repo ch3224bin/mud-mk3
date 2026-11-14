@@ -11,7 +11,10 @@ import mudmk3.domain.item.DuplicateItemTypeNameException;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.item.ItemTypeFixture;
+import mudmk3.domain.item.ItemTypeSaveInfo;
 import mudmk3.domain.item.SpiritStoneGrade;
+import mudmk3.domain.technique.Technique;
+import mudmk3.domain.technique.TechniqueFixture;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -71,9 +74,29 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
                 .isStrictlyEqualTo("""
                         {"id":7,"name":"회춘단(연기 초)","description":"회춘단(연기 초)의 묘사다.","category":"PILL",
                          "categoryName":"단약","stackSize":99,"baseValue":3,"bagGrade":null,
-                         "bagGradeName":null,"bagSlots":0,"spiritStone":false,"buyRatePercent":25}""");
+                         "bagGradeName":null,"bagSlots":0,"spiritStone":false,"buyRatePercent":25,
+                         "techniqueId":null,"techniqueName":null}""");
         verify(itemTypeEditor).create(new ItemTypeSaveRequest(
-                "회춘단(연기 초)", "회춘단(연기 초)의 묘사다.", ItemCategory.PILL, 3, null));
+                "회춘단(연기 초)", "회춘단(연기 초)의 묘사다.", ItemCategory.PILL, 3, null, null));
+    }
+
+    @Test
+    void createScrollWithTechnique() {
+        Technique changchun = TechniqueFixture.changchun();
+        ReflectionTestUtils.setField(changchun, "id", 3L);
+        when(itemTypeEditor.create(any())).thenReturn(withId(ItemType.create(new ItemTypeSaveInfo(
+                "장춘공 옥간", "", ItemCategory.SCROLL, 30, null, changchun)), 9L));
+
+        assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/item-types")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name":"장춘공 옥간","category":"SCROLL","baseValue":30,"techniqueId":3}"""))
+                .hasStatus(HttpStatus.CREATED)
+                .bodyJson()
+                .isLenientlyEqualTo("""
+                        {"id":9,"category":"SCROLL","techniqueId":3,"techniqueName":"장춘공"}""");
+        verify(itemTypeEditor).create(new ItemTypeSaveRequest(
+                "장춘공 옥간", null, ItemCategory.SCROLL, 30, null, 3L));
     }
 
     @Test
@@ -176,7 +199,7 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
                 .isLenientlyEqualTo("""
                         {"id":5,"name":"늑대 가죽","categoryName":"재료"}""");
         verify(itemTypeEditor).update(5L, new ItemTypeSaveRequest(
-                "늑대 가죽", "늑대 가죽의 묘사다.", ItemCategory.MATERIAL, 2, null));
+                "늑대 가죽", "늑대 가죽의 묘사다.", ItemCategory.MATERIAL, 2, null, null));
     }
 
     @Test

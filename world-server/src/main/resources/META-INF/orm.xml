@@ -224,6 +224,10 @@
                 <column name="spirit_stone_grade" length="16" nullable="true" column-definition="varchar(16)"/>
                 <enumerated>STRING</enumerated>
             </basic>
+            <!-- 옥간·서책에 담긴 공법(없으면 null). 응답에 공법 이름을 내므로 기본(EAGER)으로 읽는다 -->
+            <many-to-one name="technique">
+                <join-column name="technique_id" nullable="true"/>
+            </many-to-one>
         </attributes>
     </entity>
 

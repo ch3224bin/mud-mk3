@@ -1,5 +1,6 @@
 package mudmk3.application.technique.provided;
 
+import mudmk3.application.technique.required.ScrollItem;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
 import mudmk3.domain.technique.Ability;
@@ -93,9 +94,5 @@ public record TechniqueView(
                     ability.getCostAmount(), ability.isCostPerTick(), ability.getCastSeconds(),
                     ability.getCooldownSeconds(), ability.getUsableWhen());
         }
-    }
-
-    /** 이 공법이 담긴 아이템 종류 */
-    public record ScrollItem(Long id, String name) {
     }
 }

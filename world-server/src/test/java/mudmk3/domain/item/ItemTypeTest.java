@@ -1,5 +1,7 @@
 package mudmk3.domain.item;
 
+import mudmk3.domain.technique.Technique;
+import mudmk3.domain.technique.TechniqueFixture;
 import org.junit.jupiter.api.Test;
 
 import static mudmk3.domain.item.ItemTypeFixture.createBag;
@@ -12,7 +14,7 @@ class ItemTypeTest {
 
     @Test
     void create() {
-        ItemType itemType = ItemType.create(new ItemTypeSaveInfo("  늑대   가죽 ", null, ItemCategory.MATERIAL, 2, null));
+        ItemType itemType = ItemType.create(new ItemTypeSaveInfo("  늑대   가죽 ", null, ItemCategory.MATERIAL, 2, null, null));
 
         assertThat(itemType.getName()).isEqualTo("늑대 가죽");
         assertThat(itemType.getDescription()).isEmpty();
@@ -27,8 +29,41 @@ class ItemTypeTest {
     }
 
     @Test
+    void scrollWithTechnique() {
+        Technique changchun = TechniqueFixture.changchun();
+
+        ItemType scroll = ItemType.create(
+                new ItemTypeSaveInfo("장춘공 옥간", null, ItemCategory.SCROLL, 30, null, changchun));
+
+        assertThat(scroll.findTechnique()).containsSame(changchun);
+        assertThat(createPill().findTechnique()).isEmpty();
+
+        scroll.update(new ItemTypeSaveInfo("장춘공 옥간", null, ItemCategory.SCROLL, 30, null, null));
+
+        assertThat(scroll.findTechnique()).isEmpty();
+    }
+
+    @Test
+    void techniqueOnNonScrollFail() {
+        Technique changchun = TechniqueFixture.changchun();
+
+        assertThatThrownBy(() -> ItemType.create(
+                new ItemTypeSaveInfo("장춘단", null, ItemCategory.PILL, 3, null, changchun)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("공법은 옥간·서책에만 담을 수 있습니다.");
+
+        ItemType scroll = ItemType.create(
+                new ItemTypeSaveInfo("장춘공 옥간", null, ItemCategory.SCROLL, 30, null, changchun));
+        assertThatThrownBy(() -> scroll.update(
+                new ItemTypeSaveInfo("장춘공 옥간", null, ItemCategory.MATERIAL, 30, null, changchun)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("공법은 옥간·서책에만 담을 수 있습니다.");
+        assertThat(scroll.getCategory()).isEqualTo(ItemCategory.SCROLL);
+    }
+
+    @Test
     void createWithDescription() {
-        ItemType itemType = ItemType.create(new ItemTypeSaveInfo("비검", "날이 선 작은 검이다.", ItemCategory.ARTIFACT, 50, null));
+        ItemType itemType = ItemType.create(new ItemTypeSaveInfo("비검", "날이 선 작은 검이다.", ItemCategory.ARTIFACT, 50, null, null));
 
         assertThat(itemType.getDescription()).isEqualTo("날이 선 작은 검이다.");
         assertThat(itemType.stackSize()).isEqualTo(1);
@@ -48,7 +83,7 @@ class ItemTypeTest {
     void update() {
         ItemType itemType = createPill();
 
-        itemType.update(new ItemTypeSaveInfo(" 회기단  (연기 초) ", "푸른 단약이다.", ItemCategory.PILL, 4, null));
+        itemType.update(new ItemTypeSaveInfo(" 회기단  (연기 초) ", "푸른 단약이다.", ItemCategory.PILL, 4, null, null));
 
         assertThat(itemType.getName()).isEqualTo("회기단 (연기 초)");
         assertThat(itemType.getDescription()).isEqualTo("푸른 단약이다.");
@@ -76,14 +111,14 @@ class ItemTypeTest {
 
     @Test
     void bagNeedsGrade() {
-        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("저물대", null, ItemCategory.BAG, 10, null)))
+        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("저물대", null, ItemCategory.BAG, 10, null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("저물대 등급을 고르십시오.");
     }
 
     @Test
     void gradeOnlyForBag() {
-        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("회춘단", null, ItemCategory.PILL, 3, BagGrade.LOW)))
+        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("회춘단", null, ItemCategory.PILL, 3, BagGrade.LOW, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("저물대 등급은 저물대에만 정합니다.");
     }
@@ -114,7 +149,7 @@ class ItemTypeTest {
 
     @Test
     void descriptionLengthFail() {
-        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("회춘단", "가".repeat(501), ItemCategory.PILL, 3, null)))
+        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("회춘단", "가".repeat(501), ItemCategory.PILL, 3, null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("묘사는 500자까지 쓸 수 있습니다.");
     }

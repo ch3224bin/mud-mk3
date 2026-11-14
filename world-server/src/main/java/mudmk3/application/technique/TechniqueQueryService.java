@@ -9,6 +9,8 @@ import mudmk3.support.stereotype.ApplicationService;
 
 import java.util.List;
 
+import static java.util.Objects.requireNonNull;
+
 @ApplicationService
 @RequiredArgsConstructor
 public class TechniqueQueryService implements TechniqueFinder {
@@ -33,8 +35,8 @@ public class TechniqueQueryService implements TechniqueFinder {
                 .toList();
     }
 
-    /** 익힌 캐릭터 수·담긴 물건은 Task 3·5가 센다(4차 Task 2에서는 0·빈 목록) */
+    /** 익힌 캐릭터 수는 Task 5가 센다(그전에는 0) */
     private TechniqueView toView(Technique technique) {
-        return TechniqueView.of(technique, 0, List.of());
+        return TechniqueView.of(technique, 0, techniqueRepository.findScrollItems(requireNonNull(technique.getId())));
     }
 }

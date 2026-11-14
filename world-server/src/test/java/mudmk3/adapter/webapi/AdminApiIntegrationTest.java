@@ -164,6 +164,56 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
     }
 
     @Test
+    void manageTechniques() {
+        var realms = assertThat(mvc.get().with(admin()).uri("/api/admin/realms")).hasStatusOk().bodyJson();
+        realms.extractingPath("$[0].code").isEqualTo("MORTAL");
+        realms.extractingPath("$[14].name").isEqualTo("축기 초기");
+
+        long techniqueId = id(post("/api/admin/techniques", """
+                {"name":"장춘공","elements":["WOOD"],"startRealm":"MORTAL","stages":[{}],
+                 "abilities":[{"name":"화탄술","learnStage":1,"kind":"ATTACK","elements":["FIRE"],"bodyRefining":false,
+                               "target":"SINGLE","costStat":"MANA","costAmount":5,"costPerTick":false,
+                               "cooldownSeconds":3,"usableWhen":"COMBAT_ONLY"}]}"""));
+        var scroll = assertThat(post("/api/admin/item-types", """
+                {"name":"장춘공 옥간","category":"SCROLL","baseValue":30,"techniqueId":%d}""".formatted(techniqueId)))
+                .hasStatus(HttpStatus.CREATED).bodyJson();
+        scroll.extractingPath("$.techniqueId").isEqualTo((int) techniqueId);
+        scroll.extractingPath("$.techniqueName").isEqualTo("장춘공");
+        long scrollId = id(post("/api/admin/item-types", """
+                {"name":"장춘공 서책","category":"SCROLL","baseValue":20}"""));
+        assertThat(mvc.get().with(admin()).uri("/api/admin/item-types/%d".formatted(scrollId))).hasStatusOk().bodyJson()
+                .extractingPath("$.techniqueName").isNull();
+        long jadeId = ((Number) scroll.extractingPath("$.id").actual()).longValue();
+
+        // 트랜잭션 밖에서 응답을 만들어도 담긴 물건 이름이 나온다
+        var detail = assertThat(mvc.get().with(admin()).uri("/api/admin/techniques/%d".formatted(techniqueId)))
+                .hasStatusOk().bodyJson();
+        detail.extractingPath("$.scrollItems[0].id").isEqualTo((int) jadeId);
+        detail.extractingPath("$.scrollItems[0].name").isEqualTo("장춘공 옥간");
+        detail.extractingPath("$.abilities[0].kindName").isEqualTo("공격");
+        assertThat(mvc.get().with(admin()).uri("/api/admin/item-types/%d".formatted(jadeId))).hasStatusOk().bodyJson()
+                .extractingPath("$.techniqueName").isEqualTo("장춘공");
+        assertThat(mvc.get().with(admin()).uri("/api/admin/techniques")).hasStatusOk().bodyJson()
+                .extractingPath("$[0].abilityCount").isEqualTo(1);
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/techniques/%d".formatted(techniqueId)))
+                .hasStatus(HttpStatus.CONFLICT)
+                .bodyJson().extractingPath("$.detail").isEqualTo("이 공법이 담긴 물건이 있어 지울 수 없습니다: 장춘공 옥간");
+
+        assertThat(put("/api/admin/item-types/%d".formatted(jadeId), """
+                {"name":"장춘공 옥간","category":"SCROLL","baseValue":30}"""))
+                .hasStatusOk().bodyJson().extractingPath("$.techniqueId").isNull();
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/techniques/%d".formatted(techniqueId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+
+        // 같은 DB를 쓰는 다른 테스트를 흐리지 않게 지운다
+        for (long itemTypeId : new long[]{jadeId, scrollId}) {
+            assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
+                    .hasStatus(HttpStatus.NO_CONTENT);
+        }
+    }
+
+    @Test
     void deleteItemTypeInInventoryFail() {
         long itemTypeId = id(post("/api/admin/item-types", """
                 {"name":"늑대 가죽","category":"MATERIAL","baseValue":2}"""));

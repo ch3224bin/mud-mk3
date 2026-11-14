@@ -3,6 +3,7 @@ package mudmk3.application.technique;
 import lombok.RequiredArgsConstructor;
 import mudmk3.application.technique.provided.TechniqueEditor;
 import mudmk3.application.technique.provided.TechniqueFinder;
+import mudmk3.application.technique.provided.TechniqueInUseException;
 import mudmk3.application.technique.provided.TechniqueSaveRequest;
 import mudmk3.application.technique.provided.TechniqueView;
 import mudmk3.application.technique.required.TechniqueRepository;
@@ -55,9 +56,13 @@ public class TechniqueModifyService implements TechniqueEditor {
     private void checkStageCount(Technique technique, int newCount) {
     }
 
-    /** 익힌 캐릭터·담긴 물건이 있으면 {@code TechniqueInUseException}(409). Task 3·5가 채운다 */
-    @SuppressWarnings("unused")
+    /** 익힌 캐릭터·담긴 물건이 있으면 {@code TechniqueInUseException}(409). 익힌 캐릭터는 Task 5가 채운다 */
     private void checkDeletable(Technique technique) {
+        Long techniqueId = requireNonNull(technique.getId());
+        if (techniqueRepository.countScrollItems(techniqueId) > 0) {
+            String firstItem = techniqueRepository.findScrollItems(techniqueId).getFirst().name();
+            throw new TechniqueInUseException("이 공법이 담긴 물건이 있어 지울 수 없습니다: " + firstItem);
+        }
     }
 
     private static DuplicateTechniqueNameException duplicateName(String name) {

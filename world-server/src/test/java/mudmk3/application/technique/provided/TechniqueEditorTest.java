@@ -2,6 +2,11 @@ package mudmk3.application.technique.provided;
 
 import jakarta.persistence.EntityManager;
 import mudmk3.ApplicationServiceTest;
+import mudmk3.application.item.provided.ItemTypeEditor;
+import mudmk3.application.item.provided.ItemTypeSaveRequest;
+import mudmk3.application.technique.required.ScrollItem;
+import mudmk3.domain.item.ItemCategory;
+import mudmk3.domain.item.ItemType;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
 import mudmk3.domain.technique.AbilityKind;
@@ -23,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ApplicationServiceTest
 record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder techniqueFinder,
-                           EntityManager entityManager) {
+                           ItemTypeEditor itemTypeEditor, EntityManager entityManager) {
 
     @Test
     void create() {
@@ -194,6 +199,36 @@ record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder tech
         assertThatThrownBy(() -> techniqueEditor.update(999L, changchunRequest("장춘공")))
                 .hasMessage("공법을 찾을 수 없습니다. id: 999");
         assertThatThrownBy(() -> techniqueEditor.delete(999L)).hasMessage("공법을 찾을 수 없습니다. id: 999");
+    }
+
+    @Test
+    void deleteWithScrollItemFail() {
+        TechniqueView created = techniqueEditor.create(changchunRequest("장춘공"));
+        scroll("장춘공 옥간", created.id());
+        scroll("장춘공 서책", created.id());
+        flushAndClear();
+
+        assertThatThrownBy(() -> techniqueEditor.delete(created.id()))
+                .isInstanceOf(TechniqueInUseException.class)
+                .hasMessage("이 공법이 담긴 물건이 있어 지울 수 없습니다: 장춘공 서책");
+    }
+
+    @Test
+    void viewListsScrollItems() {
+        TechniqueView created = techniqueEditor.create(changchunRequest("장춘공"));
+        ItemType jade = scroll("장춘공 옥간", created.id());
+        ItemType book = scroll("장춘공 서책", created.id());
+        TechniqueView other = techniqueEditor.create(changchunRequest("청목결"));
+        scroll("청목결 옥간", other.id());
+        flushAndClear();
+
+        assertThat(techniqueFinder.view(created.id()).scrollItems()).containsExactly(
+                new ScrollItem(book.getId(), "장춘공 서책"), new ScrollItem(jade.getId(), "장춘공 옥간"));
+        assertThat(techniqueFinder.viewAll()).extracting(view -> view.scrollItems().size()).containsExactly(2, 1);
+    }
+
+    private ItemType scroll(String name, Long techniqueId) {
+        return itemTypeEditor.create(new ItemTypeSaveRequest(name, null, ItemCategory.SCROLL, 30, null, techniqueId));
     }
 
     private void flushAndClear() {

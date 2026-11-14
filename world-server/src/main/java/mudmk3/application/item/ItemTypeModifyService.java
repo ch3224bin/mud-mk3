@@ -8,13 +8,16 @@ import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.item.provided.SpiritStoneChangeException;
 import mudmk3.application.item.required.ItemTypeRepository;
 import mudmk3.application.item.required.ShopPrice;
+import mudmk3.application.technique.provided.TechniqueFinder;
 import mudmk3.domain.item.DuplicateItemTypeNameException;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.item.ItemTypeSaveInfo;
 import mudmk3.domain.item.Pricing;
 import mudmk3.domain.item.SpiritStoneGrade;
 import mudmk3.domain.shared.Numbers;
+import mudmk3.domain.technique.Technique;
 import mudmk3.support.stereotype.ValidatedApplicationService;
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
@@ -31,11 +34,12 @@ public class ItemTypeModifyService implements ItemTypeEditor {
 
     private final ItemTypeFinder itemTypeFinder;
     private final ItemTypeRepository itemTypeRepository;
+    private final TechniqueFinder techniqueFinder;
     private final Clock clock;
 
     @Override
     public ItemType create(ItemTypeSaveRequest request) {
-        ItemTypeSaveInfo info = request.toInfo();
+        ItemTypeSaveInfo info = request.toInfo(findTechnique(request.techniqueId()));
         if (itemTypeRepository.existsByNameIgnoreCase(info.name())) {
             throw duplicateName(info.name());
         }
@@ -46,7 +50,7 @@ public class ItemTypeModifyService implements ItemTypeEditor {
     public ItemType update(Long itemTypeId, ItemTypeSaveRequest request) {
         ItemType itemType = itemTypeFinder.find(itemTypeId);
         ensureNotSpiritStone(itemType);
-        ItemTypeSaveInfo info = request.toInfo();
+        ItemTypeSaveInfo info = request.toInfo(findTechnique(request.techniqueId()));
         if (itemTypeRepository.existsByNameIgnoreCaseAndIdNot(info.name(), itemTypeId)) {
             throw duplicateName(info.name());
         }
@@ -122,6 +126,11 @@ public class ItemTypeModifyService implements ItemTypeEditor {
         if (!unfair.isEmpty()) {
             throw new ItemTypeInUseException("상점 값이 매입가 규칙에 맞지 않게 됩니다: " + itemType.getName() + " (" + unfair + ")");
         }
+    }
+
+    /** 담긴 공법 id가 있으면 찾는다. 없는 id면 {@code 공법을 찾을 수 없습니다. id: N}(400) */
+    private @Nullable Technique findTechnique(@Nullable Long techniqueId) {
+        return techniqueId == null ? null : techniqueFinder.find(techniqueId);
     }
 
     private static void ensureNotSpiritStone(ItemType itemType) {
