@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// compose 로 띄운 세 서비스(world-server)에 대고 1차 시나리오를 자동으로 확인한다.
+// compose 로 띄운 세 서비스(world-server)에 대고 1차·2차 시나리오를 자동으로 확인한다.
 // 사용: node scripts/smoke-test.mjs [baseUrl=http://localhost:8080]
 // 전제: world-server 가 SPRING_PROFILES_ACTIVE=local, MUD_DEV_LOGIN_ENABLED=true 로 떠 있고
 //       MUD_ADMIN_EMAILS 에 관리자 이메일(기본 smoke-admin@example.com, 바꾸려면 SMOKE_ADMIN_EMAIL)이 들어 있다.
 // Node 26 내장 fetch·WebSocket 만 쓴다(의존성 없음). 실패하면 무엇이 기대와 달랐는지 출력하고 종료 코드 1.
-// 실행마다 지역·플레이어 이메일·캐릭터 이름에 실행 번호를 섞는다. 만든 데이터는 지우지 않는다.
+// 실행마다 지역·플레이어 이메일·캐릭터 이름·성·종문·NPC 이름에 실행 번호를 섞는다. 만든 데이터는 지우지 않는다.
 
 const baseUrl = (process.argv[2] ?? "http://localhost:8080").replace(/\/$/, "");
 const wsUrl = baseUrl.replace(/^http/, "ws") + "/ws/game";
@@ -14,6 +14,12 @@ const PLAY_ORIGIN = "http://localhost:3000";
 const TIMEOUT_MS = 5000;
 
 const runId = Date.now().toString(36);
+// NPC 이름은 띄어쓰기 없이 12자까지라 숫자 6자리만 붙인다(성·종문·NPC 이름)
+const runNo = String(Date.now() % 1_000_000).padStart(6, "0");
+const castleName = `청석성${runNo}`;
+const sectName = `황풍곡${runNo}`;
+const npcName = `왕씨${runNo}`;
+const innNpcName = `점소이${runNo}`;
 const randomHangul = () => String.fromCodePoint(0xac00 + Math.floor(Math.random() * (0xd7a3 - 0xac00 + 1)));
 const nameA = "갑사" + randomHangul() + randomHangul();
 const nameB = "을사" + randomHangul() + randomHangul();
@@ -274,7 +280,82 @@ async function run() {
     b2.send("종료");
     await b2.waitClose(1000);
 
-    console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id})`);
+    step(`11. 관리자 — 성 ${castleName}·종문 ${sectName} 만들기, 지역 소유를 ${castleName} 으로`);
+    const castle = await api(admin, "POST", "/api/admin/factions",
+      { kind: "CASTLE", name: castleName, description: "스모크 테스트가 만든 성" }, { expect: 201 });
+    if (castle.kindName !== "성" || castle.zoneCount !== 0) fail(`성 응답이 다름: ${JSON.stringify(castle)}`);
+    const sect = await api(admin, "POST", "/api/admin/factions",
+      { kind: "SECT", name: sectName, description: "" }, { expect: 201 });
+    if (sect.kindName !== "종문") fail(`종문 응답이 다름: ${JSON.stringify(sect)}`);
+    await api(admin, "PUT", `/api/admin/zones/${zone.id}`,
+      { name: zone.name, description: zone.description, ownerId: castle.id });
+    const zones = await api(admin, "GET", "/api/admin/zones");
+    const ownedZone = zones.find((z) => z.id === zone.id);
+    if (ownedZone?.ownerName !== castleName || ownedZone.ownerKind !== "CASTLE") {
+      fail(`지역 목록 소유가 ${castleName}(CASTLE) 이 아님: ${JSON.stringify(ownedZone)}`);
+    }
+    const factions = await api(admin, "GET", "/api/admin/factions");
+    if (factions.find((f) => f.id === castle.id)?.zoneCount !== 1) {
+      fail(`성 목록 zoneCount 가 1 이 아님: ${JSON.stringify(factions.find((f) => f.id === castle.id))}`);
+    }
+
+    step(`12. 관리자 — NPC ${npcName}(인사말·낱말 둘·기본 대답·LLM 켬)을 광장에 배치`);
+    const topics = [
+      { word: "단약", answer: "회춘단이 좋소." },
+      { word: "일거리", answer: "늑대가 말썽이오." },
+    ];
+    const created = await api(admin, "POST", "/api/admin/npcs", {
+      name: npcName, greeting: "어서 오시오.", defaultAnswer: "글쎄, 잘 모르겠구려.",
+      topics, llmEnabled: true, roomId: square.id,
+    }, { expect: 201 });
+    const npc = await api(admin, "GET", `/api/admin/npcs/${created.id}`);
+    if (npc.name !== npcName || npc.greeting !== "어서 오시오." || npc.defaultAnswer !== "글쎄, 잘 모르겠구려."
+      || npc.llmEnabled !== true || npc.roomId !== square.id || npc.zoneId !== zone.id
+      || JSON.stringify(npc.topics) !== JSON.stringify(topics)) {
+      fail(`NPC 상세가 다름: ${JSON.stringify(npc)}`);
+    }
+
+    step(`13. B 재접속 → 광장 보기: 방 머리 소유 ${castleName}, occupants 에 NPC ${npcName}`);
+    const b3 = connect("B(2차)", playerB.cookie);
+    await b3.opened;
+    await b3.waitFor(isRoom("광장"), "재접속 room");
+    mark = b3.send("보기");
+    const ownedLook = await b3.waitFor(isRoom("광장"), "2차 보기 room", mark);
+    if (ownedLook.owner?.name !== castleName || ownedLook.owner?.kind !== "castle") {
+      fail(`방 머리 소유가 ${castleName}(castle) 이 아님: ${JSON.stringify(ownedLook.owner)}`);
+    }
+    if (!ownedLook.occupants.some((o) => o.name === npcName && o.kind === "npc")) {
+      fail(`occupants 에 NPC ${npcName} 가 없음: ${JSON.stringify(ownedLook.occupants)}`);
+    }
+
+    step(`14. B 대화 ${npcName} → 인사말·낱말, 낱말 대답, 모르는 낱말 → 기본 대답, 도움말에 대화`);
+    const talk = async (input, expected) => {
+      const m = b3.send(input);
+      const answer = await b3.waitFor((msg) => msg.type === "talk" && msg.npc === npcName, `${input} talk`, m);
+      if (answer.text !== expected) fail(`${input} 대답이 다름. 기대 ${JSON.stringify(expected)}, 실제 ${JSON.stringify(answer.text)}`);
+    };
+    await talk(`대화 ${npcName}`, `${npcName}: "어서 오시오."\n물어볼 수 있는 낱말: [단약] [일거리]`);
+    await talk(`대화 ${npcName} 일거리`, `${npcName}: "늑대가 말썽이오."`);
+    await talk(`대화 ${npcName} 비석`, `${npcName}: "글쎄, 잘 모르겠구려."`);
+    mark = b3.send("도움말");
+    const help = await b3.waitFor((m) => m.type === "system" && m.text.startsWith("명령:"), "도움말", mark);
+    if (!help.text.includes("대화 <NPC> [낱말]")) fail(`도움말에 대화 <NPC> [낱말] 이 없음: ${help.text}`);
+    b3.send("종료");
+    await b3.waitClose(1000);
+
+    step(`15. 소유 지역이 있는 성 삭제 → 409. NPC ${innNpcName} 가 있는 방을 지우면 배치가 풀림`);
+    await api(admin, "DELETE", `/api/admin/factions/${castle.id}`, undefined, { expect: 409 });
+    const inn = await api(admin, "POST", "/api/admin/rooms",
+      { zoneId: zone.id, name: "객잔", description: "낡은 객잔이다." }, { expect: 201 });
+    const innNpc = await api(admin, "POST", "/api/admin/npcs", {
+      name: innNpcName, greeting: "들어오시오.", defaultAnswer: "모르오.", topics: [], llmEnabled: false, roomId: inn.id,
+    }, { expect: 201 });
+    if (innNpc.roomId !== inn.id) fail(`${innNpcName} 배치가 객잔이 아님: ${JSON.stringify(innNpc)}`);
+    await api(admin, "DELETE", `/api/admin/rooms/${inn.id}`, undefined, { expect: 204 });
+    const unplaced = await api(admin, "GET", `/api/admin/npcs/${innNpc.id}`);
+    if (unplaced.roomId !== null || unplaced.zoneId !== null) fail(`방을 지웠는데 배치가 남음: ${JSON.stringify(unplaced)}`);
+
+    console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName})`);
   } finally {
     clients.forEach((c) => c.close());
   }
