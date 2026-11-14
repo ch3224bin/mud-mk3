@@ -74,11 +74,61 @@ admin-console은 정적 export이고, 경로는 쿼리스트링으로 id를 받�
 
 - 맵(지역·방·출구)의 변경은 실행 중인 게임에 바로 반영된다. 게임이 맵을 캐시하지 않고 명령마다 DB에서 읽기 때문이다. → [플랫폼: 1차 월드 상태와 저장](platform.md#1차-월드-상태와-저장) (제안)
 - 플레이어가 서 있는 방을 지우면 그 플레이어는 시작 방으로 옮겨진다. (제안)
+- 2차의 성·종문·지역 소유·NPC(대사·배치) 변경도 맵처럼 실행 중인 게임에 바로 반영된다. 게임이 명령마다 DB에서 읽기 때문이다. 방 머리 소유와 방의 NPC는 다음 방 보기부터 바뀌고, 같은 방 사람에게 따로 알리지 않는다. (제안)
+- 2차 스키마도 1차처럼 `ddl-auto=update` 로 새 테이블(`faction`, `npc`, `npc_topic`)과 `zone.owner_id` 열이 생긴다. 마이그레이션 도구는 여전히 없다. (제안)
+
+## 2차 화면
+
+1차 화면에 더한다. (제안)
+
+- 위쪽 공통 바: `지역 목록` 옆에 `성·종문`, `NPC` 링크. (제안)
+- `/factions/` 성·종문 목록(종류·이름·소유 지역 수·수정·삭제)과 `성·종문 만들기` 폼(종류 선택 `성`/`종문`, 이름, 묘사). 삭제 확인은 `'청석성' 성을(를) 지울까요?`. (제안)
+- `/zones/` 지역 만들기·수정 폼에 `소유` 선택(`없음` + 성·종문 목록, 예 `청석성 (성)`), 지역 목록에 `소유` 열(없으면 `-`). (제안)
+- `/npcs/` NPC 목록(이름·배치(`청우촌 / 마을 어귀` 또는 `배치 안 됨`)·낱말 수·LLM(`켬`/`끔`))과 `NPC 만들기` 링크(`/npc/`). (제안)
+- `/npc/` (id 없음 = 새로 만들기, `/npc/?id=4` = 고치기): 이름, 인사말, 기본 대답(새 NPC 기본값 `글쎄, 잘 모르겠구려.`), 낱말 표(낱말·대답·`삭제`)와 `낱말 추가` 버튼(낱말과 대답이 둘 다 빈 행은 저장할 때 뺀다), `LLM 대화` 체크박스(기본 꺼짐)와 안내 `켜 두어도 지금은 정해진 대사로 답합니다.`, 배치(지역 선택 → 방 선택. 지역 선택의 첫 항목 `배치 안 함`, 방 선택의 첫 항목 `방 선택`. 지역만 고르고 방을 고르지 않으면 배치 안 함으로 저장), `저장`, 고칠 때 `삭제`(확인 `'왕씨' NPC를 지울까요?`). 만들기에 성공하면 `/npc/?id=<새 id>` 로 간다. 저장 전 클라이언트 검사는 하지 않고 서버의 `detail` 을 보인다. (제안)
+- `/room/?id=` 방 화면에 `이 방의 NPC` 목록(이름 링크 → `/npc/?id=`, 없으면 `없음`). (제안)
+
+## 2차 REST API
+
+1차 REST API 규칙(경로·권한·`X-MUD-Client`·`ProblemDetail`·400/409 구분)을 그대로 따른다. (제안)
+
+| 메서드 · 경로 | 요청 | 응답 |
+|---|---|---|
+| `GET /api/admin/factions` | — | 200 `FactionResponse[]`(종류 성 → 종문, 같은 종류는 이름순) |
+| `POST /api/admin/factions` | `{kind, name, description}` | 201 `FactionResponse` |
+| `PUT /api/admin/factions/{factionId}` | `{kind, name, description}` | 200 `FactionResponse` |
+| `DELETE /api/admin/factions/{factionId}` | — | 204. 소유 지역이 있으면 409 |
+| `POST /api/admin/zones`, `PUT /api/admin/zones/{zoneId}` | 1차 `{name, description}` + `ownerId`(number \| null, 빠지면 null = 소유 없음) | 1차와 같음 |
+| `GET /api/admin/npcs` | — | 200 `NpcSummaryResponse[]`(이름순) |
+| `POST /api/admin/npcs` | `NpcSaveRequest` | 201 `NpcDetailResponse` |
+| `GET /api/admin/npcs/{npcId}` | — | 200 `NpcDetailResponse` |
+| `PUT /api/admin/npcs/{npcId}` | `NpcSaveRequest`(낱말 목록은 통째로 바꿈) | 200 `NpcDetailResponse` |
+| `DELETE /api/admin/npcs/{npcId}` | — | 204 |
+
+- `kind` 값은 `CASTLE` \| `SECT` 다. 그 밖의 값은 400이고 `detail` 은 공통 문구 `요청 본문을 읽을 수 없습니다` 다. (제안)
+- 응답 모양 (제안):
+  - `FactionResponse {id, kind, kindName, name, description, zoneCount}` — `kindName` 은 `성`·`종문`.
+  - `ZoneResponse` 에 `ownerId, ownerName, ownerKind`(`CASTLE`·`SECT`)를 더한다. 소유가 없으면 셋 다 null.
+  - `NpcSummaryResponse {id, name, llmEnabled, topicCount, roomId, roomName, zoneName}` — 배치 안 됐으면 room·zone 셋 다 null.
+  - `NpcDetailResponse {id, name, greeting, defaultAnswer, topics: [{word, answer}], llmEnabled, roomId, roomName, zoneId, zoneName}` — `topics` 는 입력 순서.
+  - `RoomDetailResponse` 에 `npcs: [{id, name}]`(그 방에 배치된 NPC, 만든 순서)를 더한다.
+- `NpcSaveRequest {name, greeting, defaultAnswer, topics: [{word, answer}], llmEnabled, roomId}` — `roomId` 가 null이면 배치 안 함, `topics` 가 빠지면 빈 목록. `llmEnabled` 는 꼭 보내야 한다(빠지면 400 `요청 본문을 읽을 수 없습니다`). admin-console은 늘 보낸다. 값 규칙은 [NPC: 2차 데이터 모델](npc.md#2차-데이터-모델)을 따른다. (제안)
+- 예외 문구 (제안):
+
+| 경우 | 상태 | `detail` |
+|---|---|---|
+| 성·종문 이름 중복 | 409 | `이미 있는 성·종문 이름입니다: 청석성` |
+| 소유 지역이 있는 성·종문 삭제 | 409 | `소유한 지역이 있는 성·종문은 지울 수 없습니다` |
+| 없는 성·종문(`factionId`, 지역의 `ownerId`) | 400 | `성·종문을 찾을 수 없습니다. id: 9` |
+| NPC 이름 중복(영문 대소문자 무시) | 409 | `이미 있는 NPC 이름입니다: 왕씨` |
+| 한 NPC 안의 같은 낱말 | 400 | `같은 낱말이 두 번 있습니다: 단약` |
+| 없는 NPC | 400 | `NPC를 찾을 수 없습니다. id: 9` |
+| 없는 배치 방 | 400 | `방을 찾을 수 없습니다. id: 9`(1차 문구) |
 
 ## 열린 질문
 
 - 위 대상 가운데 각각 어디까지 관리 툴로 다루고 어디를 하드 코딩하는가? (예: 공법·신통의 효과)
 - "배치" 는 방 하나에 두는 것인가, 구역을 정해 돌아다니게 하는 것까지 포함하는가? (룰북에는 특정 방에만 있거나 정해진 구역 안을 돌아다님) → [룰북: 몹](../game-rule/npc.md#몹) — 2차 NPC는 방 하나에 고정한다(창호, 2026-11-14). 돌아다니는 배치는 몹·이후 이터레이션에서 정한다. → [NPC: 생성과 배치](npc.md#생성과-배치)
-- 관리 툴에서 바꾼 내용이 실행 중인 게임에 바로 반영되는가, 다시 시작해야 하는가? → (제안) 맵은 바로 반영된다. 다른 콘텐츠는 그것이 생기는 이터레이션에서 정한다. → [관리 툴 변경의 반영](#관리-툴-변경의-반영)
+- 관리 툴에서 바꾼 내용이 실행 중인 게임에 바로 반영되는가, 다시 시작해야 하는가? → (제안) 맵은 바로 반영된다. 2차의 성·종문·지역 소유·NPC도 바로 반영된다. 다른 콘텐츠는 그것이 생기는 이터레이션에서 정한다. → [관리 툴 변경의 반영](#관리-툴-변경의-반영)
 - 관리자 사이에 권한 구분(예: 일부 기능만 쓰는 관리자)이 필요한가?
 - 관리 툴에서 운영 기능(접속자 보기, 플레이어 캐릭터 수정 등)도 하는가?
