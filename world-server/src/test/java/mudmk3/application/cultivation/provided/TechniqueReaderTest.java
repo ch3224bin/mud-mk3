@@ -110,7 +110,7 @@ record TechniqueReaderTest(TechniqueReader techniqueReader, CultivationFinder cu
 
         ReadResult result = techniqueReader.read(han, jade.getId());
 
-        assertThat(result).isEqualTo(new ReadResult.Learned("강체결", new TechniqueStage(0, 0, 0, 0, 0, 0, 0, 0, 0),
+        assertThat(result).isEqualTo(new ReadResult.Learned("강체결", List.of(), new TechniqueStage(0, 0, 0, 0, 0, 0, 0, 0, 0),
                 List.of("철권"), true));
         assertThat(cultivationFinder.findLearned(han)).extracting(learned -> learned.getTechnique().getName())
                 .containsExactly("강체결");
@@ -124,7 +124,8 @@ record TechniqueReaderTest(TechniqueReader techniqueReader, CultivationFinder cu
         ReadResult result = techniqueReader.read(han, jade.getId());
         flushAndClear();
 
-        assertThat(result).isEqualTo(new ReadResult.Learned("장춘공", changchun().stage(1), List.of("화탄술"), false));
+        assertThat(result).isEqualTo(new ReadResult.Learned("장춘공", List.of(Element.WOOD), changchun().stage(1),
+                List.of("화탄술"), false));
         assertThat(countOf(han, jade)).isEqualTo(1);
         assertThat(cultivationFinder.findLearned(han)).extracting(CharacterTechnique::getStage).containsExactly(1);
     }

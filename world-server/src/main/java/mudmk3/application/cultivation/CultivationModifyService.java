@@ -81,7 +81,7 @@ public class CultivationModifyService implements TechniqueReader {
         if (initiated) {
             characterRealmEditor.initiate(characterId);
         }
-        return new ReadResult.Learned(technique.getName(), firstStage,
+        return new ReadResult.Learned(technique.getName(), technique.getElements(), firstStage,
                 technique.abilitiesUpTo(1).stream().map(Ability::getName).toList(), initiated);
     }
 

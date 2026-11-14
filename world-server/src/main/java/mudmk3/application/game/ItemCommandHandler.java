@@ -2,6 +2,8 @@ package mudmk3.application.game;
 
 import lombok.RequiredArgsConstructor;
 import mudmk3.application.character.provided.CharacterFinder;
+import mudmk3.application.cultivation.provided.ReadResult;
+import mudmk3.application.cultivation.provided.TechniqueReader;
 import mudmk3.application.floor.provided.RoomFloor;
 import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.InventoryMessage;
@@ -13,6 +15,8 @@ import mudmk3.application.game.required.PresenceRepository;
 import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.npc.provided.NpcFinder;
+import mudmk3.application.technique.provided.TechniqueFinder;
+import mudmk3.application.technique.provided.TechniqueView;
 import mudmk3.domain.floor.FloorStack;
 import mudmk3.domain.game.Amount;
 import mudmk3.domain.game.Command;
@@ -45,7 +49,7 @@ import static java.util.Objects.requireNonNull;
 import static org.springframework.util.Assert.state;
 
 /**
- * 물건 명령(소지품·줍기·버리기·물건 보기·주기, D44~D47)을 처리한다. {@link GameService} 가 게임 락과 트랜잭션 안에서 부른다.
+ * 물건 명령(소지품·줍기·버리기·물건 보기·주기·읽기, D44~D47·D65)을 처리한다. {@link GameService} 가 게임 락과 트랜잭션 안에서 부른다.
  * 바꾸는 명령은 검사를 다 한 뒤에 바꾸고, 같은 방 다른 사람에게 알린다
  */
 @Component
@@ -67,6 +71,7 @@ class ItemCommandHandler {
     static final String NOTHING_TO_SEE = "그런 것은 보이지 않습니다.";
     static final String GIVE_NO_ARGUMENT = "누구에게 무엇을 주시겠습니까? (예: 주기 한립 회춘단 2)";
     static final String GIVE_SELF = "자기 자신에게는 줄 수 없습니다.";
+    static final String READ_NO_ARGUMENT = "무엇을 읽으시겠습니까? (예: 읽기 장춘공 옥간)";
 
     private static final int ITEMS_PER_LINE = 3;
 
@@ -76,8 +81,11 @@ class ItemCommandHandler {
     private final InventoryEditor inventoryEditor;
     private final NpcFinder npcFinder;
     private final PresenceRepository presenceRepository;
+    private final TechniqueReader techniqueReader;
+    private final TechniqueFinder techniqueFinder;
+    private final CultivationTexts cultivationTexts;
 
-    /** 물건 명령(주기 포함)과 인자 있는 {@code 보기} 를 처리한다. send 는 (연결 id, 메시지)로 보낼 것을 모은다 */
+    /** 물건 명령(주기·읽기 포함)과 인자 있는 {@code 보기} 를 처리한다. send 는 (연결 id, 메시지)로 보낼 것을 모은다 */
     void handle(Command command, OnlinePlayer player, BiConsumer<String, GameMessage> send) {
         switch (command) {
             case Command.Inventory _ -> send.accept(player.getSessionId(), inventory(player));
@@ -85,6 +93,7 @@ class ItemCommandHandler {
             case Command.Drop drop -> drop(player, drop.args(), send);
             case Command.Look(String argument) when argument != null -> look(player, argument, send);
             case Command.Give give -> give(player, give, send);
+            case Command.Read read -> read(player, read.item(), send);
             default -> throw new IllegalArgumentException("물건 명령이 아닙니다: " + command);
         }
     }
@@ -276,13 +285,47 @@ class ItemCommandHandler {
                 .orElseGet(() -> SystemMessage.error(NOTHING_TO_SEE)));
     }
 
-    private static SystemMessage describe(ItemType itemType) {
+    /** 이름과 묘사. 담긴 공법이 있으면 둘째 줄 {@code 담긴 공법: 장춘공 (목 · 오행 · 9성 · 범인부터)} */
+    private SystemMessage describe(ItemType itemType) {
         String description = itemType.getDescription();
-        return SystemMessage.item(description.isEmpty() ? itemType.getName() : itemType.getName() + " — " + description);
+        String text = description.isEmpty() ? itemType.getName() : itemType.getName() + " — " + description;
+        return SystemMessage.item(itemType.findTechnique()
+                .map(technique -> text + "\n" + containedTechnique(techniqueFinder.view(requireNonNull(technique.getId()))))
+                .orElse(text));
+    }
+
+    /** {@code 담긴 공법: 장춘공 (목 · 오행 · 9성 · 범인부터)}, 연체술이면 {@code (연체술 · 9성 · 범인부터)} */
+    private static String containedTechnique(TechniqueView technique) {
+        String elements = technique.elementNames() == null ? "" : technique.elementNames() + " · ";
+        return "담긴 공법: " + technique.name() + " (" + elements + technique.lineName() + " · "
+                + technique.stageCount() + "성 · " + technique.startRealmName() + "부터)";
     }
 
     /** 보기 대상 하나. 물건이 아니면(사람·NPC) itemType 이 null */
     private record LookTarget(String name, @Nullable ItemType itemType) {
+    }
+
+    // ---- 읽기
+
+    /**
+     * 소지품(표시 순서)에서 고른 옥간·서책 하나를 읽는다(command.md {@code ### 읽기}). 인자 없음 → 가지고 있지 않음은 여기서,
+     * 나머지 검사와 익히기는 {@link TechniqueReader} 가 한다. 성공은 {@code growth}, 거절은 {@code error}. 같은 방 알림 없음
+     */
+    private void read(OnlinePlayer player, @Nullable ItemQuery query, BiConsumer<String, GameMessage> send) {
+        String sessionId = player.getSessionId();
+        if (query == null) {
+            send.accept(sessionId, SystemMessage.error(READ_NO_ARGUMENT));
+            return;
+        }
+        Optional<InventoryEntry> held = selectHeld(inventoryFinder.find(player.getCharacterId()), query);
+        if (held.isEmpty()) {
+            send.accept(sessionId, SystemMessage.error(NOT_HELD));
+            return;
+        }
+        ReadResult result = techniqueReader.read(player.getCharacterId(), requireNonNull(held.get().getItemType().getId()));
+        send.accept(sessionId, result instanceof ReadResult.Learned learned
+                ? SystemMessage.growth(cultivationTexts.readSuccess(learned))
+                : SystemMessage.error(cultivationTexts.readFailure(result)));
     }
 
     // ---- 주기

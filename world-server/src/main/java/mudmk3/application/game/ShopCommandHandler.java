@@ -27,6 +27,7 @@ import mudmk3.domain.npc.ShopItem;
 import mudmk3.domain.npc.ShopKind;
 import mudmk3.domain.shared.Josa;
 import mudmk3.domain.shared.Numbers;
+import mudmk3.domain.shared.Realm;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -48,7 +49,8 @@ import static mudmk3.application.game.ItemCommandHandler.NO_ROOM;
 
 /**
  * 상점 명령(목록·사기·팔기·값·확인·취소, D42)을 처리한다. {@link GameService} 가 게임 락과 트랜잭션 안에서 부른다.
- * 묻는 사람에게만 답한다(같은 방 알림 없음). 상위 등급 영석을 깨는 사기는 확인을 받아 10초 안에 {@code 확인} 하면 산다
+ * 묻는 사람에게만 답한다(같은 방 알림 없음). 상위 등급 영석을 깨는 사기는 확인을 받아 10초 안에 {@code 확인} 하면 산다.
+ * 범인은 {@code 목록}·{@code 사기}·{@code 팔기}·결제 {@code 확인} 을 할 수 없다(D68). {@code 값}·{@code 취소} 는 막지 않는다
  */
 @Component
 @RequiredArgsConstructor
@@ -62,6 +64,7 @@ class ShopCommandHandler {
     static final String NOTHING_TO_CONFIRM = "확인할 것이 없습니다.";
     static final String NOTHING_TO_CANCEL = "그만둘 것이 없습니다.";
     static final String CANCELLED = "그만두었습니다.";
+    static final String MORTAL_BLOCKED = "아직 범인의 몸이라 할 수 없습니다.";
 
     /** 상위 등급 영석 깨기 확인을 기다리는 시간(룰북 commands.md 확인이 필요한 명령 — 결제 10초) */
     static final Duration CONFIRM_WINDOW = Duration.ofSeconds(10);
@@ -147,6 +150,7 @@ class ShopCommandHandler {
     // ---- 목록
 
     private void list(OnlinePlayer player, String args, Reply reply) {
+        if (blockedAsMortal(player, reply)) return;
         Optional<Npc> chosen = chooseShopToList(player, args, reply);
         if (chosen.isEmpty()) return;
         Npc npc = chosen.get();
@@ -169,8 +173,9 @@ class ShopCommandHandler {
 
     // ---- 사기
 
-    /** 실패 순서: 인자 없음 → 수량 오류 → 없는 물건 → 결제·칸 검사(D42) → 상위 등급 확인 */
+    /** 실패 순서: 범인 → 인자 없음 → 수량 오류 → 없는 물건 → 결제·칸 검사(D42) → 상위 등급 확인 */
     private void buy(OnlinePlayer player, GameSession session, String args, Reply reply) {
+        if (blockedAsMortal(player, reply)) return;
         Optional<ShopChoice> chosen = chooseShop(player, args, reply);
         if (chosen.isEmpty()) return;
         Npc npc = chosen.get().npc();
@@ -240,6 +245,7 @@ class ShopCommandHandler {
             reply.error(NOTHING_TO_CONFIRM);
             return;
         }
+        if (blockedAsMortal(player, reply)) return; // 확인 대기 사이에 관리 툴이 범인으로 내린 경우
         PendingPurchase purchase = pending.get();
         Optional<Npc> npc = shopsIn(player).stream()
                 .filter(shop -> purchase.npcId().equals(shop.getId()))
@@ -277,10 +283,11 @@ class ShopCommandHandler {
     // ---- 팔기·값
 
     /**
-     * 실패 순서: 인자 없음 → 수량 오류 → 가지고 있지 않음 → 영석 → 퀘스트 물건 → 사 주지 않는 종류 → 수 넘침
+     * 실패 순서: 범인 → 인자 없음 → 수량 오류 → 가지고 있지 않음 → 영석 → 퀘스트 물건 → 사 주지 않는 종류 → 수 넘침
      * → 값이 1 미만 → 저물대·저물탁 칸 → 받을 영석 칸(D42)
      */
     private void sell(OnlinePlayer player, String args, Reply reply) {
+        if (blockedAsMortal(player, reply)) return;
         Optional<ShopChoice> chosen = chooseShop(player, args, reply);
         if (chosen.isEmpty()) return;
         Npc npc = chosen.get().npc();
@@ -388,12 +395,24 @@ class ShopCommandHandler {
         return npc.findShopKind().orElseThrow(() -> new IllegalStateException("상점이 아닙니다: " + npc.getName()));
     }
 
-    /** {@code 왕씨: "그런 물건은 팔지 않소."} */
-    /** 저물탁 칸이 열렸는지(경지가 축기 초기 이상). 경지는 DB에서 읽는다 */
-    private boolean braceletOpen(OnlinePlayer player) {
-        return characterFinder.find(player.getCharacterId()).getRealm().opensBracelet();
+    /** 지금 경지. 메모리에 두지 않고 명령마다 DB에서 읽는다(관리 툴 지정이 바로 보이게) */
+    private Realm realmOf(OnlinePlayer player) {
+        return characterFinder.find(player.getCharacterId()).getRealm();
     }
 
+    /** 저물탁 칸이 열렸는지(경지가 축기 초기 이상) */
+    private boolean braceletOpen(OnlinePlayer player) {
+        return realmOf(player).opensBracelet();
+    }
+
+    /** 범인이면 막힘 문구를 보내고 true(D68 — 다른 검사보다 먼저) */
+    private boolean blockedAsMortal(OnlinePlayer player, Reply reply) {
+        if (realmOf(player) != Realm.MORTAL) return false;
+        reply.error(MORTAL_BLOCKED);
+        return true;
+    }
+
+    /** {@code 왕씨: "그런 물건은 팔지 않소."} */
     private static String npcSays(Npc npc, String words) {
         return npc.getName() + ": \"" + words + "\"";
     }

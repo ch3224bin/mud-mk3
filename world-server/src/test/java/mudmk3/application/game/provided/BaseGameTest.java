@@ -7,10 +7,13 @@ import mudmk3.application.account.provided.AccountLoginRequest;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.character.provided.CharacterRealmEditor;
+import mudmk3.application.character.provided.RealmChangedEvent;
 import mudmk3.application.character.required.CharacterRepository;
 import mudmk3.application.faction.provided.FactionEditor;
 import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.floor.provided.FloorPlacementSaveRequest;
+import mudmk3.application.game.GameService;
 import mudmk3.application.game.RecordingGameMessageSender;
 import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.inventory.provided.InventoryFinder;
@@ -44,10 +47,13 @@ import mudmk3.domain.zone.Zone;
 import org.junit.jupiter.api.AfterEach;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Objects.requireNonNull;
 import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
@@ -57,15 +63,19 @@ import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
  * 게임 포트 테스트의 기반. 접속 상태(presence, 세션)는 메모리 싱글턴이라 테스트 롤백으로 지워지지 않으므로
  * 테스트가 연 세션을 끝날 때 모두 끊는다.
  */
+@RecordApplicationEvents
 abstract class BaseGameTest {
 
     protected final GameConnector gameConnector;
+    /** 경지 알림 리스너({@link GameService#onRealmChanged}). 테스트 트랜잭션은 커밋되지 않아 직접 넘긴다 */
+    private final GameService gameService;
     protected final RecordingGameMessageSender sender;
     protected final AccountLogin accountLogin;
     protected final CharacterCreator characterCreator;
     protected final CharacterFinder characterFinder;
     protected final CharacterMover characterMover;
     protected final CharacterRepository characterRepository;
+    protected final CharacterRealmEditor characterRealmEditor;
     protected final ZoneEditor zoneEditor;
     protected final RoomEditor roomEditor;
     protected final WorldSettingsEditor worldSettingsEditor;
@@ -80,15 +90,18 @@ abstract class BaseGameTest {
     protected final EntityManager entityManager;
 
     private final List<String> openedSessions = new ArrayList<>();
+    private @Nullable ApplicationEvents events;
 
     protected BaseGameTest(
             GameConnector gameConnector,
+            GameService gameService,
             RecordingGameMessageSender sender,
             AccountLogin accountLogin,
             CharacterCreator characterCreator,
             CharacterFinder characterFinder,
             CharacterMover characterMover,
             CharacterRepository characterRepository,
+            CharacterRealmEditor characterRealmEditor,
             ZoneEditor zoneEditor,
             RoomEditor roomEditor,
             WorldSettingsEditor worldSettingsEditor,
@@ -103,12 +116,14 @@ abstract class BaseGameTest {
             EntityManager entityManager
     ) {
         this.gameConnector = gameConnector;
+        this.gameService = gameService;
         this.sender = sender;
         this.accountLogin = accountLogin;
         this.characterCreator = characterCreator;
         this.characterFinder = characterFinder;
         this.characterMover = characterMover;
         this.characterRepository = characterRepository;
+        this.characterRealmEditor = characterRealmEditor;
         this.zoneEditor = zoneEditor;
         this.roomEditor = roomEditor;
         this.worldSettingsEditor = worldSettingsEditor;
@@ -124,9 +139,10 @@ abstract class BaseGameTest {
     }
 
     @BeforeEach
-    void clearSender() {
+    void clearSender(ApplicationEvents recordedEvents) {
         sender.clear();
         clock.reset();
+        events = recordedEvents;
     }
 
     @AfterEach
@@ -232,6 +248,19 @@ abstract class BaseGameTest {
         character.changeRealm(realm);
         characterRepository.save(character);
         entityManager.flush();
+    }
+
+    /**
+     * 관리 툴처럼 {@link CharacterRealmEditor#designate} 로 경지를 지정한다. 테스트 트랜잭션은 커밋되지 않아 AFTER_COMMIT 반영이
+     * 오지 않으므로, 이번 지정이 낸 {@link RealmChangedEvent} 를 커밋 뒤처럼 게임 리스너에 넘긴다(접속 중이면 {@code growth} 알림).
+     * 알림 없이 준비만 할 때는 {@link #setRealm}
+     */
+    protected void designateRealm(Long accountId, Realm realm) {
+        ApplicationEvents recorded = requireNonNull(events);
+        long before = recorded.stream(RealmChangedEvent.class).count();
+        characterRealmEditor.designate(characterIdOf(accountId), realm);
+        entityManager.flush();
+        recorded.stream(RealmChangedEvent.class).skip(before).toList().forEach(gameService::onRealmChanged);
     }
 
     protected Long characterIdOf(Long accountId) {

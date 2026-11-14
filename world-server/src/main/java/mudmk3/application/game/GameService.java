@@ -3,6 +3,7 @@ package mudmk3.application.game;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.character.provided.RealmChangedEvent;
 import mudmk3.application.cultivation.provided.CultivationFinder;
 import mudmk3.application.floor.provided.RoomFloor;
 import mudmk3.application.game.provided.GameConnector;
@@ -84,6 +85,7 @@ public class GameService implements GameConnector {
     static final String SAY_TOO_LONG = "말은 200자 이내로 하십시오.";
     static final String HELP =
             "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말]"
+                    + " · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건>"
                     + " · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량]"
                     + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건>"
                     + " · 확인 · 취소 · 누구 · 도움말 · 종료";
@@ -174,6 +176,18 @@ public class GameService implements GameConnector {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void onRoomDeleted(RoomDeletedEvent event) {
         serialized(() -> relocateFrom(event.roomId()));
+    }
+
+    /**
+     * 관리 툴의 경지 지정이 커밋된 뒤, 접속 중인 그 캐릭터에게만 {@code growth} 한 줄을 보낸다(D69, 같은 방 알림 없음).
+     * {@link #onRoomDeleted} 처럼 관리자 트랜잭션 밖에서 게임 락을 잡는다. 경지는 메모리에 두지 않으므로 반영 전에 온 명령도
+     * DB에서 새 경지를 읽는다
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void onRealmChanged(RealmChangedEvent event) {
+        serialized(() -> presenceRepository.findByCharacterId(event.characterId()).ifPresent(player ->
+                send(player.getSessionId(), SystemMessage.growth(cultivationTexts.realmChanged(event.from(), event.to())))));
     }
 
     /**
@@ -440,7 +454,7 @@ public class GameService implements GameConnector {
             case Command.Move move -> move(sessionId, session, player, move.direction());
             case Command.Say say -> say(sessionId, player, say.message());
             case Command.Talk talk -> talk(sessionId, player, talk);
-            case Command.Inventory _, Command.Pick _, Command.Drop _, Command.Give _ ->
+            case Command.Inventory _, Command.Pick _, Command.Drop _, Command.Give _, Command.Read _ ->
                     itemCommandHandler.handle(command, player, this::send);
             case Command.ShopList _, Command.Buy _, Command.Sell _, Command.Appraise _, Command.Confirm _, Command.Cancel _ ->
                     shopCommandHandler.handle(command, player, session, this::send);

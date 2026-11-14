@@ -1,16 +1,19 @@
 package mudmk3.application.game;
 
+import mudmk3.application.cultivation.provided.ReadResult;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.cultivation.CharacterTechnique;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.shared.Durations;
 import mudmk3.domain.shared.Element;
+import mudmk3.domain.shared.Josa;
 import mudmk3.domain.shared.Numbers;
 import mudmk3.domain.shared.Realm;
 import mudmk3.domain.technique.Ability;
 import mudmk3.domain.technique.CostStat;
 import mudmk3.domain.technique.Technique;
+import mudmk3.domain.technique.TechniqueStage;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -19,7 +22,8 @@ import java.util.OptionalInt;
 import java.util.stream.Collectors;
 
 /**
- * 수련 정보 명령({@code 상태}·{@code 공법}·{@code 신통})의 출력 줄을 그린다(D67, command.md {@code ### 상태}·{@code ### 공법 · 신통}).
+ * 수련 정보 명령({@code 상태}·{@code 공법}·{@code 신통})·{@code 읽기}·경지 알림의 출력 줄을 그린다
+ * (D67, command.md {@code ### 상태}·{@code ### 공법 · 신통}·{@code ### 읽기}·{@code ### 경지가 바뀔 때}).
  * 공법 정의는 지연 로딩이라 부르는 쪽 트랜잭션 안에서 부른다
  */
 @Component
@@ -27,6 +31,10 @@ class CultivationTexts {
 
     static final String NO_TECHNIQUES = "익힌 공법이 없습니다.";
     static final String NO_ABILITIES = "배운 신통이 없습니다.";
+    static final String READ_LEARNED = "옥간을 이마에 대자 구결이 머릿속으로 흘러든다. ";
+    static final String NOT_SCROLL = "읽을 수 있는 물건이 아닙니다.";
+    static final String NO_TECHNIQUE = "아무것도 적혀 있지 않습니다.";
+    static final String CANNOT_LEARN = "지금은 이 공법을 익힐 수 없습니다. ";
 
     private static final String GAP = "  ";
     private static final String GAUGE_GAP = "     ";
@@ -82,6 +90,85 @@ class CultivationTexts {
             abilities.forEach(ability -> lines.add(GAP + abilityLine(ability)));
         }
         return lines.isEmpty() ? NO_ABILITIES : String.join("\n", lines);
+    }
+
+    /**
+     * 읽기 성공(command.md {@code ### 읽기}): 첫 줄 → 1성 스탯 줄(0이 아닌 것만, 있으면) → 신통 줄 또는 입문 줄.
+     * 스탯 줄 순서는 법력 · 의식 · 영력 · 정혈 · 육신 · 근력 · 영근 자질(공법 속성마다 오행 순)
+     */
+    String readSuccess(ReadResult.Learned learned) {
+        List<String> lines = new ArrayList<>();
+        lines.add(READ_LEARNED + learned.techniqueName() + " 1성에 이르렀습니다!");
+        List<String> bonuses = stageBonuses(learned.firstStage(), learned.elements());
+        if (!bonuses.isEmpty()) {
+            lines.add(String.join(" · ", bonuses));
+        }
+        String abilities = String.join(", ", learned.newAbilityNames());
+        if (learned.initiated()) {
+            lines.add("단전에 따뜻한 기운이 맺힌다. " + Realm.QI_1.koreanName() + "이 되었습니다."
+                    + (abilities.isEmpty() ? "" : " 새 신통: " + abilities));
+        } else if (!abilities.isEmpty()) {
+            lines.add("새 신통을 깨쳤습니다: " + abilities);
+        }
+        return String.join("\n", lines);
+    }
+
+    /** 읽기 거절 문구(command.md {@code ### 읽기} 3~8) */
+    String readFailure(ReadResult result) {
+        return switch (result) {
+            case ReadResult.NotScroll _ -> NOT_SCROLL;
+            case ReadResult.NoTechnique _ -> NO_TECHNIQUE;
+            case ReadResult.AlreadyLearned already -> "이미 깨친 내용입니다. (" + already.techniqueName() + " "
+                    + already.stage() + "/" + already.stageCount() + "성)";
+            case ReadResult.RealmTooLow tooLow -> CANNOT_LEARN + "(" + tooLow.required().koreanName() + " 필요)";
+            case ReadResult.MissingRoot missing -> CANNOT_LEARN + "(" + rootName(missing.element()) + " 필요)";
+            case ReadResult.LowAptitude low -> CANNOT_LEARN + "(" + rootName(low.element()) + " 자질 "
+                    + Numbers.count(low.required()) + " 필요, 지금 " + Numbers.count(low.current()) + ")";
+            case ReadResult.Learned _ -> throw new IllegalArgumentException("거절이 아닙니다: " + result);
+        };
+    }
+
+    /**
+     * 관리 툴 경지 지정 알림: {@code 경지가 연기 7층으로 바뀌었습니다. (육신 +6, 근력 +3, 영력 +6, 의식 +12, 정혈 +12)}.
+     * 괄호 안은 경지 몫 스탯 차이(육신 · 근력 · 영력 · 의식 · 정혈, 0이 아닌 것만, 내리면 {@code -}). 모두 0이면 괄호를 뺀다
+     */
+    String realmChanged(Realm from, Realm to) {
+        List<String> diffs = new ArrayList<>();
+        addSigned(diffs, "육신", to.body() - from.body());
+        addSigned(diffs, "근력", to.strength() - from.strength());
+        addSigned(diffs, "영력", to.spirit() - from.spirit());
+        addSigned(diffs, "의식", to.senseEssence() - from.senseEssence());
+        addSigned(diffs, "정혈", to.senseEssence() - from.senseEssence());
+        String text = "경지가 " + Josa.withEuroRo(to.koreanName()) + " 바뀌었습니다.";
+        return diffs.isEmpty() ? text : text + " (" + String.join(", ", diffs) + ")";
+    }
+
+    private static List<String> stageBonuses(TechniqueStage stage, List<Element> elements) {
+        List<String> parts = new ArrayList<>();
+        addSigned(parts, "법력", stage.manaBonus());
+        addSigned(parts, "의식", stage.senseBonus());
+        addSigned(parts, "영력", stage.spiritBonus());
+        addSigned(parts, "정혈", stage.essenceBonus());
+        addSigned(parts, "육신", stage.bodyBonus());
+        addSigned(parts, "근력", stage.strengthBonus());
+        if (stage.aptitudeGain() != 0) {
+            elements.forEach(element -> addSigned(parts, rootName(element) + " 자질", stage.aptitudeGain()));
+        }
+        return parts;
+    }
+
+    /** 0이 아니면 {@code 법력 +2}·{@code 육신 -6} 을 더한다 */
+    private static void addSigned(List<String> parts, String label, int amount) {
+        if (amount != 0) parts.add(label + " " + signed(amount));
+    }
+
+    private static String signed(int amount) {
+        return amount > 0 ? "+" + Numbers.count(amount) : "-" + Numbers.count(-amount);
+    }
+
+    /** {@code 화영근} */
+    private static String rootName(Element element) {
+        return element.koreanName() + "영근";
     }
 
     private static String gauge(String label, int max) {

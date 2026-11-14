@@ -33,10 +33,14 @@ public sealed interface ReadResult {
     record LowAptitude(Element element, int required, int current) implements ReadResult {
     }
 
-    /** 익힘. {@code newAbilityNames} 는 1성 신통(정의 순서), {@code initiated} 는 범인이 연기 1층이 되었는가 */
-    record Learned(String techniqueName, TechniqueStage firstStage, List<String> newAbilityNames, boolean initiated)
-            implements ReadResult {
+    /**
+     * 익힘. {@code elements} 는 공법 속성(오행 순, 연체술이면 비어 있음 — 1성 영근 자질 증가를 속성마다 적는 데 쓴다),
+     * {@code newAbilityNames} 는 1성 신통(정의 순서), {@code initiated} 는 범인이 연기 1층이 되었는가
+     */
+    record Learned(String techniqueName, List<Element> elements, TechniqueStage firstStage, List<String> newAbilityNames,
+                   boolean initiated) implements ReadResult {
         public Learned {
+            elements = List.copyOf(elements);
             newAbilityNames = List.copyOf(newAbilityNames);
         }
     }

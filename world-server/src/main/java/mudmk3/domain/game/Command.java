@@ -1,5 +1,6 @@
 package mudmk3.domain.game;
 
+import mudmk3.domain.item.ItemQuery;
 import mudmk3.domain.room.Direction;
 import org.jspecify.annotations.Nullable;
 
@@ -100,6 +101,10 @@ public sealed interface Command {
 
     /** 배운 신통 보기 */
     record Abilities() implements Command {
+    }
+
+    /** 소지품의 옥간·서책 읽기. 인자 전체가 이름(번호 허용, 수량 없음), 빠졌으면 null */
+    record Read(@Nullable ItemQuery item) implements Command {
     }
 
     record Who() implements Command {

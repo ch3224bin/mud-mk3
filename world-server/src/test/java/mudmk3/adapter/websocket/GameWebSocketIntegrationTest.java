@@ -1,6 +1,7 @@
 package mudmk3.adapter.websocket;
 
 import mudmk3.application.character.provided.CharacterCreator;
+import mudmk3.application.character.provided.CharacterRealmEditor;
 import mudmk3.application.character.required.CharacterRepository;
 import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.floor.provided.FloorPlacementSaveRequest;
@@ -12,12 +13,15 @@ import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
+import mudmk3.application.technique.provided.TechniqueEditor;
+import mudmk3.application.technique.provided.TechniqueView;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.room.Room;
+import mudmk3.domain.shared.Realm;
 import mudmk3.domain.zone.Zone;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
@@ -60,6 +64,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Objects.requireNonNull;
+import static mudmk3.application.technique.provided.TechniqueRequestFixture.changchunRequest;
 import static mudmk3.domain.character.CharacterFixture.createCharacter;
 import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
@@ -99,6 +104,8 @@ class GameWebSocketIntegrationTest {
     private final FloorPlacementEditor floorPlacementEditor;
     private final CharacterCreator characterCreator;
     private final CharacterRepository characterRepository;
+    private final CharacterRealmEditor characterRealmEditor;
+    private final TechniqueEditor techniqueEditor;
     private final PresenceRepository presenceRepository;
     private final GameConnector gameConnector;
     private final InventoryEditor inventoryEditor;
@@ -118,6 +125,8 @@ class GameWebSocketIntegrationTest {
             FloorPlacementEditor floorPlacementEditor,
             CharacterCreator characterCreator,
             CharacterRepository characterRepository,
+            CharacterRealmEditor characterRealmEditor,
+            TechniqueEditor techniqueEditor,
             PresenceRepository presenceRepository,
             GameConnector gameConnector,
             InventoryEditor inventoryEditor,
@@ -133,6 +142,8 @@ class GameWebSocketIntegrationTest {
         this.floorPlacementEditor = floorPlacementEditor;
         this.characterCreator = characterCreator;
         this.characterRepository = characterRepository;
+        this.characterRealmEditor = characterRealmEditor;
+        this.techniqueEditor = techniqueEditor;
         this.presenceRepository = presenceRepository;
         this.gameConnector = gameConnector;
         this.inventoryEditor = inventoryEditor;
@@ -364,6 +375,35 @@ class GameWebSocketIntegrationTest {
         b.command("소지품");
         assertThat(b.next().get("items")).isEqualTo(json("""
                 [{"name":"회춘단(연기 초)","count":2}]"""));
+    }
+
+    @Test
+    void readScrollOverWebSocket() throws Exception {
+        TechniqueView changchun = techniqueEditor.create(changchunRequest("장춘공"));
+        ItemType scroll = itemTypeEditor.create(
+                new ItemTypeSaveRequest("장춘공 옥간", null, ItemCategory.SCROLL, 30, null, changchun.id()));
+        Client client = enter("hanbai@example.com", "한백");
+        inventoryEditor.addUpTo(client.characterId(), requireNonNull(scroll.getId()), 1, false);
+
+        client.command("읽기 장춘공 옥간");
+
+        assertThat(client.next()).isEqualTo(json("""
+                {"type":"system","text":"옥간을 이마에 대자 구결이 머릿속으로 흘러든다. 장춘공 1성에 이르렀습니다!\\n단전에 따뜻한 기운이 맺힌다. 연기 1층이 되었습니다. 새 신통: 화탄술","tone":"growth"}"""));
+    }
+
+    /** 관리 툴 경지 지정은 커밋 뒤(AFTER_COMMIT) 접속 중인 그 캐릭터에게만 알린다 */
+    @Test
+    void realmDesignationNotifiesAfterCommit() throws Exception {
+        Client a = enter("hanbai@example.com", "한백");
+        Client b = enter("hanli@example.com", "한립");
+        assertThat(a.next().get("event").asString()).isEqualTo("appear");
+
+        characterRealmEditor.designate(a.characterId(), Realm.QI_7);
+
+        assertThat(a.next()).isEqualTo(json("""
+                {"type":"system","text":"경지가 연기 7층으로 바뀌었습니다. (육신 +11, 근력 +5, 영력 +11, 의식 +22, 정혈 +22)","tone":"growth"}"""));
+        b.command("누구");
+        assertThat(b.next().get("text").asString()).startsWith("접속한 사람 (2)");
     }
 
     @Test

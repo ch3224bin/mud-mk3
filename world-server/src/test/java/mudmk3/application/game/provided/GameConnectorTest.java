@@ -7,9 +7,11 @@ import mudmk3.application.account.provided.AccountLogin;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.character.provided.CharacterRealmEditor;
 import mudmk3.application.character.required.CharacterRepository;
 import mudmk3.application.faction.provided.FactionEditor;
 import mudmk3.application.floor.provided.FloorPlacementEditor;
+import mudmk3.application.game.GameService;
 import mudmk3.application.game.RecordingGameMessageSender;
 import mudmk3.application.game.required.GameCloseReason;
 import mudmk3.application.game.required.GameMessage;
@@ -72,10 +74,13 @@ import java.time.Duration;
 import java.util.List;
 
 import static mudmk3.application.technique.provided.TechniqueRequestFixture.changchunRequest;
+import static mudmk3.application.technique.provided.TechniqueRequestFixture.requestOf;
 import static mudmk3.domain.character.CharacterFixture.createCharacter;
 import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
+import static mudmk3.domain.technique.TechniqueFixture.greenWoodInfo;
+import static mudmk3.domain.technique.TechniqueFixture.ironBodyInfo;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ApplicationServiceTest
@@ -107,12 +112,14 @@ class GameConnectorTest extends BaseGameTest {
 
     GameConnectorTest(
             GameConnector gameConnector,
+            GameService gameService,
             RecordingGameMessageSender sender,
             AccountLogin accountLogin,
             CharacterCreator characterCreator,
             CharacterFinder characterFinder,
             CharacterMover characterMover,
             CharacterRepository characterRepository,
+            CharacterRealmEditor characterRealmEditor,
             ZoneEditor zoneEditor,
             RoomEditor roomEditor,
             WorldSettingsEditor worldSettingsEditor,
@@ -130,8 +137,8 @@ class GameConnectorTest extends BaseGameTest {
             MutableClock clock,
             EntityManager entityManager
     ) {
-        super(gameConnector, sender, accountLogin, characterCreator, characterFinder, characterMover, characterRepository,
-                zoneEditor, roomEditor, worldSettingsEditor, factionEditor, npcEditor,
+        super(gameConnector, gameService, sender, accountLogin, characterCreator, characterFinder, characterMover,
+                characterRepository, characterRealmEditor, zoneEditor, roomEditor, worldSettingsEditor, factionEditor, npcEditor,
                 itemTypeEditor, itemTypeFinder, floorPlacementEditor, inventoryFinder, inventoryEditor, clock, entityManager);
         this.npcFinder = npcFinder;
         this.presenceFinder = presenceFinder;
@@ -714,7 +721,7 @@ class GameConnectorTest extends BaseGameTest {
     }
 
     @Test
-    void help() {
+    void helpText() {
         prepareMap();
         enter("a", "한백");
         sender.clear();
@@ -722,7 +729,7 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.handle("a", "도움말");
 
         assertThat(sender.messagesTo("a")).containsExactly(new SystemMessage(
-                "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량] · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 확인 · 취소 · 누구 · 도움말 · 종료",
+                "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건> · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량] · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 확인 · 취소 · 누구 · 도움말 · 종료",
                 "info"));
     }
 
@@ -1524,7 +1531,8 @@ class GameConnectorTest extends BaseGameTest {
         NpcMap npcs = prepareNpcs(map);
         Items items = prepareItems();
         prepareShop(npcs, items);
-        enter("a", "한백");
+        Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
 
         assertOnly("a", "목록", SystemMessage.item(
                 "[왕씨 단약방]  파는 것  값(하품)\n  1. 회춘단(연기 초)  3\n  2. 회기단(연기 초)  4\n사 주는 것: 단약·영약"));
@@ -1538,7 +1546,8 @@ class GameConnectorTest extends BaseGameTest {
         NpcMap npcs = prepareNpcs(map);
         prepareItems();
         npcEditor.openShop(npcs.wangId(), new ShopSaveRequest(ShopKind.BEAST_SHOP, List.of()));
-        enter("a", "한백");
+        Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
 
         assertOnly("a", "목록", SystemMessage.item("[왕씨 영수점]  파는 것  값(하품)\n  파는 물건이 없습니다.\n사 주는 것: 없음"));
     }
@@ -1549,6 +1558,7 @@ class GameConnectorTest extends BaseGameTest {
         prepareNpcs(map);
         Items items = prepareItems();
         Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
         give(hanbaek, items.pill(), 1);
 
         assertError("a", "사기 회춘단", "이곳에서는 할 수 없습니다.");
@@ -1566,6 +1576,7 @@ class GameConnectorTest extends BaseGameTest {
         Npc lee = npcEditor.create(new NpcSaveRequest("이씨", "어서 오시오.", "글쎄.", List.of(), false, map.entranceId()));
         npcEditor.openShop(lee.getId(), new ShopSaveRequest(ShopKind.PILL_SHOP, List.of(new ShopItemRequest(items.pill(), 5))));
         Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
         give(hanbaek, items.lowStone(), 30);
 
         assertError("a", "사기 회춘단", "상인이 여럿입니다. 상인 이름을 붙이십시오: 왕씨 · 이씨");
@@ -1584,6 +1595,7 @@ class GameConnectorTest extends BaseGameTest {
         Items items = prepareItems();
         prepareShop(npcs, items);
         Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
         give(hanbaek, items.lowStone(), 30);
 
         assertOnly("a", "사기 왕씨 회춘단", SystemMessage.item("회춘단(연기 초) 1개를 샀습니다. (하품 영석 -3)"));
@@ -1598,6 +1610,7 @@ class GameConnectorTest extends BaseGameTest {
         Items items = prepareItems();
         prepareShop(npcs, items);
         Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
         enter("b", "한립");
         give(hanbaek, items.lowStone(), 30);
 
@@ -1617,6 +1630,7 @@ class GameConnectorTest extends BaseGameTest {
         Items items = prepareItems();
         prepareShop(npcs, items);
         Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
         give(hanbaek, items.lowStone(), 9);
 
         assertError("a", "사기", "무엇을 사시겠습니까? (예: 사기 회춘단 5)");
@@ -1639,6 +1653,7 @@ class GameConnectorTest extends BaseGameTest {
         Items items = prepareItems();
         prepareShop(npcs, items);
         Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
         Long highStone = stoneId(SpiritStoneGrade.HIGH);
         give(hanbaek, items.bag(), 1);
         give(hanbaek, highStone, 1);
@@ -1682,6 +1697,7 @@ class GameConnectorTest extends BaseGameTest {
         Items items = prepareItems();
         prepareShop(npcs, items);
         Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
         give(hanbaek, stoneId(SpiritStoneGrade.HIGH), 1);
 
         assertOnly("a", "사기 회춘단 40", SystemMessage.item(BUY_CONFIRM));
@@ -1701,6 +1717,7 @@ class GameConnectorTest extends BaseGameTest {
         Items items = prepareItems();
         prepareShop(npcs, items);
         Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
         give(hanbaek, stoneId(SpiritStoneGrade.HIGH), 1);
         give(hanbaek, items.sword(), 1);
 
@@ -1716,6 +1733,7 @@ class GameConnectorTest extends BaseGameTest {
         Items items = prepareItems();
         prepareShop(npcs, items);
         Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
         give(hanbaek, items.pill(), 2);
 
         assertOnly("a", "팔기 회춘단 2", SystemMessage.item("회춘단(연기 초) 2개를 팔았습니다. (하품 영석 +1)"));
@@ -1732,6 +1750,7 @@ class GameConnectorTest extends BaseGameTest {
         Items items = prepareItems();
         prepareShop(npcs, items);
         Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
         give(hanbaek, items.energyPill(), 10);
 
         assertOnly("a", "팔기 왕씨 회기단 전부", SystemMessage.item("회기단(연기 초) 10개를 팔았습니다. (하품 영석 +10)"));
@@ -1744,6 +1763,7 @@ class GameConnectorTest extends BaseGameTest {
         Items items = prepareItems();
         prepareShop(npcs, items);
         Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
         give(hanbaek, items.bag(), 1);
         give(hanbaek, items.lowStone(), 1);
         give(hanbaek, items.quest(), 1);
@@ -2190,6 +2210,243 @@ class GameConnectorTest extends BaseGameTest {
                   화탄술  공격·화  법력 5  대기 5초
                   천안술  탐지·목  법력 3  대기 10초"""));
         assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    // ---- 읽기 (4차)
+
+    @Test
+    void readNoArgFail() {
+        prepareMap();
+        enter("a", "한백");
+
+        assertError("a", "읽기", "무엇을 읽으시겠습니까? (예: 읽기 장춘공 옥간)");
+    }
+
+    @Test
+    void readNotHeldFail() {
+        prepareMap();
+        enter("a", "한백");
+
+        assertError("a", "읽기 장춘공 옥간", "그런 물건은 가지고 있지 않습니다.");
+    }
+
+    @Test
+    void readInitiates() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        enter("b", "한립");
+        give(han, scrollOf(changchunRequest("장춘공"), "장춘공 옥간"), 1);
+        sender.clear();
+
+        gameConnector.handle("a", "읽기 장춘공 옥간");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.growth("""
+                옥간을 이마에 대자 구결이 머릿속으로 흘러든다. 장춘공 1성에 이르렀습니다!
+                단전에 따뜻한 기운이 맺힌다. 연기 1층이 되었습니다. 새 신통: 화탄술"""));
+        assertThat(sender.messagesTo("b")).isEmpty();
+
+        gameConnector.handle("a", "상태");
+        assertThat(sender.lastTo("a", StatusMessage.class).realm()).isEqualTo(new RealmView("QI_1", "연기 1층"));
+        gameConnector.handle("a", "소지품");
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).isEmpty();
+        assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    @Test
+    void readNonMortalLearnsAbility() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        setRealm(han, Realm.QI_7);
+        give(han, scrollOf(requestOf(greenWoodInfo()), "청목결 옥간"), 1);
+
+        assertOnly("a", "읽기 청목결", SystemMessage.growth("""
+                옥간을 이마에 대자 구결이 머릿속으로 흘러든다. 청목결 1성에 이르렀습니다!
+                새 신통을 깨쳤습니다: 청목전"""));
+    }
+
+    @Test
+    void readKeepsScrollOnFail() {
+        prepareMap();
+        Items items = prepareItems();
+        Long han = enter("a", "한백");
+        give(han, items.bag(), 1);
+        give(han, scrollOf(requestOf(greenWoodInfo()), "청목결 옥간"), 1);
+        give(han, items.pill(), 1);
+        give(han, itemTypeEditor.create(new ItemTypeSaveRequest("빈 옥간", null, ItemCategory.SCROLL, 1, null, null))
+                .getId(), 1);
+
+        assertError("a", "읽기 청목결 옥간", "지금은 이 공법을 익힐 수 없습니다. (연기 7층 필요)");
+        assertError("a", "읽기 회춘단", "읽을 수 있는 물건이 아닙니다.");
+        assertError("a", "읽기 빈 옥간", "아무것도 적혀 있지 않습니다.");
+
+        gameConnector.handle("a", "소지품");
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(
+                new ItemView("하급 저물대", 1), new ItemView("청목결 옥간", 1), new ItemView("회춘단(연기 초)", 1), new ItemView("빈 옥간", 1));
+    }
+
+    @Test
+    void readAlreadyLearnedFail() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        Long scroll = scrollOf(changchunRequest("장춘공"), "장춘공 옥간");
+        give(han, scroll, 2);
+        gameConnector.handle("a", "읽기 장춘공 옥간");
+
+        assertError("a", "읽기 장춘공 옥간", "이미 깨친 내용입니다. (장춘공 1/9성)");
+    }
+
+    @Test
+    void readOrdinal() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        give(han, scrollOf(changchunRequest("장춘공"), "장춘공 옥간"), 1);
+        give(han, scrollOf(requestOf(ironBodyInfo()), "강체결 옥간"), 1);
+
+        assertOnly("a", "읽기 2.옥간", SystemMessage.growth("""
+                옥간을 이마에 대자 구결이 머릿속으로 흘러든다. 강체결 1성에 이르렀습니다!
+                단전에 따뜻한 기운이 맺힌다. 연기 1층이 되었습니다. 새 신통: 철권"""));
+        gameConnector.handle("a", "소지품");
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("장춘공 옥간", 1));
+    }
+
+    @Test
+    void readConfirmIsItemName() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        give(han, scrollOf(changchunRequest("장춘공"), "장춘공 옥간"), 1);
+
+        assertError("a", "읽기 확인", "그런 물건은 가지고 있지 않습니다.");
+    }
+
+    @Test
+    void lookScrollShowsTechnique() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        Long changchun = scrollOf(changchunRequest("장춘공"), "장춘공 옥간");
+        Long ironBody = scrollOf(requestOf(ironBodyInfo()), "강체결 옥간");
+        give(han, changchun, 1);
+        give(han, ironBody, 1);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertOnly("a", "보기 장춘공 옥간", SystemMessage.item("장춘공 옥간\n담긴 공법: 장춘공 (목 · 오행 · 9성 · 범인부터)"));
+        assertOnly("a", "보기 강체결 옥간", SystemMessage.item("강체결 옥간\n담긴 공법: 강체결 (연체술 · 9성 · 범인부터)"));
+    }
+
+    // ---- 범인의 상점 막힘·경지 알림 (4차)
+
+    private static final String MORTAL_BLOCKED = "아직 범인의 몸이라 할 수 없습니다.";
+
+    @Test
+    void mortalShopBlocked() {
+        GameMap map = prepareMap();
+        NpcMap npcs = prepareNpcs(map);
+        Items items = prepareItems();
+        prepareShop(npcs, items);
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, items.pill(), 1);
+        give(hanbaek, items.lowStone(), 30);
+
+        assertError("a", "목록", MORTAL_BLOCKED);
+        assertError("a", "사기 회춘단", MORTAL_BLOCKED);
+        assertError("a", "사기", MORTAL_BLOCKED);
+        assertError("a", "팔기 회춘단", MORTAL_BLOCKED);
+
+        gameConnector.handle("a", "북");
+        assertError("a", "목록", MORTAL_BLOCKED);
+        assertError("a", "사기 회춘단", MORTAL_BLOCKED);
+        assertError("a", "팔기 회춘단", MORTAL_BLOCKED);
+
+        gameConnector.handle("a", "소지품");
+        InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
+        assertThat(inventory.stones()).containsExactly(new StoneView("하품 영석", 30));
+        assertThat(inventory.items()).containsExactly(new ItemView("회춘단(연기 초)", 1));
+    }
+
+    @Test
+    void mortalAppraiseAllowed() {
+        GameMap map = prepareMap();
+        NpcMap npcs = prepareNpcs(map);
+        Items items = prepareItems();
+        prepareShop(npcs, items);
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, items.pill(), 3);
+
+        assertOnly("a", "값 회춘단", SystemMessage.item("회춘단(연기 초) 1개에 하품 영석 0.75 — 3개면 2"));
+        assertError("a", "확인", "확인할 것이 없습니다.");
+        assertError("a", "취소", "그만둘 것이 없습니다.");
+    }
+
+    @Test
+    void confirmAfterDemotedToMortalFail() {
+        GameMap map = prepareMap();
+        NpcMap npcs = prepareNpcs(map);
+        Items items = prepareItems();
+        prepareShop(npcs, items);
+        Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
+        give(hanbaek, items.bag(), 1);
+        give(hanbaek, stoneId(SpiritStoneGrade.HIGH), 1);
+
+        assertOnly("a", "사기 회춘단 40", SystemMessage.item(BUY_CONFIRM));
+        designateRealm(hanbaek, Realm.MORTAL);
+        assertError("a", "확인", MORTAL_BLOCKED);
+
+        gameConnector.handle("a", "소지품");
+        InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
+        assertThat(inventory.stones()).containsExactly(new StoneView("상품 영석", 1));
+        assertThat(inventory.items()).containsExactly(new ItemView("하급 저물대", 1));
+    }
+
+    @Test
+    void realmChangeNotifies() {
+        prepareMap();
+        Long hanbaek = enter("a", "한백");
+        enter("b", "한립");
+        setRealm(hanbaek, Realm.QI_1);
+        sender.clear();
+
+        designateRealm(hanbaek, Realm.QI_7);
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.growth(
+                "경지가 연기 7층으로 바뀌었습니다. (육신 +6, 근력 +3, 영력 +6, 의식 +12, 정혈 +12)"));
+
+        sender.clear();
+        designateRealm(hanbaek, Realm.FOUNDATION_EARLY);
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.growth(
+                "경지가 축기 초기로 바뀌었습니다. (육신 +24, 근력 +12, 영력 +23, 의식 +56, 정혈 +56)"));
+
+        sender.clear();
+        designateRealm(hanbaek, Realm.QI_7);
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.growth(
+                "경지가 연기 7층으로 바뀌었습니다. (육신 -24, 근력 -12, 영력 -23, 의식 -56, 정혈 -56)"));
+        assertThat(sender.messagesTo("b")).isEmpty();
+
+        gameConnector.handle("a", "상태");
+        assertThat(sender.lastTo("a", StatusMessage.class).realm()).isEqualTo(new RealmView("QI_7", "연기 7층"));
+    }
+
+    @Test
+    void designateOfflineOrSameRealmSendsNothing() {
+        prepareMap();
+        Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
+        sender.clear();
+
+        designateRealm(hanbaek, Realm.QI_1);
+        assertThat(sender.messagesTo("a")).isEmpty();
+
+        gameConnector.disconnect("a");
+        sender.clear();
+        designateRealm(hanbaek, Realm.QI_7);
+        assertThat(sender.messagesTo("a")).isEmpty();
+        assertThat(characterFinder.find(characterIdOf(hanbaek)).getRealm()).isEqualTo(Realm.QI_7);
+    }
+
+    /** 그 공법을 만들고 그것을 담은 옥간 아이템 종류(묘사 없음, 기준가 30)를 만든다 */
+    private Long scrollOf(TechniqueSaveRequest request, String itemName) {
+        TechniqueView view = techniqueEditor.create(request);
+        return itemTypeEditor.create(new ItemTypeSaveRequest(itemName, null, ItemCategory.SCROLL, 30, null, view.id()))
+                .getId();
     }
 
     /** 장춘공을 만들어 옥간에 담고 소지품에 넣은 뒤 읽는다(게임 {@code 읽기} 명령을 거치지 않음) */

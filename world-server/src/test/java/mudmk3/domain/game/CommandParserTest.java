@@ -16,6 +16,7 @@ import mudmk3.domain.game.Command.Look;
 import mudmk3.domain.game.Command.Move;
 import mudmk3.domain.game.Command.Pick;
 import mudmk3.domain.game.Command.Quit;
+import mudmk3.domain.game.Command.Read;
 import mudmk3.domain.game.Command.Say;
 import mudmk3.domain.game.Command.Status;
 import mudmk3.domain.game.Command.Talk;
@@ -120,6 +121,20 @@ class CommandParserTest {
         assertThat(parse("신통")).isEqualTo(new Abilities());
         assertThat(parse("공법 장춘공")).isEqualTo(new Unknown("공법"));
         assertThat(parse("신통 화탄술")).isEqualTo(new Unknown("신통"));
+    }
+
+    @Test
+    void read() {
+        assertThat(parse("읽기")).isEqualTo(new Read(null));
+        assertThat(parse("읽기 장춘공 옥간")).isEqualTo(new Read(new ItemQuery("장춘공 옥간", 0)));
+        assertThat(parse("읽기 2.옥간")).isEqualTo(new Read(new ItemQuery("옥간", 2)));
+    }
+
+    @Test
+    void readTakesWholeArgumentAsName() {
+        assertThat(parse("읽기 옥간 2")).isEqualTo(new Read(new ItemQuery("옥간 2", 0)));
+        assertThat(parse("읽기 옥간 전부")).isEqualTo(new Read(new ItemQuery("옥간 전부", 0)));
+        assertThat(parse("읽기 확인")).isEqualTo(new Read(new ItemQuery("확인", 0)));
     }
 
     @Test

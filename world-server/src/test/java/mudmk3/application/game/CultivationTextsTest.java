@@ -1,5 +1,6 @@
 package mudmk3.application.game;
 
+import mudmk3.application.cultivation.provided.ReadResult;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.cultivation.CharacterTechnique;
@@ -12,6 +13,7 @@ import mudmk3.domain.technique.AbilityTarget;
 import mudmk3.domain.technique.CostStat;
 import mudmk3.domain.technique.Technique;
 import mudmk3.domain.technique.TechniqueSaveInfo;
+import mudmk3.domain.technique.TechniqueStage;
 import mudmk3.domain.technique.UsableWhen;
 import org.junit.jupiter.api.Test;
 
@@ -169,6 +171,89 @@ class CultivationTextsTest {
     @Test
     void noAbilities() {
         assertThat(texts.abilities(List.of())).isEqualTo("배운 신통이 없습니다.");
+    }
+
+    // ---- 읽기
+
+    @Test
+    void readSuccessInitiates() {
+        ReadResult.Learned learned = new ReadResult.Learned("장춘공", List.of(Element.WOOD), changchun().stage(1),
+                List.of("화탄술"), true);
+
+        assertThat(texts.readSuccess(learned)).isEqualTo("""
+                옥간을 이마에 대자 구결이 머릿속으로 흘러든다. 장춘공 1성에 이르렀습니다!
+                단전에 따뜻한 기운이 맺힌다. 연기 1층이 되었습니다. 새 신통: 화탄술""");
+    }
+
+    @Test
+    void readSuccessNonMortal() {
+        ReadResult.Learned learned = new ReadResult.Learned("청목결", List.of(Element.WOOD), greenWood().stage(1),
+                List.of("청목전"), false);
+
+        assertThat(texts.readSuccess(learned)).isEqualTo("""
+                옥간을 이마에 대자 구결이 머릿속으로 흘러든다. 청목결 1성에 이르렀습니다!
+                새 신통을 깨쳤습니다: 청목전""");
+    }
+
+    @Test
+    void readSuccessManyAbilities() {
+        ReadResult.Learned learned = new ReadResult.Learned("장춘공", List.of(Element.WOOD), changchun().stage(1),
+                List.of("화탄술", "천안술"), false);
+
+        assertThat(texts.readSuccess(learned).lines().toList().getLast()).isEqualTo("새 신통을 깨쳤습니다: 화탄술, 천안술");
+    }
+
+    @Test
+    void readWithStageBonus() {
+        ReadResult.Learned learned = new ReadResult.Learned("장춘공", List.of(Element.WOOD), stage(0, 0, 2, 0, 0, 1),
+                List.of("화탄술"), false);
+
+        assertThat(texts.readSuccess(learned)).isEqualTo("""
+                옥간을 이마에 대자 구결이 머릿속으로 흘러든다. 장춘공 1성에 이르렀습니다!
+                법력 +2 · 목영근 자질 +1
+                새 신통을 깨쳤습니다: 화탄술""");
+    }
+
+    @Test
+    void readWithEveryBonusInOrder() {
+        ReadResult.Learned learned = new ReadResult.Learned("시험공", List.of(Element.FIRE, Element.EARTH),
+                new TechniqueStage(0, 0, 1, 2, 3, 4, 5, 6, 1), List.of("화탄술"), false);
+
+        assertThat(texts.readSuccess(learned).lines().skip(1).findFirst().orElseThrow())
+                .isEqualTo("법력 +1 · 의식 +2 · 영력 +3 · 정혈 +4 · 육신 +5 · 근력 +6 · 화영근 자질 +1 · 토영근 자질 +1");
+    }
+
+    @Test
+    void readFailures() {
+        assertThat(texts.readFailure(new ReadResult.NotScroll())).isEqualTo("읽을 수 있는 물건이 아닙니다.");
+        assertThat(texts.readFailure(new ReadResult.NoTechnique())).isEqualTo("아무것도 적혀 있지 않습니다.");
+        assertThat(texts.readFailure(new ReadResult.AlreadyLearned("장춘공", 1, 9)))
+                .isEqualTo("이미 깨친 내용입니다. (장춘공 1/9성)");
+        assertThat(texts.readFailure(new ReadResult.RealmTooLow(Realm.QI_7)))
+                .isEqualTo("지금은 이 공법을 익힐 수 없습니다. (연기 7층 필요)");
+        assertThat(texts.readFailure(new ReadResult.MissingRoot(Element.FIRE)))
+                .isEqualTo("지금은 이 공법을 익힐 수 없습니다. (화영근 필요)");
+        assertThat(texts.readFailure(new ReadResult.LowAptitude(Element.FIRE, 40, 33)))
+                .isEqualTo("지금은 이 공법을 익힐 수 없습니다. (화영근 자질 40 필요, 지금 33)");
+    }
+
+    // ---- 경지 알림
+
+    @Test
+    void realmChanged() {
+        assertThat(texts.realmChanged(Realm.QI_1, Realm.QI_7))
+                .isEqualTo("경지가 연기 7층으로 바뀌었습니다. (육신 +6, 근력 +3, 영력 +6, 의식 +12, 정혈 +12)");
+        assertThat(texts.realmChanged(Realm.QI_7, Realm.FOUNDATION_EARLY))
+                .isEqualTo("경지가 축기 초기로 바뀌었습니다. (육신 +24, 근력 +12, 영력 +23, 의식 +56, 정혈 +56)");
+        assertThat(texts.realmChanged(Realm.QI_7, Realm.QI_1))
+                .isEqualTo("경지가 연기 1층으로 바뀌었습니다. (육신 -6, 근력 -3, 영력 -6, 의식 -12, 정혈 -12)");
+        assertThat(texts.realmChanged(Realm.QI_1, Realm.MORTAL))
+                .isEqualTo("경지가 범인으로 바뀌었습니다. (육신 -5, 근력 -2, 영력 -5, 의식 -10, 정혈 -10)");
+    }
+
+    @Test
+    void realmChangedWithoutDifferenceDropsParentheses() {
+        assertThat(texts.realmChanged(Realm.QI_1, Realm.QI_1)).isEqualTo("경지가 연기 1층으로 바뀌었습니다.");
     }
 
     /** 그 신통 하나를 1성에 둔 공법을 익혔을 때 신통 줄 */
