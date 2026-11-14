@@ -34,7 +34,7 @@ function CharacterView() {
   useEffect(() => {
     setCharacter(null);
     setError(null);
-    if (characterId === null) {
+    if (characterId === null || !Number.isInteger(characterId)) {
       setError("캐릭터를 찾을 수 없습니다.");
       return;
     }

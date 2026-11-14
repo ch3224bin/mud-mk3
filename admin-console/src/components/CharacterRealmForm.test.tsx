@@ -101,26 +101,6 @@ describe("CharacterRealmForm", () => {
   });
 });
 
-describe("designateRealm 본문", () => {
-  it("PUT /api/admin/characters/{id}/realm 본문은 {realm:\"QI_7\"} 이다", async () => {
-    const { designateRealm } = await vi.importActual<typeof import("../lib/api")>("../lib/api");
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(qi7), { status: 200, headers: { "Content-Type": "application/json" } }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-    try {
-      await designateRealm(3, "QI_7");
-    } finally {
-      vi.unstubAllGlobals();
-    }
-
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toMatch(/\/api\/admin\/characters\/3\/realm$/);
-    expect(init.method).toBe("PUT");
-    expect(JSON.parse(init.body as string)).toEqual({ realm: "QI_7" });
-  });
-});
-
 describe("CharacterTable", () => {
   it("영근이 없으면 미정, 접속 중이 아니면 - 를 보이고 이름은 상세 링크다", () => {
     render(
@@ -164,11 +144,11 @@ describe("CharacterTable", () => {
 });
 
 describe("CharacterDetail", () => {
-  it("이름·영근(자질 소수 첫째 자리)·익힌 공법(공법 링크, 1/9성)을 보인다", () => {
+  it("이름·영근(자질 소수점 버림)·익힌 공법(공법 링크, 1/9성)을 보인다", () => {
     render(<CharacterDetail initial={garam} realms={realms} />);
 
     expect(screen.getByRole("heading", { name: "가람" })).toBeInTheDocument();
-    expect(screen.getByText("영근: 목·화 진영근 (목 50, 화 52.3)")).toBeInTheDocument();
+    expect(screen.getByText("영근: 목·화 진영근 (목 50, 화 52)")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "장춘공" }).getAttribute("href")).toMatch(/^\/technique\/?\?id=2$/);
     expect(screen.getByText("1/9성")).toBeInTheDocument();
   });

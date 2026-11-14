@@ -11,9 +11,9 @@ export const STAT_ROWS: { key: keyof CharacterStatsResponse; label: string }[] =
   { key: "strength", label: "근력" },
 ];
 
-/** 자질은 소수라 소수 첫째 자리까지 보인다(50.0 → `50`, 52.25 → `52.3`) */
+/** 자질은 소수 그대로 두고 화면에는 소수점을 버려 보인다(룰북 스탯, 게임 `상태` 와 같음: 52.25 → `52`) */
 export function aptitudeText(aptitude: number): string {
-  return String(Math.round(aptitude * 10) / 10);
+  return String(Math.floor(aptitude));
 }
 
 /** `목·화 진영근 (목 50, 화 50)`, 정하지 않았으면 `아직 정하지 않음` */
