@@ -6,6 +6,7 @@ import mudmk3.application.account.provided.AccountLogin;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.faction.provided.FactionEditor;
 import mudmk3.application.game.RecordingGameMessageSender;
 import mudmk3.application.game.required.GameCloseReason;
 import mudmk3.application.game.required.GameMessage;
@@ -13,17 +14,26 @@ import mudmk3.application.game.required.GameMessage.NoticeMessage;
 import mudmk3.application.game.required.GameMessage.PromptMessage;
 import mudmk3.application.game.required.GameMessage.RoomMessage;
 import mudmk3.application.game.required.GameMessage.RoomMessage.OccupantView;
+import mudmk3.application.game.required.GameMessage.RoomMessage.OwnerView;
 import mudmk3.application.game.required.GameMessage.SayMessage;
 import mudmk3.application.game.required.GameMessage.SessionMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
+import mudmk3.application.game.required.GameMessage.TalkMessage;
 import mudmk3.application.npc.provided.NpcEditor;
+import mudmk3.application.npc.provided.NpcFinder;
+import mudmk3.application.npc.provided.NpcSaveRequest;
+import mudmk3.application.npc.provided.NpcTopicRequest;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
+import mudmk3.application.zone.provided.ZoneSaveRequest;
+import mudmk3.domain.faction.Faction;
+import mudmk3.domain.faction.FactionKind;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -33,7 +43,10 @@ class GameConnectorTest extends BaseGameTest {
     private static final String NAME_PROMPT = "이름을 정하십시오. (한글 2~6자)";
     private static final String UNKNOWN = "무슨 말인지 모르겠습니다. ('도움말' 로 명령을 볼 수 있습니다)";
 
-    private final NpcEditor npcEditor;
+    private static final String NO_TALK_TARGET = "누구에게 말을 거시겠습니까?";
+    private static final String NO_SUCH_NPC = "여기에 그런 상대는 없습니다.";
+
+    private final NpcFinder npcFinder;
 
     GameConnectorTest(
             GameConnector gameConnector,
@@ -45,12 +58,14 @@ class GameConnectorTest extends BaseGameTest {
             ZoneEditor zoneEditor,
             RoomEditor roomEditor,
             WorldSettingsEditor worldSettingsEditor,
+            FactionEditor factionEditor,
             NpcEditor npcEditor,
+            NpcFinder npcFinder,
             EntityManager entityManager
     ) {
         super(gameConnector, sender, accountLogin, characterCreator, characterFinder, characterMover,
-                zoneEditor, roomEditor, worldSettingsEditor, entityManager);
-        this.npcEditor = npcEditor;
+                zoneEditor, roomEditor, worldSettingsEditor, factionEditor, npcEditor, entityManager);
+        this.npcFinder = npcFinder;
     }
 
     @Test
@@ -376,7 +391,7 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.handle("a", "도움말");
 
         assertThat(sender.messagesTo("a")).containsExactly(new SystemMessage(
-                "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 누구 · 도움말 · 종료",
+                "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 누구 · 도움말 · 종료",
                 "info"));
     }
 
@@ -608,5 +623,207 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(sender.messagesTo("a2").get(1))
                 .isEqualTo(new SystemMessage("서 있던 곳이 사라져 시작 장소로 옮겨졌습니다.", "info"));
         assertThat(sender.lastTo("a2", RoomMessage.class).room().id()).isEqualTo(map.entranceId());
+    }
+    // ---- 방의 소유와 NPC, 대화
+
+    @Test
+    void roomShowsNpcsAfterPlayers() {
+        prepareNpcs(prepareMap());
+        enter("a", "한백");
+        enter("b", "한립");
+        sender.clear();
+
+        gameConnector.handle("a", "보기");
+
+        RoomMessage room = sender.lastTo("a", RoomMessage.class);
+        assertThat(room.occupants()).containsExactly(
+                new OccupantView("한립", "player"), new OccupantView("왕씨", "npc"));
+        assertThat(room.owner()).isNull();
+    }
+
+    @Test
+    void roomShowsOwner() {
+        GameMap map = prepareMap();
+        NpcMap npcMap = prepareNpcs(map);
+        enterAt("a", "한백", map.wellId());
+        sender.clear();
+
+        gameConnector.handle("a", "북");
+
+        RoomMessage room = sender.lastTo("a", RoomMessage.class);
+        assertThat(room.room().id()).isEqualTo(npcMap.southGateId());
+        assertThat(room.owner()).isEqualTo(new OwnerView("castle", "청석성"));
+        assertThat(room.zoneEntered()).isTrue();
+    }
+
+    @Test
+    void talkGreetingListsWords() {
+        prepareNpcs(prepareMap());
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "대화 왕씨");
+
+        assertThat(sender.messagesTo("a")).containsExactly(new TalkMessage(
+                "왕씨", null, "왕씨: \"어서 오시오.\"\n물어볼 수 있는 낱말: [단약] [일거리]", "talk"));
+    }
+
+    @Test
+    void talkGreetingWithoutWords() {
+        GameMap map = prepareMap();
+        npcEditor.create(new NpcSaveRequest("이씨", "무슨 일이오?", "모르겠소.", List.of(), false, map.entranceId()));
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "대화 이씨");
+
+        assertThat(sender.messagesTo("a")).containsExactly(new TalkMessage("이씨", null, "이씨: \"무슨 일이오?\"", "talk"));
+    }
+
+    @Test
+    void talkKnownWord() {
+        prepareNpcs(prepareMap());
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "대화 왕씨 일거리");
+        gameConnector.handle("a", "대화 왕 [단약]");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                new TalkMessage("왕씨", "일거리", "왕씨: \"늑대가 말썽이오.\"", "talk"),
+                new TalkMessage("왕씨", "단약", "왕씨: \"회춘단이 좋소.\"", "talk"));
+    }
+
+    @Test
+    void talkExactNameBeforePrefix() {
+        GameMap map = prepareMap();
+        prepareNpcs(map);
+        npcEditor.create(new NpcSaveRequest("왕", "나는 왕이오.", "모르겠소.", List.of(), false, map.entranceId()));
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "대화 왕");
+
+        assertThat(sender.lastTo("a", TalkMessage.class).npc()).isEqualTo("왕");
+    }
+
+    @Test
+    void talkUnknownWordIsDefault() {
+        prepareNpcs(prepareMap());
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "대화 왕씨 비석");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                new TalkMessage("왕씨", "비석", "왕씨: \"글쎄, 잘 모르겠구려.\"", "talk"));
+    }
+
+    @Test
+    void talkWithoutTargetFail() {
+        prepareNpcs(prepareMap());
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "대화");
+        gameConnector.handle("a", "대화   ");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                new SystemMessage(NO_TALK_TARGET, "error"), new SystemMessage(NO_TALK_TARGET, "error"));
+    }
+
+    @Test
+    void talkToPlayerOrAbsentNpcFail() {
+        prepareNpcs(prepareMap());
+        npcEditor.create(createNpcSaveRequest("조씨", null));
+        enter("a", "한백");
+        enter("b", "한립");
+        sender.clear();
+
+        gameConnector.handle("a", "대화 한립");
+        gameConnector.handle("a", "대화 조씨");
+        gameConnector.handle("a", "북");
+        gameConnector.handle("a", "대화 왕씨");
+
+        assertThat(sender.messagesTo("a", SystemMessage.class)).containsExactly(
+                new SystemMessage(NO_SUCH_NPC, "error"),
+                new SystemMessage(NO_SUCH_NPC, "error"),
+                new SystemMessage(NO_SUCH_NPC, "error"));
+        assertThat(sender.messagesTo("a", TalkMessage.class)).isEmpty();
+    }
+
+    @Test
+    void talkIsPrivate() {
+        prepareNpcs(prepareMap());
+        enter("a", "한백");
+        enter("b", "한립");
+        sender.clear();
+
+        gameConnector.handle("a", "대화 왕씨");
+        gameConnector.handle("a", "대화 왕씨 단약");
+
+        assertThat(sender.messagesTo("a", TalkMessage.class)).hasSize(2);
+        assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    @Test
+    void llmEnabledNpcAnswersSame() {
+        GameMap map = prepareMap();
+        npcEditor.create(new NpcSaveRequest("유씨", "어서 오시오.", "글쎄, 잘 모르겠구려.", List.of(
+                new NpcTopicRequest("단약", "회춘단이 좋소.")), true, map.entranceId()));
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "대화 유씨");
+        gameConnector.handle("a", "대화 유씨 단약");
+        gameConnector.handle("a", "대화 유씨 비석");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                new TalkMessage("유씨", null, "유씨: \"어서 오시오.\"\n물어볼 수 있는 낱말: [단약]", "talk"),
+                new TalkMessage("유씨", "단약", "유씨: \"회춘단이 좋소.\"", "talk"),
+                new TalkMessage("유씨", "비석", "유씨: \"글쎄, 잘 모르겠구려.\"", "talk"));
+    }
+
+    @Test
+    void ownerAndNpcChangesShowOnNextLook() {
+        GameMap map = prepareMap();
+        enter("a", "한백");
+        sender.clear();
+
+        Faction sect = factionEditor.create(createFactionSaveRequest(FactionKind.SECT, "황풍곡"));
+        zoneEditor.update(map.villageZoneId(), new ZoneSaveRequest("청우촌", "작은 마을이다.", sect.getId()));
+        npcEditor.create(createNpcSaveRequest("왕씨", map.entranceId()));
+        assertThat(sender.messagesTo("a")).isEmpty();
+
+        gameConnector.handle("a", "보기");
+
+        RoomMessage room = sender.lastTo("a", RoomMessage.class);
+        assertThat(room.owner()).isEqualTo(new OwnerView("sect", "황풍곡"));
+        assertThat(room.occupants()).containsExactly(new OccupantView("왕씨", "npc"));
+    }
+
+    /** 테스트 트랜잭션은 커밋되지 않아 삭제 반영(AFTER_COMMIT)이 오지 않는다 — 다음 명령이 스스로 옮긴다 */
+    @Test
+    void roomDeletedWithNpcStillWorks() {
+        GameMap map = prepareMap();
+        Long npcId = npcEditor.create(createNpcSaveRequest("장씨", map.wellId())).getId();
+        enterAt("a", "한백", map.wellId());
+        enter("b", "한립");
+        roomEditor.delete(map.wellId());
+        sender.clear();
+
+        gameConnector.handle("a", "보기");
+
+        List<GameMessage> messages = sender.messagesTo("a");
+        assertThat(messages.getFirst())
+                .isEqualTo(new SystemMessage("서 있던 곳이 사라져 시작 장소로 옮겨졌습니다.", "info"));
+        RoomMessage room = sender.lastTo("a", RoomMessage.class);
+        assertThat(room.room().id()).isEqualTo(map.entranceId());
+        assertThat(room.occupants()).containsExactly(new OccupantView("한립", "player"));
+        assertThat(npcFinder.find(npcId).findRoomId()).isEmpty();
+
+        sender.clear();
+        gameConnector.handle("a", "대화 장씨");
+        assertThat(sender.messagesTo("a")).containsExactly(new SystemMessage(NO_SUCH_NPC, "error"));
     }
 }

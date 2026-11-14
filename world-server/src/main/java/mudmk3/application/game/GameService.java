@@ -11,8 +11,10 @@ import mudmk3.application.game.required.GameMessage.PromptMessage;
 import mudmk3.application.game.required.GameMessage.SayMessage;
 import mudmk3.application.game.required.GameMessage.SessionMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
+import mudmk3.application.game.required.GameMessage.TalkMessage;
 import mudmk3.application.game.required.GameMessageSender;
 import mudmk3.application.game.required.PresenceRepository;
+import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.room.provided.RoomDeletedEvent;
 import mudmk3.application.room.provided.RoomFinder;
 import mudmk3.application.world.provided.WorldSettingsFinder;
@@ -21,6 +23,8 @@ import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.game.Command;
 import mudmk3.domain.game.CommandParser;
 import mudmk3.domain.game.OnlinePlayer;
+import mudmk3.domain.npc.Npc;
+import mudmk3.domain.npc.NpcTopic;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.room.Exit;
 import mudmk3.domain.room.Room;
@@ -69,7 +73,10 @@ public class GameService implements GameConnector {
     static final String SAY_EMPTY = "무엇이라 말하시겠습니까?";
     static final String SAY_TOO_LONG = "말은 200자 이내로 하십시오.";
     static final String HELP =
-            "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 누구 · 도움말 · 종료";
+            "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 누구 · 도움말 · 종료";
+    static final String TALK_NO_TARGET = "누구에게 말을 거시겠습니까?";
+    static final String TALK_NO_SUCH_NPC = "여기에 그런 상대는 없습니다.";
+    static final String TALK_WORDS = "물어볼 수 있는 낱말:";
     static final String QUIT = "다음에 또 뵙겠습니다.";
     static final String UNKNOWN = "무슨 말인지 모르겠습니다. ('도움말' 로 명령을 볼 수 있습니다)";
     static final String RELOCATED = "서 있던 곳이 사라져 시작 장소로 옮겨졌습니다.";
@@ -78,6 +85,7 @@ public class GameService implements GameConnector {
     private final CharacterCreator characterCreator;
     private final CharacterMover characterMover;
     private final RoomFinder roomFinder;
+    private final NpcFinder npcFinder;
     private final WorldSettingsFinder worldSettingsFinder;
     private final PresenceRepository presenceRepository;
     private final GameMessageSender sender;
@@ -94,6 +102,7 @@ public class GameService implements GameConnector {
             CharacterCreator characterCreator,
             CharacterMover characterMover,
             RoomFinder roomFinder,
+            NpcFinder npcFinder,
             WorldSettingsFinder worldSettingsFinder,
             PresenceRepository presenceRepository,
             GameMessageSender sender,
@@ -103,6 +112,7 @@ public class GameService implements GameConnector {
         this.characterCreator = characterCreator;
         this.characterMover = characterMover;
         this.roomFinder = roomFinder;
+        this.npcFinder = npcFinder;
         this.worldSettingsFinder = worldSettingsFinder;
         this.presenceRepository = presenceRepository;
         this.sender = sender;
@@ -330,6 +340,7 @@ public class GameService implements GameConnector {
             case Command.Look look -> look(sessionId, player, look);
             case Command.Move move -> move(sessionId, session, player, move.direction());
             case Command.Say say -> say(sessionId, player, say.message());
+            case Command.Talk talk -> talk(sessionId, player, talk);
             case Command.Who _ -> who(sessionId);
             case Command.Help _ -> send(sessionId, SystemMessage.info(HELP));
             case Command.Quit _ -> quit(sessionId, player);
@@ -344,9 +355,7 @@ public class GameService implements GameConnector {
             send(sessionId, SystemMessage.info(NO_DETAILED_LOOK));
             return;
         }
-        Room room = roomFinder.find(player.getRoomId());
-        send(sessionId, RoomViewAssembler.assemble(
-                room, false, presenceRepository.findAllInRoom(player.getRoomId()), player.getCharacterId()));
+        send(sessionId, roomView(roomFinder.find(player.getRoomId()), false, player.getCharacterId()));
     }
 
     private void move(String sessionId, GameSession session, OnlinePlayer player, Direction direction) {
@@ -381,6 +390,36 @@ public class GameService implements GameConnector {
         send(sessionId, SayMessage.speech(name, message, true, name + ": \"" + message + "\""));
         SayMessage heard = SayMessage.speech(name, message, false, Josa.withIGa(name) + " 말한다: \"" + message + "\"");
         othersInRoom(player, player.getRoomId()).forEach(other -> send(other.getSessionId(), heard));
+    }
+
+    /** 같은 방 NPC에게 말을 건다. 이름 전체가 같은 NPC, 없으면 이름이 입력으로 시작하는 첫 NPC. 묻는 사람에게만 보낸다 */
+    private void talk(String sessionId, OnlinePlayer player, Command.Talk talk) {
+        String target = talk.target();
+        if (target == null || target.isBlank()) {
+            send(sessionId, SystemMessage.error(TALK_NO_TARGET));
+            return;
+        }
+        List<Npc> npcs = npcFinder.findAllInRoom(player.getRoomId());
+        Optional<Npc> found = npcs.stream().filter(npc -> npc.isCalled(target)).findFirst()
+                .or(() -> npcs.stream().filter(npc -> npc.nameStartsWith(target)).findFirst());
+        if (found.isEmpty()) {
+            send(sessionId, SystemMessage.error(TALK_NO_SUCH_NPC));
+            return;
+        }
+        Npc npc = found.get();
+        String word = talk.word();
+        String text = word == null ? greetingOf(npc) : npc.getName() + ": \"" + npc.answerTo(word) + "\"";
+        send(sessionId, TalkMessage.talk(npc.getName(), word, text));
+    }
+
+    /** 인사말과, 낱말이 있으면 다음 줄에 물어볼 수 있는 낱말(입력 순서) */
+    private static String greetingOf(Npc npc) {
+        String greeting = npc.getName() + ": \"" + npc.getGreeting() + "\"";
+        List<NpcTopic> topics = npc.getTopics();
+        if (topics.isEmpty()) return greeting;
+        return greeting + "\n" + TALK_WORDS + " " + topics.stream()
+                .map(topic -> "[" + topic.word() + "]")
+                .collect(Collectors.joining(" "));
     }
 
     private void who(String sessionId) {
@@ -451,9 +490,14 @@ public class GameService implements GameConnector {
     /** 방 보기를 보낸다. 앞서 본 지역과 다르면 지역에 들어선 것으로 표시한다 */
     private void sendRoom(String sessionId, GameSession session, Room room) {
         boolean zoneEntered = session.enterZone(requireNonNull(room.getZone().getId()));
+        send(sessionId, roomView(room, zoneEntered, session.requireCharacterId()));
+    }
+
+    /** 방 보기: 그 방의 사람(나 빼고)과 배치된 NPC를 지금 읽어 넣는다 */
+    private GameMessage roomView(Room room, boolean zoneEntered, Long viewerCharacterId) {
         Long roomId = requireNonNull(room.getId());
-        send(sessionId, RoomViewAssembler.assemble(
-                room, zoneEntered, presenceRepository.findAllInRoom(roomId), session.requireCharacterId()));
+        return RoomViewAssembler.assemble(room, zoneEntered,
+                presenceRepository.findAllInRoom(roomId), npcFinder.findAllInRoom(roomId), viewerCharacterId);
     }
 
     private void notifyOthers(OnlinePlayer actor, Long roomId, String text, String event) {

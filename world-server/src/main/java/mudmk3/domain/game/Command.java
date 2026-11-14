@@ -25,6 +25,10 @@ public sealed interface Command {
         }
     }
 
+    /** NPC에게 말 걸기. 대상이 빠졌으면 null, 낱말이 빠졌으면 null(인사) */
+    record Talk(@Nullable String target, @Nullable String word) implements Command {
+    }
+
     record Who() implements Command {
     }
 

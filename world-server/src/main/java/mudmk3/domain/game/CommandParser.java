@@ -1,6 +1,7 @@
 package mudmk3.domain.game;
 
 import mudmk3.domain.room.Direction;
+import mudmk3.domain.shared.Names;
 
 import java.util.Optional;
 
@@ -29,11 +30,21 @@ public final class CommandParser {
         return switch (word) {
             case "보기", "ㅂ" -> new Command.Look(rest.isEmpty() ? null : rest);
             case "말하기" -> new Command.Say(rest);
+            case "대화" -> parseTalk(rest);
             case "누구" -> rest.isEmpty() ? new Command.Who() : new Command.Unknown(word);
             case "도움말" -> rest.isEmpty() ? new Command.Help() : new Command.Unknown(word);
             case "종료" -> rest.isEmpty() ? new Command.Quit() : new Command.Unknown(word);
             default -> parseMove(word, rest);
         };
+    }
+
+    /** 첫 낱말이 대상, 나머지 전부가 낱말(앞뒤 [ ] 를 뗌). 비면 null */
+    private static Command parseTalk(String rest) {
+        if (rest.isEmpty()) return new Command.Talk(null, null);
+        int space = rest.indexOf(' ');
+        if (space < 0) return new Command.Talk(rest, null);
+        String word = Names.stripBrackets(rest.substring(space + 1));
+        return new Command.Talk(rest.substring(0, space), word.isEmpty() ? null : word);
     }
 
     private static Command parseMove(String word, String rest) {

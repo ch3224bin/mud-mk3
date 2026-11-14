@@ -30,11 +30,15 @@ public sealed interface GameMessage {
         }
     }
 
-    /** 방 보기. exits는 방위 한글 이름(방위 순서), occupants는 나를 뺀 사람(들어온 순서) */
+    /**
+     * 방 보기. owner는 지역을 소유한 성·종문(없으면 null), exits는 방위 한글 이름(방위 순서),
+     * occupants는 나를 뺀 사람(들어온 순서) 다음 그 방의 NPC(만든 순서)
+     */
     record RoomMessage(
             ZoneView zone,
             boolean zoneEntered,
             RoomView room,
+            @Nullable OwnerView owner,
             List<String> exits,
             List<OccupantView> occupants
     ) implements GameMessage {
@@ -54,10 +58,18 @@ public sealed interface GameMessage {
         public record RoomView(Long id, String name, String description) {
         }
 
-        /** kind: 1차엔 {@code player} 뿐 */
+        /** kind: {@code castle} | {@code sect} */
+        public record OwnerView(String kind, String name) {
+        }
+
+        /** kind: {@code player} | {@code npc} */
         public record OccupantView(String name, String kind) {
             public static OccupantView player(String name) {
                 return new OccupantView(name, "player");
+            }
+
+            public static OccupantView npc(String name) {
+                return new OccupantView(name, "npc");
             }
         }
     }
@@ -99,6 +111,18 @@ public sealed interface GameMessage {
         @Override
         public String type() {
             return "say";
+        }
+    }
+
+    /** NPC 대답(묻는 사람에게만). word는 물은 낱말(인사면 null), text는 그린 줄들({@code \n} 으로 나뉨) */
+    record TalkMessage(String npc, @Nullable String word, String text, String tone) implements GameMessage {
+        public static TalkMessage talk(String npc, @Nullable String word, String text) {
+            return new TalkMessage(npc, word, text, "talk");
+        }
+
+        @Override
+        public String type() {
+            return "talk";
         }
     }
 }

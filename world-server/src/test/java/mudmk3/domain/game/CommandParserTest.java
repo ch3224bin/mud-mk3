@@ -6,6 +6,7 @@ import mudmk3.domain.game.Command.Look;
 import mudmk3.domain.game.Command.Move;
 import mudmk3.domain.game.Command.Quit;
 import mudmk3.domain.game.Command.Say;
+import mudmk3.domain.game.Command.Talk;
 import mudmk3.domain.game.Command.Unknown;
 import mudmk3.domain.game.Command.Who;
 import mudmk3.domain.room.Direction;
@@ -39,6 +40,22 @@ class CommandParserTest {
         assertThat(parse("말하기   길을   묻겠소")).isEqualTo(new Say("길을 묻겠소"));
         assertThat(parse("말하기")).isEqualTo(new Say(""));
         assertThat(parse("'")).isEqualTo(new Say(""));
+    }
+
+    @Test
+    void talk() {
+        assertThat(parse("대화")).isEqualTo(new Talk(null, null));
+        assertThat(parse("대화 왕씨")).isEqualTo(new Talk("왕씨", null));
+        assertThat(parse("대화 왕씨 일거리")).isEqualTo(new Talk("왕씨", "일거리"));
+        assertThat(parse("대화   왕씨   [일거리]")).isEqualTo(new Talk("왕씨", "일거리"));
+        assertThat(parse("대화 왕씨 늑대 퇴치")).isEqualTo(new Talk("왕씨", "늑대 퇴치"));
+        assertThat(parse("대화 왕씨 []")).isEqualTo(new Talk("왕씨", null));
+    }
+
+    @Test
+    void talkWithoutSpaceFail() {
+        assertThat(parse("대화왕씨")).isEqualTo(new Unknown("대화왕씨"));
+        assertThat(parse("말 왕씨")).isEqualTo(new Unknown("말"));
     }
 
     @Test

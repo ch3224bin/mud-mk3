@@ -6,11 +6,19 @@ import mudmk3.application.account.provided.AccountLoginRequest;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.faction.provided.FactionEditor;
 import mudmk3.application.game.RecordingGameMessageSender;
+import mudmk3.application.npc.provided.NpcEditor;
+import mudmk3.application.npc.provided.NpcSaveRequest;
+import mudmk3.application.npc.provided.NpcTopicRequest;
 import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
+import mudmk3.application.zone.provided.ZoneSaveRequest;
+import mudmk3.domain.faction.Faction;
+import mudmk3.domain.faction.FactionKind;
+import mudmk3.domain.npc.Npc;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.room.Room;
 import mudmk3.domain.zone.Zone;
@@ -21,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import java.util.ArrayList;
 import java.util.List;
 
+import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 
@@ -39,6 +48,8 @@ abstract class BaseGameTest {
     protected final ZoneEditor zoneEditor;
     protected final RoomEditor roomEditor;
     protected final WorldSettingsEditor worldSettingsEditor;
+    protected final FactionEditor factionEditor;
+    protected final NpcEditor npcEditor;
     protected final EntityManager entityManager;
 
     private final List<String> openedSessions = new ArrayList<>();
@@ -53,6 +64,8 @@ abstract class BaseGameTest {
             ZoneEditor zoneEditor,
             RoomEditor roomEditor,
             WorldSettingsEditor worldSettingsEditor,
+            FactionEditor factionEditor,
+            NpcEditor npcEditor,
             EntityManager entityManager
     ) {
         this.gameConnector = gameConnector;
@@ -64,6 +77,8 @@ abstract class BaseGameTest {
         this.zoneEditor = zoneEditor;
         this.roomEditor = roomEditor;
         this.worldSettingsEditor = worldSettingsEditor;
+        this.factionEditor = factionEditor;
+        this.npcEditor = npcEditor;
         this.entityManager = entityManager;
     }
 
@@ -89,6 +104,21 @@ abstract class BaseGameTest {
         worldSettingsEditor.designateStartRoom(entrance.getId());
         return new GameMap(id(village.getId()), id(forest.getId()),
                 id(entrance.getId()), id(well.getId()), id(forestEntrance.getId()));
+    }
+
+    /**
+     * {@link #prepareMap()} 에 더한다: 성 청석성과 그 소유 지역 청석성의 방 남문(우물가 북↔남),
+     * 마을 어귀에 배치한 NPC 왕씨(낱말 단약·일거리)
+     */
+    protected NpcMap prepareNpcs(GameMap map) {
+        Faction castle = factionEditor.create(createFactionSaveRequest(FactionKind.CASTLE, "청석성"));
+        Zone castleZone = zoneEditor.create(new ZoneSaveRequest("청석성", "돌로 쌓은 성이다.", castle.getId()));
+        Room southGate = roomEditor.create(createRoomSaveRequest(castleZone.getId(), "남문"));
+        roomEditor.putExit(map.wellId(), Direction.NORTH, new ExitSaveRequest(southGate.getId(), true));
+        Npc wang = npcEditor.create(new NpcSaveRequest("왕씨", "어서 오시오.", "글쎄, 잘 모르겠구려.", List.of(
+                new NpcTopicRequest("단약", "회춘단이 좋소."),
+                new NpcTopicRequest("일거리", "늑대가 말썽이오.")), false, map.entranceId()));
+        return new NpcMap(id(castle.getId()), id(castleZone.getId()), id(southGate.getId()), id(wang.getId()));
     }
 
     protected Long prepareAccount(String email) {
@@ -134,5 +164,8 @@ abstract class BaseGameTest {
     }
 
     protected record GameMap(Long villageZoneId, Long forestZoneId, Long entranceId, Long wellId, Long forestEntranceId) {
+    }
+
+    protected record NpcMap(Long castleId, Long castleZoneId, Long southGateId, Long wangId) {
     }
 }

@@ -3,6 +3,7 @@ package mudmk3.adapter.websocket;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.game.provided.GameConnector;
 import mudmk3.application.game.required.PresenceRepository;
+import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.WorldSettingsEditor;
@@ -50,6 +51,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,6 +82,7 @@ class GameWebSocketIntegrationTest {
     private final ZoneEditor zoneEditor;
     private final RoomEditor roomEditor;
     private final WorldSettingsEditor worldSettingsEditor;
+    private final NpcEditor npcEditor;
     private final CharacterCreator characterCreator;
     private final PresenceRepository presenceRepository;
     private final GameConnector gameConnector;
@@ -87,12 +90,14 @@ class GameWebSocketIntegrationTest {
     private final JdbcTemplate jdbcTemplate;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
     private final List<Client> clients = new ArrayList<>();
+    private @Nullable Long entranceId;
 
     GameWebSocketIntegrationTest(
             @LocalServerPort int port,
             ZoneEditor zoneEditor,
             RoomEditor roomEditor,
             WorldSettingsEditor worldSettingsEditor,
+            NpcEditor npcEditor,
             CharacterCreator characterCreator,
             PresenceRepository presenceRepository,
             GameConnector gameConnector,
@@ -103,6 +108,7 @@ class GameWebSocketIntegrationTest {
         this.zoneEditor = zoneEditor;
         this.roomEditor = roomEditor;
         this.worldSettingsEditor = worldSettingsEditor;
+        this.npcEditor = npcEditor;
         this.characterCreator = characterCreator;
         this.presenceRepository = presenceRepository;
         this.gameConnector = gameConnector;
@@ -117,6 +123,7 @@ class GameWebSocketIntegrationTest {
         Room well = roomEditor.create(createRoomSaveRequest(village.getId(), "우물가"));
         roomEditor.putExit(entrance.getId(), Direction.NORTH, new ExitSaveRequest(well.getId(), true));
         worldSettingsEditor.designateStartRoom(entrance.getId());
+        entranceId = entrance.getId();
     }
 
     @AfterEach
@@ -239,6 +246,20 @@ class GameWebSocketIntegrationTest {
         assertThat(a.next()).isEqualTo(json("""
                 {"type":"say","speaker":"한립","message":"안녕하시오","self":false,
                  "text":"한립이 말한다: \\"안녕하시오\\"","tone":"speech"}"""));
+    }
+
+    @Test
+    void talkToNpc() throws Exception {
+        npcEditor.create(createNpcSaveRequest("왕씨", entranceId));
+        Client client = enter("hanbai@example.com", "한백");
+        assertThat(client.lastRoom().get("owner").isNull()).isTrue();
+        assertThat(client.lastRoom().get("occupants")).isEqualTo(json("""
+                [{"name":"왕씨","kind":"npc"}]"""));
+
+        client.command("대화 왕씨 단약");
+
+        assertThat(client.next()).isEqualTo(json("""
+                {"type":"talk","npc":"왕씨","word":"단약","text":"왕씨: \\"단약은 귀한 물건이오.\\"","tone":"talk"}"""));
     }
 
     @Test

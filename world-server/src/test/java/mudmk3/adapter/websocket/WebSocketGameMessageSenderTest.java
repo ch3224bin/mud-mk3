@@ -6,11 +6,13 @@ import mudmk3.application.game.required.GameMessage.NoticeMessage;
 import mudmk3.application.game.required.GameMessage.PromptMessage;
 import mudmk3.application.game.required.GameMessage.RoomMessage;
 import mudmk3.application.game.required.GameMessage.RoomMessage.OccupantView;
+import mudmk3.application.game.required.GameMessage.RoomMessage.OwnerView;
 import mudmk3.application.game.required.GameMessage.RoomMessage.RoomView;
 import mudmk3.application.game.required.GameMessage.RoomMessage.ZoneView;
 import mudmk3.application.game.required.GameMessage.SayMessage;
 import mudmk3.application.game.required.GameMessage.SessionMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
+import mudmk3.application.game.required.GameMessage.TalkMessage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -61,13 +63,35 @@ class WebSocketGameMessageSenderTest {
     @Test
     void roomJson() {
         RoomMessage room = new RoomMessage(new ZoneView(1L, "청우촌"), true,
-                new RoomView(2L, "마을 어귀", "흙길이 갈라진다."), List.of("북", "남동"),
-                List.of(OccupantView.player("한립")));
+                new RoomView(2L, "마을 어귀", "흙길이 갈라진다."), null, List.of("북", "남동"),
+                List.of(OccupantView.player("한립"), OccupantView.npc("왕씨")));
 
         assertJson(room, """
                 {"type":"room","zone":{"id":1,"name":"청우촌"},"zoneEntered":true,
-                 "room":{"id":2,"name":"마을 어귀","description":"흙길이 갈라진다."},
-                 "exits":["북","남동"],"occupants":[{"name":"한립","kind":"player"}]}""");
+                 "room":{"id":2,"name":"마을 어귀","description":"흙길이 갈라진다."},"owner":null,
+                 "exits":["북","남동"],"occupants":[{"name":"한립","kind":"player"},{"name":"왕씨","kind":"npc"}]}""");
+        assertThat(sender.toJson(room)).contains("\"owner\":null");
+    }
+
+    @Test
+    void roomWithOwnerJson() {
+        RoomMessage room = new RoomMessage(new ZoneView(3L, "청석성"), false,
+                new RoomView(4L, "남문", "돌로 쌓은 성문이 우뚝 서 있다."), new OwnerView("castle", "청석성"),
+                List.of("남"), List.of());
+
+        assertJson(room, """
+                {"type":"room","zone":{"id":3,"name":"청석성"},"zoneEntered":false,
+                 "room":{"id":4,"name":"남문","description":"돌로 쌓은 성문이 우뚝 서 있다."},
+                 "owner":{"kind":"castle","name":"청석성"},"exits":["남"],"occupants":[]}""");
+    }
+
+    @Test
+    void talkJson() {
+        assertJson(TalkMessage.talk("왕씨", null, "왕씨: \"어서 오시오.\"\n물어볼 수 있는 낱말: [단약]"), """
+                {"type":"talk","npc":"왕씨","word":null,
+                 "text":"왕씨: \\"어서 오시오.\\"\\n물어볼 수 있는 낱말: [단약]","tone":"talk"}""");
+        assertJson(TalkMessage.talk("왕씨", "단약", "왕씨: \"회춘단이 좋소.\""), """
+                {"type":"talk","npc":"왕씨","word":"단약","text":"왕씨: \\"회춘단이 좋소.\\"","tone":"talk"}""");
     }
 
     @Test
