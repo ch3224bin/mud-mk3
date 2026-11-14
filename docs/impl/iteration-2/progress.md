@@ -10,7 +10,7 @@
 | 2. 성·종문 관리 REST API와 지역 소유 지정 | 97153d0 | `/api/admin/factions` 4개(`FactionApi`·`FactionResponse`), `ZoneResponse` 에 `ownerId`·`ownerName`·`ownerKind`, 409 처리 2개. 성·종문 삭제의 동시 소유 지정 경합은 1차 지역 삭제와 같게 두었다 |
 | 3. NPC 도메인과 영속 | 0f99476 | `npc` 슬라이스(`Npc`·`NpcTopic`·`NpcSaveInfo`·`DuplicateNpcNameException`·`NpcRepository`), orm.xml `npc`·`npc_topic`(`position` 순서 열, 낱말 DB 유니크 없음). `[ ]` 떼기는 공용 `Names.stripBrackets`(Task 5 `CommandParser` 가 다시 씀). 도메인 이름 규칙 위반 문구 `NPC 이름은 띄어쓰기 없이 1~12자로 정하십시오: <이름>` (제안) |
 | 4. NPC 관리 서비스·REST API, 방 삭제 시 배치 풀기, 캐릭터 이름 검사 | 0f3cd47 | `NpcFinder`·`NpcEditor`(이름 유일 대소문자 무시, `existsByNameIgnoreCaseAndIdNot` 추가), `/api/admin/npcs` 5개, `RoomDetailResponse.npcs`, `RoomDeletedEvent` 동기 리스너로 배치 풀기, `isNameTaken` 이 NPC 이름도 봄(`create` 가 재사용). Task 3 잔여: `Npc` 의 `@ElementCollection` 제거(orm.xml만), 낱말 중복 검사를 `NpcTopic.matches` 와 같은 규칙으로. `llmEnabled` 는 원시 boolean이라 요청에서 빠지면 400(Jackson 3) |
-| 5. 게임 — 방 머리 소유, 방의 NPC, `대화` 명령, 도움말, WebSocket 메시지 모양 | TBD | `Command.Talk`·`CommandParser`(낱말은 `Names.stripBrackets`, `대화 왕씨 []` 는 인사로 봄 (제안)), `RoomMessage.owner`(`OwnerView`)·`OccupantView.npc`·`TalkMessage`, `GameService` 가 방 보기마다 `NpcFinder.findAllInRoom` 을 읽음. `WebSocketGameMessageSender` 는 고치지 않음(`owner: null` 이 그대로 나감, 테스트로 확인). 테스트 준비는 `BaseGameTest.prepareNpcs(map)`(P3), `prepareMap` 은 그대로 |
+| 5. 게임 — 방 머리 소유, 방의 NPC, `대화` 명령, 도움말, WebSocket 메시지 모양 | e38ce17 | `Command.Talk`·`CommandParser`(낱말은 `Names.stripBrackets`, `대화 왕씨 []` 는 인사로 봄 (제안)), `RoomMessage.owner`(`OwnerView`)·`OccupantView.npc`·`TalkMessage`, `GameService` 가 방 보기마다 `NpcFinder.findAllInRoom` 을 읽음. `WebSocketGameMessageSender` 는 고치지 않음(`owner: null` 이 그대로 나감, 테스트로 확인). 테스트 준비는 `BaseGameTest.prepareNpcs(map)`(P3), `prepareMap` 은 그대로 |
 
 ## 상태
 
