@@ -4,7 +4,9 @@ import lombok.Getter;
 import lombok.ToString;
 import org.jspecify.annotations.Nullable;
 
+import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 import static org.springframework.util.Assert.state;
@@ -21,6 +23,7 @@ final class GameSession {
     private @Nullable String pendingName;
     private @Nullable Long characterId;
     private @Nullable Long lastZoneId;
+    private @Nullable PendingPurchase pending;
 
     private GameSession(Long accountId, Phase phase) {
         this.accountId = requireNonNull(accountId);
@@ -73,5 +76,28 @@ final class GameSession {
         boolean entered = !Objects.equals(lastZoneId, zoneId);
         this.lastZoneId = zoneId;
         return entered;
+    }
+
+    /** 확인을 기다리는 사기를 둔다. 확인 대기는 하나뿐이라 앞의 것은 사라진다 */
+    void askConfirm(PendingPurchase purchase) {
+        this.pending = requireNonNull(purchase);
+    }
+
+    /** 확인을 기다리는 사기(시간이 지났는지는 묻는 쪽이 본다) */
+    Optional<PendingPurchase> findPending() {
+        return Optional.ofNullable(pending);
+    }
+
+    void clearPending() {
+        this.pending = null;
+    }
+
+    /** 상위 등급 영석을 깨야 해 확인을 기다리는 사기: 어느 상점에서 무엇을 몇 개, 언제 물었나 */
+    record PendingPurchase(Long npcId, Long itemTypeId, int count, Instant askedAt) {
+        PendingPurchase {
+            requireNonNull(npcId);
+            requireNonNull(itemTypeId);
+            requireNonNull(askedAt);
+        }
     }
 }

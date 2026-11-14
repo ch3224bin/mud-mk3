@@ -12,6 +12,7 @@ import java.util.Optional;
 public final class CommandParser {
 
     private static final String SAY_PREFIX = "'";
+    private static final String UNBIND_WORD = "해제";
 
     private CommandParser() {
     }
@@ -34,6 +35,14 @@ public final class CommandParser {
             case "소지품", "ㅈ" -> rest.isEmpty() ? new Command.Inventory() : new Command.Unknown(word);
             case "줍기" -> new Command.Pick(ItemArguments.parse(rest));
             case "버리기" -> new Command.Drop(ItemArguments.parse(rest));
+            case "목록" -> new Command.ShopList(rest);
+            case "사기" -> new Command.Buy(rest);
+            case "팔기" -> new Command.Sell(rest);
+            case "값" -> new Command.Appraise(rest);
+            case "주기" -> parseGive(rest);
+            case "귀속" -> parseBind(rest);
+            case "확인" -> rest.isEmpty() ? new Command.Confirm() : new Command.Unknown(word);
+            case "취소" -> rest.isEmpty() ? new Command.Cancel() : new Command.Unknown(word);
             case "누구" -> rest.isEmpty() ? new Command.Who() : new Command.Unknown(word);
             case "도움말" -> rest.isEmpty() ? new Command.Help() : new Command.Unknown(word);
             case "종료" -> rest.isEmpty() ? new Command.Quit() : new Command.Unknown(word);
@@ -48,6 +57,21 @@ public final class CommandParser {
         if (space < 0) return new Command.Talk(rest, null);
         String word = Names.stripBrackets(rest.substring(space + 1));
         return new Command.Talk(rest.substring(0, space), word.isEmpty() ? null : word);
+    }
+
+    /** 첫 낱말이 대상, 나머지가 물건 인자. 대상이 없으면 null */
+    private static Command parseGive(String rest) {
+        if (rest.isEmpty()) return new Command.Give(null, "");
+        int space = rest.indexOf(' ');
+        if (space < 0) return new Command.Give(rest, "");
+        return new Command.Give(rest.substring(0, space), rest.substring(space + 1));
+    }
+
+    /** {@code 귀속 해제 <물건>} 은 귀속 해제, 그 밖은 {@code 귀속 <물건>} */
+    private static Command parseBind(String rest) {
+        if (rest.equals(UNBIND_WORD)) return new Command.Unbind("");
+        if (rest.startsWith(UNBIND_WORD + " ")) return new Command.Unbind(rest.substring(UNBIND_WORD.length() + 1));
+        return new Command.Bind(rest);
     }
 
     private static Command parseMove(String word, String rest) {

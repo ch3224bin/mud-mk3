@@ -1,6 +1,15 @@
 package mudmk3.domain.game;
 
+import mudmk3.domain.game.Command.Appraise;
+import mudmk3.domain.game.Command.Bind;
+import mudmk3.domain.game.Command.Buy;
+import mudmk3.domain.game.Command.Cancel;
+import mudmk3.domain.game.Command.Confirm;
 import mudmk3.domain.game.Command.Empty;
+import mudmk3.domain.game.Command.Give;
+import mudmk3.domain.game.Command.Sell;
+import mudmk3.domain.game.Command.ShopList;
+import mudmk3.domain.game.Command.Unbind;
 import mudmk3.domain.game.Command.Drop;
 import mudmk3.domain.game.Command.Help;
 import mudmk3.domain.game.Command.Inventory;
@@ -102,5 +111,44 @@ class CommandParserTest {
     void drop() {
         assertThat(parse("버리기 하품 10")).isEqualTo(new Drop(new ItemArguments(new ItemQuery("하품 영석", 0), new Amount.Count(10))));
         assertThat(parse("버리기")).isEqualTo(new Drop(new ItemArguments(null, Amount.one())));
+    }
+
+    @Test
+    void shopCommands() {
+        assertThat(parse("목록")).isEqualTo(new ShopList(""));
+        assertThat(parse("목록 왕씨")).isEqualTo(new ShopList("왕씨"));
+        assertThat(parse("사기")).isEqualTo(new Buy(""));
+        assertThat(parse("사기   왕씨  회춘단 5")).isEqualTo(new Buy("왕씨 회춘단 5"));
+        assertThat(parse("팔기 늑대 가죽 전부")).isEqualTo(new Sell("늑대 가죽 전부"));
+        assertThat(parse("값 늑대 가죽")).isEqualTo(new Appraise("늑대 가죽"));
+    }
+
+    @Test
+    void give() {
+        assertThat(parse("주기")).isEqualTo(new Give(null, ""));
+        assertThat(parse("주기 한립")).isEqualTo(new Give("한립", ""));
+        assertThat(parse("주기 한립 하품 100")).isEqualTo(new Give("한립", "하품 100"));
+        assertThat(parse("주기  한립   늑대 가죽 2")).isEqualTo(new Give("한립", "늑대 가죽 2"));
+    }
+
+    @Test
+    void bindAndUnbind() {
+        assertThat(parse("귀속 비검")).isEqualTo(new Bind("비검"));
+        assertThat(parse("귀속")).isEqualTo(new Bind(""));
+        assertThat(parse("귀속 해제 비검")).isEqualTo(new Unbind("비검"));
+        assertThat(parse("귀속 해제")).isEqualTo(new Unbind(""));
+        assertThat(parse("귀속 해제검")).isEqualTo(new Bind("해제검"));
+    }
+
+    @Test
+    void confirmAndCancel() {
+        assertThat(parse("확인")).isEqualTo(new Confirm());
+        assertThat(parse("취소")).isEqualTo(new Cancel());
+    }
+
+    @Test
+    void confirmWithArgumentFail() {
+        assertThat(parse("확인 x")).isEqualTo(new Unknown("확인"));
+        assertThat(parse("취소 x")).isEqualTo(new Unknown("취소"));
     }
 }

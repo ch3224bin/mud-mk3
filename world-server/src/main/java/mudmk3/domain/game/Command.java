@@ -47,6 +47,63 @@ public sealed interface Command {
         }
     }
 
+    /** 상점 목록. 인자는 상점 NPC 이름(없으면 빈 문자열) */
+    record ShopList(String args) implements Command {
+        public ShopList {
+            requireNonNull(args);
+        }
+    }
+
+    /** 상점에서 사기. 인자는 다듬기 전 나머지 전부(앞의 NPC 이름은 방의 상점 수를 아는 처리기가 뗀다) */
+    record Buy(String args) implements Command {
+        public Buy {
+            requireNonNull(args);
+        }
+    }
+
+    /** 상점에 팔기. 인자는 {@link Buy} 와 같다 */
+    record Sell(String args) implements Command {
+        public Sell {
+            requireNonNull(args);
+        }
+    }
+
+    /** 상점 매입가 보기. 인자는 {@link Buy} 와 같다 */
+    record Appraise(String args) implements Command {
+        public Appraise {
+            requireNonNull(args);
+        }
+    }
+
+    /** 같은 방 플레이어에게 주기. 대상이 빠졌으면 null, 물건 인자가 빠졌으면 빈 문자열 */
+    record Give(@Nullable String target, String args) implements Command {
+        public Give {
+            requireNonNull(args);
+        }
+    }
+
+    /** 물건 귀속. 인자가 빠졌으면 빈 문자열 */
+    record Bind(String args) implements Command {
+        public Bind {
+            requireNonNull(args);
+        }
+    }
+
+    /** 물건 귀속 해제. 인자가 빠졌으면 빈 문자열 */
+    record Unbind(String args) implements Command {
+        public Unbind {
+            requireNonNull(args);
+        }
+    }
+
+    /** 묻던 것(상위 등급 영석 깨기 결제) 승인 */
+    record Confirm() implements Command {
+    }
+
+    /** 묻던 것 그만두기 */
+    record Cancel() implements Command {
+    }
+
     record Who() implements Command {
     }
 

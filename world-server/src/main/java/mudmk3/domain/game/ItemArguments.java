@@ -46,6 +46,14 @@ public record ItemArguments(@Nullable ItemQuery item, Amount amount) {
         return new ItemArguments(name.isEmpty() ? null : ItemQuery.parse(name), amount);
     }
 
+    /** 수량을 적었는지(마지막 낱말이 수나 {@code 전부}). 수량을 빼면 다른 뜻인 명령({@code 값})이 쓴다 */
+    public static boolean hasAmount(String text) {
+        String normalized = ItemNames.normalize(requireNonNull(text));
+        if (normalized.indexOf(' ') < 0) return false;
+        String lastWord = normalized.substring(normalized.lastIndexOf(' ') + 1);
+        return lastWord.equals(ALL_WORD) || NUMBER.matcher(lastWord).matches();
+    }
+
     private static Amount countOf(String digits) {
         String significant = digits.replaceFirst("^0+", "");
         if (significant.isEmpty() || significant.length() > MAX_DIGITS) return new Amount.Invalid();

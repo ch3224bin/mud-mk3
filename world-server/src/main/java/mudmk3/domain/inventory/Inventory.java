@@ -174,8 +174,8 @@ public class Inventory extends AbstractEntity {
         if (payment.change() > 0) {
             Usage withChange = after(changes.add(lowStone, false, payment.change()));
             if (withChange.usedSlots() > withChange.capacity()) {
-                int slotsNeeded = Math.toIntExact(withChange.usedSlots() - withItem.usedSlots());
-                return new PurchaseResult.NoRoomForChange(payment.change(), slotsNeeded);
+                int slotsShort = Math.toIntExact(withChange.usedSlots() - withChange.capacity());
+                return new PurchaseResult.NoRoomForChange(payment.change(), slotsShort);
             }
         }
         return payment.breaksHighStones() ? new PurchaseResult.NeedsConfirm(payment) : new PurchaseResult.Bought(payment);

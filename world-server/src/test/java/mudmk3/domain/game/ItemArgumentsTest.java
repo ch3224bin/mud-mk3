@@ -58,4 +58,14 @@ class ItemArgumentsTest {
         assertThatThrownBy(() -> new Count(0)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new Count(1_000_000_000)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void hasAmount() {
+        assertThat(ItemArguments.hasAmount("회춘단 3")).isTrue();
+        assertThat(ItemArguments.hasAmount("늑대 가죽 전부")).isTrue();
+        assertThat(ItemArguments.hasAmount("회춘단 0")).isTrue();
+        assertThat(ItemArguments.hasAmount("늑대 가죽")).isFalse();
+        assertThat(ItemArguments.hasAmount("회춘단")).isFalse();
+        assertThat(ItemArguments.hasAmount("")).isFalse();
+    }
 }

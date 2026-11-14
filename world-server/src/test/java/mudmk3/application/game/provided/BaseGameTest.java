@@ -19,6 +19,8 @@ import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.npc.provided.NpcSaveRequest;
 import mudmk3.application.npc.provided.NpcTopicRequest;
+import mudmk3.application.npc.provided.ShopItemRequest;
+import mudmk3.application.npc.provided.ShopSaveRequest;
 import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.StartingItemRequest;
@@ -32,6 +34,7 @@ import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.item.SpiritStoneGrade;
 import mudmk3.domain.npc.Npc;
+import mudmk3.domain.npc.ShopKind;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.room.Room;
 import mudmk3.domain.zone.Zone;
@@ -173,6 +176,17 @@ abstract class BaseGameTest {
         ItemType itemType = itemTypeEditor.create(
                 new ItemTypeSaveRequest(name, description, category, baseValue, true, bagGrade));
         return id(itemType.getId());
+    }
+
+    /** {@link #prepareNpcs} 의 왕씨에게 단약방을 연다: 회춘단(연기 초) 기준가, 회기단(연기 초) 기준가 */
+    protected void prepareShop(NpcMap npcs, Items items) {
+        npcEditor.openShop(npcs.wangId(), new ShopSaveRequest(ShopKind.PILL_SHOP, List.of(
+                new ShopItemRequest(items.pill(), null), new ShopItemRequest(items.energyPill(), null))));
+    }
+
+    /** 그 등급 영석 종류 id */
+    protected Long stoneId(SpiritStoneGrade grade) {
+        return id(itemTypeFinder.spiritStone(grade).getId());
     }
 
     /** 시작 소지품을 정한다(뒤에 만드는 캐릭터부터 받는다) */

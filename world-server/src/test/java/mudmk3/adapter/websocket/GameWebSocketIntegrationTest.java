@@ -5,6 +5,7 @@ import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.floor.provided.FloorPlacementSaveRequest;
 import mudmk3.application.game.provided.GameConnector;
 import mudmk3.application.game.required.PresenceRepository;
+import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.item.provided.ItemTypeEditor;
 import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.npc.provided.NpcEditor;
@@ -96,6 +97,7 @@ class GameWebSocketIntegrationTest {
     private final CharacterCreator characterCreator;
     private final PresenceRepository presenceRepository;
     private final GameConnector gameConnector;
+    private final InventoryEditor inventoryEditor;
     private final WebSocketGameMessageSender sender;
     private final JdbcTemplate jdbcTemplate;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
@@ -113,6 +115,7 @@ class GameWebSocketIntegrationTest {
             CharacterCreator characterCreator,
             PresenceRepository presenceRepository,
             GameConnector gameConnector,
+            InventoryEditor inventoryEditor,
             WebSocketGameMessageSender sender,
             JdbcTemplate jdbcTemplate
     ) {
@@ -126,6 +129,7 @@ class GameWebSocketIntegrationTest {
         this.characterCreator = characterCreator;
         this.presenceRepository = presenceRepository;
         this.gameConnector = gameConnector;
+        this.inventoryEditor = inventoryEditor;
         this.sender = sender;
         this.jdbcTemplate = jdbcTemplate;
     }
@@ -309,6 +313,26 @@ class GameWebSocketIntegrationTest {
     }
 
     @Test
+    void giveBetweenTwoSessions() throws Exception {
+        ItemType pill = itemTypeEditor.create(
+                new ItemTypeSaveRequest("회춘단(연기 초)", "", ItemCategory.PILL, 3, true, null));
+        Client a = enter("hanbai@example.com", "한백");
+        Client b = enter("hanli@example.com", "한립");
+        assertThat(a.next().get("event").asString()).isEqualTo("appear");
+        inventoryEditor.addUpTo(a.characterId(), requireNonNull(pill.getId()), 3);
+
+        a.command("주기 한립 회춘단 2");
+        assertThat(a.next()).isEqualTo(json("""
+                {"type":"system","text":"한립에게 회춘단(연기 초) 2개를 주었습니다.","tone":"item"}"""));
+        assertThat(b.next()).isEqualTo(json("""
+                {"type":"system","text":"한백이 회춘단(연기 초) 2개를 건넸습니다.","tone":"item"}"""));
+
+        b.command("소지품");
+        assertThat(b.next().get("items")).isEqualTo(json("""
+                [{"name":"회춘단(연기 초)","count":2,"bound":false,"quest":false}]"""));
+    }
+
+    @Test
     void secondConnectionClosesFirstWith4409() throws Exception {
         Login login = login("hanbai@example.com");
         characterCreator.create(login.accountId(), "한백");
@@ -410,8 +434,9 @@ class GameWebSocketIntegrationTest {
     /** 캐릭터를 만든 계정으로 접속해 방 보기까지 받는다 */
     private Client enter(String email, String name) throws Exception {
         Login login = login(email);
-        characterCreator.create(login.accountId(), name);
+        Long characterId = characterCreator.create(login.accountId(), name).getId();
         Client client = connect(login.cookie(), ALLOWED_ORIGIN);
+        client.characterId = characterId;
         client.awaitRoom();
         return client;
     }
@@ -462,6 +487,7 @@ class GameWebSocketIntegrationTest {
         private final CompletableFuture<CloseStatus> closed = new CompletableFuture<>();
         private @Nullable WebSocketSession session;
         private @Nullable JsonNode lastRoom;
+        private @Nullable Long characterId;
 
         @Override
         protected void handleTextMessage(WebSocketSession session, TextMessage message) {
@@ -494,6 +520,11 @@ class GameWebSocketIntegrationTest {
             JsonNode room = next();
             assertThat(room.get("type").asString()).isEqualTo("room");
             lastRoom = room;
+        }
+
+        Long characterId() {
+            if (characterId == null) throw new IllegalStateException("캐릭터가 없다");
+            return characterId;
         }
 
         JsonNode lastRoom() {

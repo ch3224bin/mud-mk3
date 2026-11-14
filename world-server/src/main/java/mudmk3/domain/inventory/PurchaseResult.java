@@ -26,7 +26,7 @@ public sealed interface PurchaseResult {
     record NoRoom() implements PurchaseResult {
     }
 
-    /** 거스름 하품을 받을 칸이 없음. {@code slotsNeeded} 는 거스름을 넣으면 늘어나는 칸 */
-    record NoRoomForChange(long change, int slotsNeeded) implements PurchaseResult {
+    /** 거스름 하품을 받을 칸이 없음. {@code slotsShort} 는 거스름까지 넣으려면 모자란 칸 */
+    record NoRoomForChange(long change, int slotsShort) implements PurchaseResult {
     }
 }

@@ -16,6 +16,7 @@ import static mudmk3.domain.inventory.InventoryFixture.stones;
 import static mudmk3.domain.item.SpiritStoneGrade.HIGH;
 import static mudmk3.domain.item.SpiritStoneGrade.LOW;
 import static mudmk3.domain.item.SpiritStoneGrade.MIDDLE;
+import static mudmk3.domain.item.SpiritStoneGrade.TOP;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
@@ -237,6 +238,13 @@ class InventoryTest {
         noRoomForChange.add(stone(MIDDLE), 1, false);
         noRoomForChange.add(hide, 1, false);
         assertThat(noRoomForChange.checkPurchase(pill, 1, 3, lowStone)).isEqualTo(new PurchaseResult.NoRoomForChange(97, 1));
+
+        // 거스름 999,997개는 100칸을 더 쓰지만 빈 칸이 둘이라 모자란 칸은 98
+        Inventory shortOfSlots = createInventory();
+        shortOfSlots.add(bag, 1, false);
+        shortOfSlots.add(stone(TOP), 1, false);
+        shortOfSlots.add(hide, 99 * 19, false);
+        assertThat(shortOfSlots.checkPurchase(pill, 1, 3, lowStone)).isEqualTo(new PurchaseResult.NoRoomForChange(999_997, 98));
 
         Inventory needsConfirm = createInventory();
         needsConfirm.add(stone(HIGH), 1, false);

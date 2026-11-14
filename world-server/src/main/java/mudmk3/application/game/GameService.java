@@ -73,7 +73,10 @@ public class GameService implements GameConnector {
     static final String SAY_EMPTY = "무엇이라 말하시겠습니까?";
     static final String SAY_TOO_LONG = "말은 200자 이내로 하십시오.";
     static final String HELP =
-            "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 누구 · 도움말 · 종료";
+            "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말]"
+                    + " · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량]"
+                    + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 귀속 <물건> · 귀속 해제 <물건>"
+                    + " · 확인 · 취소 · 누구 · 도움말 · 종료";
     static final String TALK_NO_TARGET = "누구에게 말을 거시겠습니까?";
     static final String TALK_NO_SUCH_NPC = "여기에 그런 상대는 없습니다.";
     static final String TALK_WORDS = "물어볼 수 있는 낱말:";
@@ -90,6 +93,7 @@ public class GameService implements GameConnector {
     private final PresenceRepository presenceRepository;
     private final RoomFloor roomFloor;
     private final ItemCommandHandler itemCommandHandler;
+    private final ShopCommandHandler shopCommandHandler;
     private final GameMessageSender sender;
     private final TransactionTemplate transactionTemplate;
 
@@ -109,6 +113,7 @@ public class GameService implements GameConnector {
             PresenceRepository presenceRepository,
             RoomFloor roomFloor,
             ItemCommandHandler itemCommandHandler,
+            ShopCommandHandler shopCommandHandler,
             GameMessageSender sender,
             PlatformTransactionManager transactionManager
     ) {
@@ -121,6 +126,7 @@ public class GameService implements GameConnector {
         this.presenceRepository = presenceRepository;
         this.roomFloor = roomFloor;
         this.itemCommandHandler = itemCommandHandler;
+        this.shopCommandHandler = shopCommandHandler;
         this.sender = sender;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
@@ -335,6 +341,10 @@ public class GameService implements GameConnector {
     // ---- 명령
 
     private void handleCommand(String sessionId, GameSession session, Command command) {
+        // 확인 대기는 확인·취소가 아닌 명령이 오면 조용히 사라진다(빈 입력은 명령이 아니다)
+        if (!(command instanceof Command.Confirm || command instanceof Command.Cancel || command instanceof Command.Empty)) {
+            session.clearPending();
+        }
         OnlinePlayer player = presenceRepository.findByCharacterId(session.requireCharacterId())
                 .orElseThrow(() -> new IllegalStateException("세계에 없는 캐릭터입니다. id: " + session.getCharacterId()));
         boolean needsRoom = !(command instanceof Command.Empty || command instanceof Command.Quit);
@@ -347,7 +357,10 @@ public class GameService implements GameConnector {
             case Command.Move move -> move(sessionId, session, player, move.direction());
             case Command.Say say -> say(sessionId, player, say.message());
             case Command.Talk talk -> talk(sessionId, player, talk);
-            case Command.Inventory _, Command.Pick _, Command.Drop _ -> itemCommandHandler.handle(command, player, this::send);
+            case Command.Inventory _, Command.Pick _, Command.Drop _, Command.Give _, Command.Bind _, Command.Unbind _ ->
+                    itemCommandHandler.handle(command, player, this::send);
+            case Command.ShopList _, Command.Buy _, Command.Sell _, Command.Appraise _, Command.Confirm _, Command.Cancel _ ->
+                    shopCommandHandler.handle(command, player, session, this::send);
             case Command.Who _ -> who(sessionId);
             case Command.Help _ -> send(sessionId, SystemMessage.info(HELP));
             case Command.Quit _ -> quit(sessionId, player);
