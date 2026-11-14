@@ -409,6 +409,27 @@
         </attributes>
     </entity>
 
+    <!-- 익힌 공법. 익힌 순서는 id 순이다 -->
+    <entity class="mudmk3.domain.cultivation.CharacterTechnique">
+        <table name="character_technique">
+            <unique-constraint name="UK_CHARACTER_TECHNIQUE_CHARACTER_ID_TECHNIQUE_ID">
+                <column-name>character_id</column-name>
+                <column-name>technique_id</column-name>
+            </unique-constraint>
+        </table>
+        <attributes>
+            <basic name="stage">
+                <column name="stage" nullable="false"/>
+            </basic>
+            <many-to-one name="character" fetch="LAZY" optional="false">
+                <join-column name="character_id" nullable="false"/>
+            </many-to-one>
+            <many-to-one name="technique" fetch="LAZY" optional="false">
+                <join-column name="technique_id" nullable="false"/>
+            </many-to-one>
+        </attributes>
+    </entity>
+
     <embeddable class="mudmk3.domain.character.CharacterName">
         <attributes>
             <basic name="value">

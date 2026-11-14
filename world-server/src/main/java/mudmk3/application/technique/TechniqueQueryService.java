@@ -35,8 +35,9 @@ public class TechniqueQueryService implements TechniqueFinder {
                 .toList();
     }
 
-    /** 익힌 캐릭터 수는 Task 5가 센다(그전에는 0) */
     private TechniqueView toView(Technique technique) {
-        return TechniqueView.of(technique, 0, techniqueRepository.findScrollItems(requireNonNull(technique.getId())));
+        Long id = requireNonNull(technique.getId());
+        return TechniqueView.of(technique, techniqueRepository.countLearners(id),
+                techniqueRepository.findScrollItems(id));
     }
 }

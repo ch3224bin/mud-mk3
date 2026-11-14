@@ -8,6 +8,7 @@ import mudmk3.domain.character.CharacterName;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.support.stereotype.ApplicationService;
 
+import java.util.List;
 import java.util.Optional;
 
 @ApplicationService
@@ -26,6 +27,11 @@ public class CharacterQueryService implements CharacterFinder {
     @Override
     public Optional<PlayerCharacter> findByAccountId(Long accountId) {
         return characterRepository.findByAccountId(accountId);
+    }
+
+    @Override
+    public List<PlayerCharacter> findAllByName() {
+        return characterRepository.findAllByOrderByNameValueAsc();
     }
 
     @Override

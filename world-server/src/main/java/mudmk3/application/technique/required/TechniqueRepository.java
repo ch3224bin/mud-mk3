@@ -38,4 +38,12 @@ public interface TechniqueRepository extends Repository<Technique, Long> {
     @Query("select new mudmk3.application.technique.required.ScrollItem(i.id, i.name) from ItemType i "
             + "where i.technique.id = :techniqueId order by i.name")
     List<ScrollItem> findScrollItems(Long techniqueId);
+
+    /** 이 공법을 익힌 캐릭터 수 */
+    @Query("select count(c) from CharacterTechnique c where c.technique.id = :id")
+    long countLearners(Long id);
+
+    /** 이 공법을 익힌 캐릭터의 가장 높은 단계. 익힌 캐릭터가 없으면 비어 있다 */
+    @Query("select max(c.stage) from CharacterTechnique c where c.technique.id = :id")
+    Optional<Integer> maxLearnedStage(Long id);
 }

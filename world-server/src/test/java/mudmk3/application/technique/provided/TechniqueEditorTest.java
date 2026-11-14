@@ -5,6 +5,9 @@ import mudmk3.ApplicationServiceTest;
 import mudmk3.application.item.provided.ItemTypeEditor;
 import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.technique.required.ScrollItem;
+import mudmk3.domain.character.CharacterFixture;
+import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.cultivation.CharacterTechnique;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.shared.Element;
@@ -13,9 +16,11 @@ import mudmk3.domain.technique.AbilityKind;
 import mudmk3.domain.technique.AbilityTarget;
 import mudmk3.domain.technique.CostStat;
 import mudmk3.domain.technique.DuplicateTechniqueNameException;
+import mudmk3.domain.technique.Technique;
 import mudmk3.domain.technique.TechniqueStage;
 import mudmk3.domain.technique.UsableWhen;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -225,6 +230,74 @@ record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder tech
         assertThat(techniqueFinder.view(created.id()).scrollItems()).containsExactly(
                 new ScrollItem(book.getId(), "장춘공 서책"), new ScrollItem(jade.getId(), "장춘공 옥간"));
         assertThat(techniqueFinder.viewAll()).extracting(view -> view.scrollItems().size()).containsExactly(2, 1);
+    }
+
+    @Test
+    void shrinkBelowLearnedStageFail() {
+        TechniqueView created = techniqueEditor.create(changchunRequest("장춘공"));
+        learn(created.id(), "한백", 3);
+        flushAndClear();
+
+        assertThatThrownBy(() -> techniqueEditor.update(created.id(), changchunWithStageCount(2)))
+                .isInstanceOf(TechniqueInUseException.class)
+                .hasMessage("이 공법을 더 높은 단계까지 익힌 캐릭터가 있어 단계 수를 줄일 수 없습니다.");
+        flushAndClear();
+        assertThat(techniqueFinder.view(created.id()).stageCount()).isEqualTo(9);
+    }
+
+    @Test
+    void shrinkAboveLearnedStageOk() {
+        TechniqueView created = techniqueEditor.create(changchunRequest("장춘공"));
+        learn(created.id(), "한백", 3);
+        learn(created.id(), "여림", 1);
+        flushAndClear();
+
+        TechniqueView updated = techniqueEditor.update(created.id(), changchunWithStageCount(3));
+
+        assertThat(updated.stageCount()).isEqualTo(3);
+    }
+
+    @Test
+    void deleteLearnedFail() {
+        TechniqueView created = techniqueEditor.create(changchunRequest("장춘공"));
+        learn(created.id(), "한백", 1);
+        // 익힌 캐릭터 검사가 담긴 물건 검사보다 먼저다
+        scroll("장춘공 옥간", created.id());
+        flushAndClear();
+
+        assertThatThrownBy(() -> techniqueEditor.delete(created.id()))
+                .isInstanceOf(TechniqueInUseException.class)
+                .hasMessage("익힌 캐릭터가 있는 공법은 지울 수 없습니다: 장춘공");
+    }
+
+    @Test
+    void learnerCountInView() {
+        TechniqueView created = techniqueEditor.create(changchunRequest("장춘공"));
+        TechniqueView other = techniqueEditor.create(changchunRequest("청목결"));
+        learn(created.id(), "한백", 1);
+        learn(created.id(), "여림", 1);
+        flushAndClear();
+
+        assertThat(techniqueFinder.view(created.id()).learnerCount()).isEqualTo(2);
+        assertThat(techniqueFinder.view(other.id()).learnerCount()).isZero();
+        assertThat(techniqueFinder.viewAll()).extracting(TechniqueView::learnerCount).containsExactly(2L, 0L);
+    }
+
+    /** 공법 정의 쪽 테스트라 익힌 공법은 캐릭터·익힌 행을 직접 넣어 만든다 */
+    private void learn(Long techniqueId, String characterName, int stage) {
+        PlayerCharacter character = CharacterFixture.createCharacter(
+                (long) characterName.hashCode(), characterName, 10L, CharacterFixture.spiritRoot());
+        entityManager.persist(character);
+        CharacterTechnique learned = CharacterTechnique.learn(character,
+                entityManager.find(Technique.class, techniqueId));
+        ReflectionTestUtils.setField(learned, "stage", stage);
+        entityManager.persist(learned);
+    }
+
+    private static TechniqueSaveRequest changchunWithStageCount(int count) {
+        TechniqueSaveRequest request = changchunRequest("장춘공");
+        return new TechniqueSaveRequest(request.name(), request.description(), request.elements(),
+                request.startRealm(), request.stages().subList(0, count), request.abilities().subList(0, count));
     }
 
     private ItemType scroll(String name, Long techniqueId) {

@@ -6,6 +6,8 @@ import mudmk3.application.account.provided.AccountFinder;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.character.provided.CharacterRealmEditor;
+import mudmk3.application.character.provided.RealmChangedEvent;
 import mudmk3.application.character.provided.WorldNotReadyException;
 import mudmk3.application.character.required.CharacterRepository;
 import mudmk3.application.inventory.provided.InventoryEditor;
@@ -22,6 +24,7 @@ import mudmk3.domain.shared.Realm;
 import mudmk3.support.stereotype.ApplicationService;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,13 +36,14 @@ import static java.util.Objects.requireNonNull;
 @Slf4j
 @ApplicationService
 @RequiredArgsConstructor
-public class CharacterModifyService implements CharacterCreator, CharacterMover {
+public class CharacterModifyService implements CharacterCreator, CharacterMover, CharacterRealmEditor {
 
     private final CharacterFinder characterFinder;
     private final CharacterRepository characterRepository;
     private final AccountFinder accountFinder;
     private final WorldSettingsFinder worldSettingsFinder;
     private final InventoryEditor inventoryEditor;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public PlayerCharacter create(Long accountId, String name) {
@@ -55,6 +59,29 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover 
     public void chooseSpiritRoot(Long characterId, SpiritRoot spiritRoot) {
         PlayerCharacter character = characterFinder.find(characterId);
         character.chooseSpiritRoot(spiritRoot);
+        characterRepository.save(character);
+    }
+
+    @Override
+    public void designate(Long characterId, Realm realm) {
+        requireNonNull(realm);
+        PlayerCharacter character = characterFinder.find(characterId);
+        Realm from = character.getRealm();
+        if (from == realm) {
+            return;
+        }
+        character.changeRealm(realm);
+        characterRepository.save(character);
+        eventPublisher.publishEvent(new RealmChangedEvent(characterId, from, realm));
+    }
+
+    @Override
+    public void initiate(Long characterId) {
+        PlayerCharacter character = characterFinder.find(characterId);
+        if (character.getRealm() != Realm.MORTAL) {
+            return;
+        }
+        character.changeRealm(Realm.QI_1);
         characterRepository.save(character);
     }
 

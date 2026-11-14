@@ -54,13 +54,19 @@ public class TechniqueModifyService implements TechniqueEditor {
         techniqueRepository.delete(technique);
     }
 
-    /** 익힌 캐릭터의 단계보다 단계 수를 줄이면 {@code TechniqueInUseException}(409). Task 5가 채운다 */
-    @SuppressWarnings("unused")
+    /** 익힌 캐릭터의 단계보다 단계 수를 줄이면 {@code TechniqueInUseException}(409) */
     private void checkStageCount(Technique technique, int newCount) {
+        int maxLearned = techniqueRepository.maxLearnedStage(requireNonNull(technique.getId())).orElse(0);
+        if (newCount < maxLearned) {
+            throw new TechniqueInUseException("이 공법을 더 높은 단계까지 익힌 캐릭터가 있어 단계 수를 줄일 수 없습니다.");
+        }
     }
 
-    /** 익힌 캐릭터·담긴 물건이 있으면 {@code TechniqueInUseException}(409). 익힌 캐릭터는 Task 5가 채운다 */
+    /** 익힌 캐릭터가 있으면, 그다음 담긴 물건이 있으면 {@code TechniqueInUseException}(409) */
     private void checkDeletable(Technique technique) {
+        if (techniqueRepository.countLearners(requireNonNull(technique.getId())) > 0) {
+            throw new TechniqueInUseException("익힌 캐릭터가 있는 공법은 지울 수 없습니다: " + technique.getName());
+        }
         List<ScrollItem> scrollItems = techniqueRepository.findScrollItems(requireNonNull(technique.getId()));
         if (!scrollItems.isEmpty()) {
             throw new TechniqueInUseException("이 공법이 담긴 물건이 있어 지울 수 없습니다: " + scrollItems.getFirst().name());
