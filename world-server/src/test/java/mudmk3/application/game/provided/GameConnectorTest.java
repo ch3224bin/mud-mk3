@@ -1622,11 +1622,11 @@ class GameConnectorTest extends BaseGameTest {
         assertError("a", "귀속 해제", "무엇의 귀속을 푸시겠습니까? (예: 귀속 해제 비검)");
         assertError("a", "귀속 곰", "그런 물건은 가지고 있지 않습니다.");
         assertError("a", "귀속 해제 곰", "그런 물건은 가지고 있지 않습니다.");
-        assertError("a", "귀속 회춘단", "회춘단(연기 초)는 귀속할 수 없습니다.");
+        assertError("a", "귀속 회춘단", "단약은 귀속할 수 없습니다.");
         assertError("a", "귀속 해제 비검", "귀속된 물건이 아닙니다.");
         assertError("a", "귀속 해제 꾸러미", "퀘스트 물건과 본명법보는 이렇게 풀 수 없습니다.");
         gameConnector.handle("a", "귀속 비검");
-        assertError("a", "귀속 비검", "이미 귀속된 물건입니다.");
+        assertError("a", "귀속 비검", "이미 당신에게 귀속된 물건입니다.");
     }
 
     @Test

@@ -67,7 +67,7 @@ class ItemCommandHandler {
     static final String BOUND_GIVE = "귀속된 물건은 남에게 줄 수 없습니다.";
     static final String BIND_NO_ARGUMENT = "무엇을 귀속하시겠습니까? (예: 귀속 비검)";
     static final String UNBIND_NO_ARGUMENT = "무엇의 귀속을 푸시겠습니까? (예: 귀속 해제 비검)";
-    static final String ALREADY_BOUND = "이미 귀속된 물건입니다.";
+    static final String ALREADY_BOUND = "이미 당신에게 귀속된 물건입니다.";
     static final String NOT_BOUND = "귀속된 물건이 아닙니다.";
     static final String QUEST_UNBIND = "퀘스트 물건과 본명법보는 이렇게 풀 수 없습니다.";
 
@@ -405,7 +405,8 @@ class ItemCommandHandler {
         ItemType itemType = entry.getItemType();
         String itemName = itemType.getName();
         if (!itemType.isBindable()) {
-            send.accept(sessionId, SystemMessage.error(Josa.withEunNeun(itemName) + " 귀속할 수 없습니다."));
+            send.accept(sessionId, SystemMessage.error(
+                    Josa.withEunNeun(itemType.getCategory().koreanName()) + " 귀속할 수 없습니다."));
             return;
         }
         if (entry.isBound()) {
