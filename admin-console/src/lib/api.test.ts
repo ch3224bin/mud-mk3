@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiFetch, deleteExit, listZones, putExit } from "./api";
+import { ApiError, apiFetch, createNpc, deleteExit, listZones, putExit, updateZone } from "./api";
 
 const fetchMock = vi.fn();
 
@@ -97,5 +97,46 @@ describe("putExit", () => {
     expect(init.method).toBe("PUT");
     expect(init.body).toBe('{"targetRoomId":4,"twoWay":true}');
     expect(headersOf(init).get("X-MUD-Client")).toBe("1");
+  });
+});
+
+describe("createNpc", () => {
+  it("POST /api/admin/npcs 에 낱말 목록과 배치 방(null)을 보낸다", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, { id: 4 }));
+
+    await createNpc({
+      name: "왕씨",
+      greeting: "어서 오시오.",
+      defaultAnswer: "글쎄, 잘 모르겠구려.",
+      topics: [{ word: "단약", answer: "단약은 귀하오." }],
+      llmEnabled: false,
+      roomId: null,
+    });
+
+    const { url, init } = lastCall();
+    expect(url).toBe("http://localhost:8080/api/admin/npcs");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({
+      name: "왕씨",
+      greeting: "어서 오시오.",
+      defaultAnswer: "글쎄, 잘 모르겠구려.",
+      topics: [{ word: "단약", answer: "단약은 귀하오." }],
+      llmEnabled: false,
+      roomId: null,
+    });
+    expect(headersOf(init).get("X-MUD-Client")).toBe("1");
+  });
+});
+
+describe("updateZone", () => {
+  it("PUT /api/admin/zones/{id} 에 소유 성·종문 id 를 보낸다", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { id: 2 }));
+
+    await updateZone(2, { name: "청석숲", description: "", ownerId: 7 });
+
+    const { url, init } = lastCall();
+    expect(url).toBe("http://localhost:8080/api/admin/zones/2");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ name: "청석숲", description: "", ownerId: 7 });
   });
 });

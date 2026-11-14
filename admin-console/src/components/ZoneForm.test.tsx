@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { ApiError } from "../lib/api";
+import { ApiError, type FactionResponse } from "../lib/api";
 import ZoneForm from "./ZoneForm";
 
 describe("ZoneForm", () => {
@@ -40,18 +40,53 @@ describe("ZoneForm", () => {
     await user.type(screen.getByLabelText("분위기 묘사"), "조용한 마을");
     await user.click(screen.getByRole("button", { name: "지역 만들기" }));
 
-    expect(onSubmit).toHaveBeenCalledWith({ name: "청우촌", description: "조용한 마을" });
+    expect(onSubmit).toHaveBeenCalledWith({ name: "청우촌", description: "조용한 마을", ownerId: null });
     expect(screen.getByLabelText("이름")).toHaveValue("");
   });
 
   it("저장이 실패하면 오류 문구를 보인다", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn().mockRejectedValue(new ApiError(409, "이미 있는 지역 이름입니다."));
-    render(<ZoneForm submitLabel="저장" initial={{ name: "청우촌", description: "" }} onSubmit={onSubmit} />);
+    render(<ZoneForm submitLabel="저장" initial={{ name: "청우촌", description: "", ownerId: null }} onSubmit={onSubmit} />);
 
     await user.click(screen.getByRole("button", { name: "저장" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("이미 있는 지역 이름입니다.");
     expect(screen.getByLabelText("이름")).toHaveValue("청우촌");
+  });
+
+  it("소유를 고르면 그 성·종문의 id 를 넘긴다", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const factions: FactionResponse[] = [
+      { id: 7, kind: "CASTLE", kindName: "성", name: "청석성", description: "", zoneCount: 0 },
+      { id: 8, kind: "SECT", kindName: "종문", name: "황풍곡", description: "", zoneCount: 0 },
+    ];
+    render(<ZoneForm submitLabel="지역 만들기" factions={factions} onSubmit={onSubmit} />);
+
+    const owner = screen.getByLabelText("소유");
+    expect(owner).toHaveValue("");
+    expect(screen.getByRole("option", { name: "없음" })).toBeInTheDocument();
+    await user.type(screen.getByLabelText("이름"), "청석숲");
+    await user.selectOptions(owner, screen.getByRole("option", { name: "청석성 (성)" }));
+    await user.click(screen.getByRole("button", { name: "지역 만들기" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({ name: "청석숲", description: "", ownerId: 7 });
+  });
+
+  it("고치는 폼은 지금 소유가 골라진 채로 열린다", () => {
+    const factions: FactionResponse[] = [
+      { id: 8, kind: "SECT", kindName: "종문", name: "황풍곡", description: "", zoneCount: 1 },
+    ];
+    render(
+      <ZoneForm
+        submitLabel="저장"
+        factions={factions}
+        initial={{ name: "청석숲", description: "", ownerId: 8 }}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("소유")).toHaveValue("8");
   });
 });

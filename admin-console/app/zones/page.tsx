@@ -9,11 +9,14 @@ import {
   createZone,
   deleteZone,
   errorMessage,
+  type FactionResponse,
+  listFactions,
   listZones,
   updateZone,
   type ZoneResponse,
   type ZoneSaveRequest,
 } from "../../src/lib/api";
+import { factionLabel } from "../../src/lib/factions";
 
 export default function ZonesPage() {
   return (
@@ -25,12 +28,15 @@ export default function ZonesPage() {
 
 function ZonesView() {
   const [zones, setZones] = useState<ZoneResponse[] | null>(null);
+  const [factions, setFactions] = useState<FactionResponse[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      setZones(await listZones());
+      const [loadedZones, loadedFactions] = await Promise.all([listZones(), listFactions()]);
+      setZones(loadedZones);
+      setFactions(loadedFactions);
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -84,6 +90,7 @@ function ZonesView() {
               <tr>
                 <th>이름</th>
                 <th>방 수</th>
+                <th>소유</th>
                 <th />
               </tr>
             </thead>
@@ -91,10 +98,11 @@ function ZonesView() {
               {zones.map((zone) =>
                 editingId === zone.id ? (
                   <tr key={zone.id}>
-                    <td colSpan={3}>
+                    <td colSpan={4}>
                       <ZoneForm
                         submitLabel="저장"
-                        initial={{ name: zone.name, description: zone.description }}
+                        factions={factions}
+                        initial={{ name: zone.name, description: zone.description, ownerId: zone.ownerId }}
                         onSubmit={(request) => handleUpdate(zone.id, request)}
                       />
                       <button type="button" onClick={() => setEditingId(null)}>
@@ -108,6 +116,11 @@ function ZonesView() {
                       <Link href={`/zone/?id=${zone.id}`}>{zone.name}</Link>
                     </td>
                     <td>{zone.roomCount}</td>
+                    <td>
+                      {zone.ownerName !== null && zone.ownerKind !== null
+                        ? factionLabel(zone.ownerName, zone.ownerKind)
+                        : "-"}
+                    </td>
                     <td className="actions">
                       <button type="button" onClick={() => setEditingId(zone.id)}>
                         수정
@@ -123,7 +136,7 @@ function ZonesView() {
           </table>
         )}
         <h2>지역 만들기</h2>
-        <ZoneForm submitLabel="지역 만들기" onSubmit={handleCreate} />
+        <ZoneForm submitLabel="지역 만들기" factions={factions} onSubmit={handleCreate} />
       </main>
     </>
   );

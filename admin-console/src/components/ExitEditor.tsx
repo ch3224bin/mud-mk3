@@ -1,20 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useEffect, useState } from "react";
-import {
-  deleteExit,
-  errorMessage,
-  type ExitResponse,
-  getRoom,
-  listRooms,
-  listZones,
-  putExit,
-  type RoomDetailResponse,
-  type RoomSummaryResponse,
-  type ZoneResponse,
-} from "../lib/api";
+import { type FormEvent, useState } from "react";
+import { deleteExit, errorMessage, type ExitResponse, getRoom, putExit, type RoomDetailResponse } from "../lib/api";
 import { DIRECTIONS, type DirectionCode } from "../lib/directions";
+import RoomPicker from "./RoomPicker";
 
 type Props = {
   room: RoomDetailResponse;
@@ -23,35 +13,11 @@ type Props = {
 
 /** 방의 출구 표와 출구 추가 폼. "반대 방향도" 체크는 추가와 삭제 모두에 쓴다. */
 export default function ExitEditor({ room, onRoomChange }: Props) {
-  const [zones, setZones] = useState<ZoneResponse[]>([]);
   const [direction, setDirection] = useState<DirectionCode | "">("");
-  const [targetZoneId, setTargetZoneId] = useState<number | null>(null);
-  const [targetRooms, setTargetRooms] = useState<RoomSummaryResponse[]>([]);
   const [targetRoomId, setTargetRoomId] = useState<number | null>(null);
   const [twoWay, setTwoWay] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    listZones()
-      .then(setZones)
-      .catch((e) => setError(errorMessage(e)));
-  }, []);
-
-  useEffect(() => {
-    setTargetRoomId(null);
-    setTargetRooms([]);
-    if (targetZoneId === null) {
-      return;
-    }
-    let active = true;
-    listRooms(targetZoneId)
-      .then((rooms) => active && setTargetRooms(rooms.filter((r) => r.id !== room.id)))
-      .catch((e) => active && setError(errorMessage(e)));
-    return () => {
-      active = false;
-    };
-  }, [targetZoneId, room.id]);
 
   async function handleAdd(event: FormEvent) {
     event.preventDefault();
@@ -130,34 +96,16 @@ export default function ExitEditor({ room, onRoomChange }: Props) {
             ))}
           </select>
         </label>
-        <label>
-          대상 지역
-          <select
-            value={targetZoneId ?? ""}
-            onChange={(e) => setTargetZoneId(e.target.value ? Number(e.target.value) : null)}
-          >
-            <option value="">지역 선택</option>
-            {zones.map((zone) => (
-              <option key={zone.id} value={zone.id}>
-                {zone.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          대상 방
-          <select
-            value={targetRoomId ?? ""}
-            onChange={(e) => setTargetRoomId(e.target.value ? Number(e.target.value) : null)}
-          >
-            <option value="">방 선택</option>
-            {targetRooms.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <RoomPicker
+          value={targetRoomId}
+          onChange={setTargetRoomId}
+          zoneLabel="대상 지역"
+          roomLabel="대상 방"
+          zonePlaceholder="지역 선택"
+          roomPlaceholder="방 선택"
+          excludeRoomId={room.id}
+          onError={setError}
+        />
         <label className="checkbox">
           <input type="checkbox" checked={twoWay} onChange={(e) => setTwoWay(e.target.checked)} />
           반대 방향도

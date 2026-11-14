@@ -13,7 +13,24 @@ export class ApiError extends Error {
   }
 }
 
-export type ZoneResponse = { id: number; name: string; description: string; roomCount: number };
+export type FactionKind = "CASTLE" | "SECT";
+export type FactionResponse = {
+  id: number;
+  kind: FactionKind;
+  kindName: string;
+  name: string;
+  description: string;
+  zoneCount: number;
+};
+export type ZoneResponse = {
+  id: number;
+  name: string;
+  description: string;
+  roomCount: number;
+  ownerId: number | null;
+  ownerName: string | null;
+  ownerKind: FactionKind | null;
+};
 export type RoomSummaryResponse = { id: number; name: string; exitCount: number };
 export type ExitResponse = {
   direction: DirectionCode;
@@ -30,6 +47,7 @@ export type RoomDetailResponse = {
   description: string;
   start: boolean;
   exits: ExitResponse[];
+  npcs: { id: number; name: string }[];
 };
 export type WorldResponse = {
   startRoomId: number | null;
@@ -37,7 +55,40 @@ export type WorldResponse = {
   startZoneName: string | null;
 };
 
-export type ZoneSaveRequest = { name: string; description: string };
+export type NpcTopic = { word: string; answer: string };
+export type NpcSummaryResponse = {
+  id: number;
+  name: string;
+  llmEnabled: boolean;
+  topicCount: number;
+  roomId: number | null;
+  roomName: string | null;
+  zoneName: string | null;
+};
+export type NpcDetailResponse = {
+  id: number;
+  name: string;
+  greeting: string;
+  defaultAnswer: string;
+  topics: NpcTopic[];
+  llmEnabled: boolean;
+  roomId: number | null;
+  roomName: string | null;
+  zoneId: number | null;
+  zoneName: string | null;
+};
+
+export type FactionSaveRequest = { kind: FactionKind; name: string; description: string };
+export type ZoneSaveRequest = { name: string; description: string; ownerId: number | null };
+/** llmEnabled 는 서버에서 필수 값이라 늘 보낸다. roomId 가 null 이면 배치하지 않는다 */
+export type NpcSaveRequest = {
+  name: string;
+  greeting: string;
+  defaultAnswer: string;
+  topics: NpcTopic[];
+  llmEnabled: boolean;
+  roomId: number | null;
+};
 export type RoomSaveRequest = { zoneId: number; name: string; description: string };
 export type ExitSaveRequest = { targetRoomId: number; twoWay: boolean };
 
@@ -75,6 +126,14 @@ function jsonBody(method: string, body: unknown): RequestInit {
   return { method, body: JSON.stringify(body) };
 }
 
+export const listFactions = () => apiFetch<FactionResponse[]>("/api/admin/factions");
+export const createFaction = (request: FactionSaveRequest) =>
+  apiFetch<FactionResponse>("/api/admin/factions", jsonBody("POST", request));
+export const updateFaction = (factionId: number, request: FactionSaveRequest) =>
+  apiFetch<FactionResponse>(`/api/admin/factions/${factionId}`, jsonBody("PUT", request));
+export const deleteFaction = (factionId: number) =>
+  apiFetch<void>(`/api/admin/factions/${factionId}`, { method: "DELETE" });
+
 export const listZones = () => apiFetch<ZoneResponse[]>("/api/admin/zones");
 export const createZone = (request: ZoneSaveRequest) =>
   apiFetch<ZoneResponse>("/api/admin/zones", jsonBody("POST", request));
@@ -94,6 +153,14 @@ export const putExit = (roomId: number, direction: DirectionCode, request: ExitS
   apiFetch<RoomDetailResponse>(`/api/admin/rooms/${roomId}/exits/${direction}`, jsonBody("PUT", request));
 export const deleteExit = (roomId: number, direction: DirectionCode, twoWay: boolean) =>
   apiFetch<void>(`/api/admin/rooms/${roomId}/exits/${direction}?twoWay=${twoWay}`, { method: "DELETE" });
+
+export const listNpcs = () => apiFetch<NpcSummaryResponse[]>("/api/admin/npcs");
+export const getNpc = (npcId: number) => apiFetch<NpcDetailResponse>(`/api/admin/npcs/${npcId}`);
+export const createNpc = (request: NpcSaveRequest) =>
+  apiFetch<NpcDetailResponse>("/api/admin/npcs", jsonBody("POST", request));
+export const updateNpc = (npcId: number, request: NpcSaveRequest) =>
+  apiFetch<NpcDetailResponse>(`/api/admin/npcs/${npcId}`, jsonBody("PUT", request));
+export const deleteNpc = (npcId: number) => apiFetch<void>(`/api/admin/npcs/${npcId}`, { method: "DELETE" });
 
 export const getWorld = () => apiFetch<WorldResponse>("/api/admin/world");
 export const setStartRoom = (roomId: number) =>

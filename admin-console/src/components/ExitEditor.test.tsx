@@ -30,6 +30,7 @@ const room: RoomDetailResponse = {
       targetZoneName: "청우촌",
     },
   ],
+  npcs: [],
 };
 
 const updatedRoom: RoomDetailResponse = { ...room, exits: [] };
@@ -37,8 +38,8 @@ const updatedRoom: RoomDetailResponse = { ...room, exits: [] };
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.listZones).mockResolvedValue([
-    { id: 1, name: "청우촌", description: "", roomCount: 2 },
-    { id: 2, name: "청석숲", description: "", roomCount: 1 },
+    { id: 1, name: "청우촌", description: "", roomCount: 2, ownerId: null, ownerName: null, ownerKind: null },
+    { id: 2, name: "청석숲", description: "", roomCount: 1, ownerId: null, ownerName: null, ownerKind: null },
   ]);
   vi.mocked(api.listRooms).mockImplementation(async (zoneId) =>
     zoneId === 2 ? [{ id: 4, name: "청석숲 오솔길", exitCount: 0 }] : [{ id: 3, name: "마을 어귀", exitCount: 1 }],

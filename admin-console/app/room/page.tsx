@@ -118,6 +118,18 @@ function RoomView() {
               onSubmit={handleUpdate}
             />
             <ExitEditor key={`exits-${room.id}`} room={room} onRoomChange={setRoom} />
+            <h2>이 방의 NPC</h2>
+            {room.npcs.length === 0 ? (
+              <p className="muted">없음</p>
+            ) : (
+              <ul>
+                {room.npcs.map((npc) => (
+                  <li key={npc.id}>
+                    <Link href={`/npc/?id=${npc.id}`}>{npc.name}</Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </>
         )}
       </main>
