@@ -1,6 +1,7 @@
 package mudmk3.adapter.webapi;
 
 import mudmk3.adapter.security.WebMvcSecurityTestConfiguration;
+import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.room.provided.ExitConflictException;
 import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
@@ -19,6 +20,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.util.List;
+
 import static mudmk3.adapter.security.SecurityFixture.admin;
 import static mudmk3.adapter.security.SecurityFixture.clientHeader;
 import static mudmk3.adapter.security.SecurityFixture.player;
@@ -34,9 +37,9 @@ import static org.mockito.Mockito.when;
 
 @WebMvcTest(RoomApi.class)
 @Import(WebMvcSecurityTestConfiguration.class)
-@MockitoBean(types = {RoomFinder.class, RoomEditor.class, WorldSettingsFinder.class})
+@MockitoBean(types = {RoomFinder.class, RoomEditor.class, WorldSettingsFinder.class, NpcFinder.class})
 record RoomApiWebMvcTest(MockMvcTester mvc, RoomFinder roomFinder, RoomEditor roomEditor,
-                         WorldSettingsFinder worldSettingsFinder) {
+                         WorldSettingsFinder worldSettingsFinder, NpcFinder npcFinder) {
 
     @Test
     void get() {
@@ -54,8 +57,21 @@ record RoomApiWebMvcTest(MockMvcTester mvc, RoomFinder roomFinder, RoomEditor ro
                  "exits":[
                    {"direction":"NORTH","directionName":"북","targetRoomId":11,"targetRoomName":"오솔길","targetZoneName":"청석숲"},
                    {"direction":"UP","directionName":"위","targetRoomId":12,"targetRoomName":"바람 언덕","targetZoneName":"황풍곡"}
-                 ]}""");
+                 ],
+                 "npcs":[]}""");
         json.extractingPath("$.exits[0].directionName").isEqualTo("북");
+    }
+
+    @Test
+    void getWithNpcs() {
+        when(roomFinder.find(10L)).thenReturn(room(zone(1L, "청석숲"), 10L, "샘터"));
+        when(npcFinder.findAllInRoom(10L)).thenReturn(List.of(NpcApiWebMvcTest.npc(4L, "왕씨"), NpcApiWebMvcTest.npc(5L, "이씨")));
+
+        var json = assertThat(mvc.get().with(admin()).uri("/api/admin/rooms/10")).hasStatusOk().bodyJson();
+        json.extractingPath("$.npcs[0].name").isEqualTo("왕씨");
+        json.extractingPath("$.npcs[1].name").isEqualTo("이씨");
+        json.isLenientlyEqualTo("""
+                {"npcs":[{"id":4,"name":"왕씨"},{"id":5,"name":"이씨"}]}""");
     }
 
     @Test

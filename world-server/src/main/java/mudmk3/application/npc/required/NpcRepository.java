@@ -29,5 +29,8 @@ public interface NpcRepository extends Repository<Npc, Long> {
     /** 영문 대소문자를 가리지 않고 같은 이름이 있는지 */
     boolean existsByNameIgnoreCase(String name);
 
+    /** 영문 대소문자를 가리지 않고 다른 NPC가 같은 이름을 쓰는지 */
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
+
     void delete(Npc npc);
 }

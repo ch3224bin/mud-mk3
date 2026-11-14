@@ -100,6 +100,41 @@ record AdminApiIntegrationTest(MockMvcTester mvc) {
                 .hasStatus(HttpStatus.NO_CONTENT);
     }
 
+    @Test
+    void manageNpcs() {
+        long zoneId = id(post("/api/admin/zones", """
+                {"name":"청우촌"}"""));
+        long roomId = id(post("/api/admin/rooms", """
+                {"zoneId":%d,"name":"마을 어귀","description":"마을로 들어서는 길목이다."}""".formatted(zoneId)));
+        String topics = """
+                [{"word":"단약","answer":"단약은 귀한 물건이오."},{"word":"[일거리]","answer":"숲의 늑대를 잡아 주시오."}]""";
+        long npcId = id(post("/api/admin/npcs", """
+                {"name":"왕씨","greeting":"어서 오시오.","defaultAnswer":"글쎄.","topics":%s,"llmEnabled":false,"roomId":%d}"""
+                .formatted(topics, roomId)));
+
+        var detail = assertThat(mvc.get().with(admin()).uri("/api/admin/npcs/%d".formatted(npcId))).hasStatusOk().bodyJson();
+        detail.extractingPath("$.roomName").isEqualTo("마을 어귀");
+        detail.extractingPath("$.zoneName").isEqualTo("청우촌");
+        detail.extractingPath("$.topics[1].word").isEqualTo("일거리");
+        var list = assertThat(mvc.get().with(admin()).uri("/api/admin/npcs")).hasStatusOk().bodyJson();
+        list.extractingPath("$[?(@.id==%d)].topicCount".formatted(npcId)).asArray().containsExactly(2);
+        list.extractingPath("$[?(@.id==%d)].zoneName".formatted(npcId)).asArray().containsExactly("청우촌");
+        assertThat(mvc.get().with(admin()).uri("/api/admin/rooms/%d".formatted(roomId))).hasStatusOk().bodyJson()
+                .extractingPath("$.npcs[0].name").isEqualTo("왕씨");
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/rooms/%d".formatted(roomId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        var unplaced = assertThat(mvc.get().with(admin()).uri("/api/admin/npcs/%d".formatted(npcId))).hasStatusOk().bodyJson();
+        unplaced.extractingPath("$.roomId").isNull();
+        unplaced.extractingPath("$.roomName").isNull();
+
+        // 같은 DB를 쓰는 다른 테스트의 지역 목록 순서를 흐리지 않게 지운다
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/npcs/%d".formatted(npcId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/zones/%d".formatted(zoneId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+    }
+
     private MvcTestResult post(String uri, String json) {
         return mvc.post().with(admin()).with(clientHeader()).uri(uri).contentType(MediaType.APPLICATION_JSON).content(json).exchange();
     }

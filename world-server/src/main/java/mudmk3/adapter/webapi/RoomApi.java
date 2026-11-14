@@ -3,6 +3,8 @@ package mudmk3.adapter.webapi;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import mudmk3.adapter.webapi.dto.RoomDetailResponse;
+import mudmk3.adapter.webapi.dto.RoomNpcResponse;
+import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.room.provided.RoomFinder;
@@ -31,6 +33,7 @@ public class RoomApi {
     private final RoomFinder roomFinder;
     private final RoomEditor roomEditor;
     private final WorldSettingsFinder worldSettingsFinder;
+    private final NpcFinder npcFinder;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -68,6 +71,7 @@ public class RoomApi {
     }
 
     private RoomDetailResponse toResponse(Room room) {
-        return RoomDetailResponse.of(room, worldSettingsFinder.isStartRoom(room.getId()));
+        return RoomDetailResponse.of(room, worldSettingsFinder.isStartRoom(room.getId()),
+                npcFinder.findAllInRoom(room.getId()).stream().map(RoomNpcResponse::of).toList());
     }
 }

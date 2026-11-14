@@ -1,6 +1,5 @@
 package mudmk3.domain.npc;
 
-import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -11,11 +10,9 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.Objects.requireNonNull;
@@ -44,7 +41,6 @@ public class Npc extends AbstractEntity {
     private @Nullable Long roomId;
 
     @Getter(AccessLevel.NONE)
-    @ElementCollection
     private List<NpcTopic> topics = new ArrayList<>();
 
     public static Npc create(NpcSaveInfo info) {
@@ -113,10 +109,11 @@ public class Npc extends AbstractEntity {
         this.topics.addAll(newTopics);
     }
 
+    /** 같은 낱말인지는 대화에서 낱말을 찾을 때와 같은 규칙({@link NpcTopic#matches})으로 본다 */
     private static void ensureNoDuplicateWord(List<NpcTopic> topics) {
-        Set<String> seen = new HashSet<>();
-        for (NpcTopic topic : topics) {
-            if (!seen.add(topic.word().toLowerCase(Locale.ROOT))) {
+        for (int i = 0; i < topics.size(); i++) {
+            NpcTopic topic = topics.get(i);
+            if (topics.subList(0, i).stream().anyMatch(earlier -> earlier.matches(topic.word()))) {
                 throw new IllegalArgumentException("같은 낱말이 두 번 있습니다: " + topic.word());
             }
         }

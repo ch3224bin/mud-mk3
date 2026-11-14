@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import mudmk3.ApplicationServiceTest;
 import mudmk3.application.account.provided.AccountLogin;
 import mudmk3.application.account.provided.AccountLoginRequest;
+import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
@@ -15,6 +16,7 @@ import mudmk3.domain.room.Room;
 import mudmk3.domain.zone.Zone;
 import org.junit.jupiter.api.Test;
 
+import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,6 +30,7 @@ record CharacterCreatorTest(
         ZoneEditor zoneEditor,
         RoomEditor roomEditor,
         WorldSettingsEditor worldSettingsEditor,
+        NpcEditor npcEditor,
         EntityManager entityManager
 ) {
 
@@ -64,6 +67,19 @@ record CharacterCreatorTest(
         assertThatThrownBy(() -> characterCreator.create(otherAccountId, "한백"))
                 .isInstanceOf(DuplicateCharacterNameException.class)
                 .hasMessage("이미 있는 이름입니다. 다른 이름을 정하십시오.");
+    }
+
+    @Test
+    void createCharacterWithNpcNameFail() {
+        prepareStartRoom();
+        npcEditor.create(createNpcSaveRequest("왕씨", null));
+        Long accountId = prepareAccount("hanbaek@example.com");
+
+        assertThat(characterFinder.isNameTaken("왕씨")).isTrue();
+        assertThatThrownBy(() -> characterCreator.create(accountId, "왕씨"))
+                .isInstanceOf(DuplicateCharacterNameException.class)
+                .hasMessage("이미 있는 이름입니다. 다른 이름을 정하십시오.");
+        assertThat(characterFinder.findByAccountId(accountId)).isEmpty();
     }
 
     @Test

@@ -36,7 +36,7 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover 
         if (characterFinder.findByAccountId(accountId).isPresent()) {
             throw new CharacterAlreadyExistsException("이미 캐릭터가 있습니다");
         }
-        if (characterRepository.existsByName(characterName)) {
+        if (characterFinder.isNameTaken(characterName.value())) {
             throw new DuplicateCharacterNameException("이미 있는 이름입니다. 다른 이름을 정하십시오.");
         }
         Room startRoom = worldSettingsFinder.findStartRoom()

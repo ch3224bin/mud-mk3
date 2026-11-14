@@ -16,6 +16,7 @@ import mudmk3.application.game.required.GameMessage.RoomMessage.OccupantView;
 import mudmk3.application.game.required.GameMessage.SayMessage;
 import mudmk3.application.game.required.GameMessage.SessionMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
+import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ApplicationServiceTest
@@ -30,6 +32,8 @@ class GameConnectorTest extends BaseGameTest {
 
     private static final String NAME_PROMPT = "이름을 정하십시오. (한글 2~6자)";
     private static final String UNKNOWN = "무슨 말인지 모르겠습니다. ('도움말' 로 명령을 볼 수 있습니다)";
+
+    private final NpcEditor npcEditor;
 
     GameConnectorTest(
             GameConnector gameConnector,
@@ -41,10 +45,12 @@ class GameConnectorTest extends BaseGameTest {
             ZoneEditor zoneEditor,
             RoomEditor roomEditor,
             WorldSettingsEditor worldSettingsEditor,
+            NpcEditor npcEditor,
             EntityManager entityManager
     ) {
         super(gameConnector, sender, accountLogin, characterCreator, characterFinder, characterMover,
                 zoneEditor, roomEditor, worldSettingsEditor, entityManager);
+        this.npcEditor = npcEditor;
     }
 
     @Test
@@ -129,6 +135,20 @@ class GameConnectorTest extends BaseGameTest {
         sender.clear();
 
         gameConnector.handle("s1", "한백");
+
+        assertThat(sender.messagesTo("s1")).containsExactly(
+                new SystemMessage("이미 있는 이름입니다. 다른 이름을 정하십시오.", "error"),
+                new PromptMessage(NAME_PROMPT));
+    }
+
+    @Test
+    void createCharacterWithNpcNameFail() {
+        prepareMap();
+        npcEditor.create(createNpcSaveRequest("왕씨", null));
+        connect("s1", prepareAccount("hanbaek@example.com"));
+        sender.clear();
+
+        gameConnector.handle("s1", "왕씨");
 
         assertThat(sender.messagesTo("s1")).containsExactly(
                 new SystemMessage("이미 있는 이름입니다. 다른 이름을 정하십시오.", "error"),
