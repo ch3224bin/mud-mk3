@@ -12,6 +12,8 @@ import {
   getItemType,
   type ItemTypeResponse,
   type ItemTypeSaveRequest,
+  listTechniques,
+  type TechniqueSummaryResponse,
   updateItemType,
 } from "../../src/lib/api";
 
@@ -31,9 +33,21 @@ function ItemView() {
   const itemTypeId = idParam === null ? null : Number(idParam);
   const router = useRouter();
   const [itemType, setItemType] = useState<ItemTypeResponse | null>(null);
+  // `담긴 공법` 선택지. 다 읽기 전에는 빈 목록이다.
+  const [techniques, setTechniques] = useState<TechniqueSummaryResponse[]>([]);
   // 저장하면 서버가 다듬은 값(이름 공백 등)으로 폼을 다시 연다.
   const [savedCount, setSavedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    listTechniques()
+      .then((loaded) => active && setTechniques(loaded))
+      .catch((e) => active && setError(errorMessage(e)));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     setItemType(null);
@@ -84,7 +98,7 @@ function ItemView() {
           </p>
         )}
         {itemTypeId === null ? (
-          <ItemForm key="new" onSubmit={handleCreate} />
+          <ItemForm key="new" techniques={techniques} onSubmit={handleCreate} />
         ) : itemType === null ? (
           !error && <p className="muted">불러오는 중…</p>
         ) : (
@@ -99,6 +113,7 @@ function ItemView() {
             <ItemForm
               key={`${itemType.id}-${savedCount}`}
               initial={itemType}
+              techniques={techniques}
               onSubmit={(request) => handleUpdate(itemType.id, request)}
             />
           </>

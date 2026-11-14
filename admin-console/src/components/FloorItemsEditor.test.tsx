@@ -26,6 +26,8 @@ function itemType(id: number, name: string): ItemTypeResponse {
     bagSlots: 0,
     spiritStone: false,
     buyRatePercent: 50,
+    techniqueId: null,
+    techniqueName: null,
   };
 }
 

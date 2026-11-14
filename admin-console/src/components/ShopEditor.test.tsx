@@ -25,6 +25,8 @@ function itemType(id: number, name: string, category: ItemCategoryCode, baseValu
     bagSlots: 0,
     spiritStone: category === "SPIRIT_STONE",
     buyRatePercent: 25,
+    techniqueId: null,
+    techniqueName: null,
   };
 }
 

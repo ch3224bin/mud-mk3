@@ -5,14 +5,21 @@ import {
   createItemType,
   createFloorItem,
   createNpc,
+  createTechnique,
   deleteExit,
   deleteFloorItem,
   deleteShop,
+  deleteTechnique,
+  getTechnique,
+  listRealms,
+  listTechniques,
   listZones,
   putExit,
   saveShop,
   saveStartingItems,
   updateFloorItem,
+  updateItemType,
+  updateTechnique,
   updateZone,
 } from "./api";
 
@@ -166,6 +173,7 @@ describe("createItemType", () => {
       category: "BAG",
       baseValue: 50,
       bagGrade: "LOW",
+      techniqueId: null,
     });
 
     const { url, init } = lastCall();
@@ -177,8 +185,109 @@ describe("createItemType", () => {
       category: "BAG",
       baseValue: 50,
       bagGrade: "LOW",
+      techniqueId: null,
     });
     expect(headersOf(init).get("X-MUD-Client")).toBe("1");
+  });
+
+  it("updateItemType 은 PUT /api/admin/item-types/{id} 에 담긴 공법 techniqueId 를 보낸다", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { id: 8 }));
+
+    await updateItemType(8, {
+      name: "장춘공 옥간",
+      description: "",
+      category: "SCROLL",
+      baseValue: 30,
+      bagGrade: null,
+      techniqueId: 2,
+    });
+
+    const { url, init } = lastCall();
+    expect(url).toBe("http://localhost:8080/api/admin/item-types/8");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual(expect.objectContaining({ category: "SCROLL", techniqueId: 2 }));
+  });
+});
+
+describe("경지·공법", () => {
+  const request = {
+    name: "장춘공",
+    description: "",
+    elements: ["WOOD" as const],
+    startRealm: "MORTAL" as const,
+    stages: [
+      {
+        insightRequired: 0,
+        aptitudeRequired: 0,
+        manaBonus: 0,
+        senseBonus: 0,
+        spiritBonus: 0,
+        essenceBonus: 0,
+        bodyBonus: 0,
+        strengthBonus: 0,
+        aptitudeGain: 0,
+      },
+    ],
+    abilities: [
+      {
+        name: "화탄술",
+        learnStage: 1,
+        kind: "ATTACK" as const,
+        elements: ["FIRE" as const],
+        bodyRefining: false,
+        target: "SINGLE" as const,
+        costStat: "MANA" as const,
+        costAmount: 5,
+        costPerTick: false,
+        castSeconds: 0,
+        cooldownSeconds: 3,
+        usableWhen: "COMBAT_ONLY" as const,
+      },
+    ],
+  };
+
+  it("listRealms·listTechniques·getTechnique 는 GET 이고 X-MUD-Client 를 붙이지 않는다", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(200, []));
+
+    await listRealms();
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/realms");
+    expect(lastCall().init.method).toBe("GET");
+    await listTechniques();
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/techniques");
+    expect(lastCall().init.method).toBe("GET");
+    await getTechnique(2);
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/techniques/2");
+    expect(lastCall().init.method).toBe("GET");
+    expect(headersOf(lastCall().init).has("X-MUD-Client")).toBe(false);
+  });
+
+  it("createTechnique 는 POST /api/admin/techniques 에 단계·신통(bodyRefining·costPerTick 포함)을 보낸다", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, { id: 2 }));
+
+    await createTechnique(request);
+
+    const { url, init } = lastCall();
+    expect(url).toBe("http://localhost:8080/api/admin/techniques");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual(request);
+    expect(JSON.parse(init.body as string).abilities[0]).toHaveProperty("bodyRefining", false);
+    expect(JSON.parse(init.body as string).abilities[0]).toHaveProperty("costPerTick", false);
+    expect(headersOf(init).get("X-MUD-Client")).toBe("1");
+  });
+
+  it("updateTechnique 는 PUT, deleteTechnique 는 DELETE /api/admin/techniques/{id} 로 보낸다", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { id: 2 }));
+    await updateTechnique(2, request);
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/techniques/2");
+    expect(lastCall().init.method).toBe("PUT");
+    expect(JSON.parse(lastCall().init.body as string)).toEqual(request);
+    expect(headersOf(lastCall().init).get("X-MUD-Client")).toBe("1");
+
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(deleteTechnique(2)).resolves.toBeUndefined();
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/techniques/2");
+    expect(lastCall().init.method).toBe("DELETE");
+    expect(headersOf(lastCall().init).get("X-MUD-Client")).toBe("1");
   });
 });
 

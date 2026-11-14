@@ -140,3 +140,27 @@ td {
   border: 1px solid var(--line);
   border-radius: 4px;
 }
+
+.form.wide {
+  max-width: none;
+}
+
+.form.wide > label {
+  max-width: 480px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+input.number {
+  width: 6em;
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}

@@ -15,7 +15,7 @@ export default function ItemsPage() {
   );
 }
 
-/** 겹침 칸에 보일 값. 저물대는 칸을 차지하지 않으므로 대신 주는 칸 수를 보인다 */
+/** 겹침 칸에 보일 값. 저물대·저물탁은 칸을 차지하지 않으므로 대신 주는 칸 수를 보인다 */
 function stackLabel(itemType: ItemTypeResponse): string {
   return itemType.category === "BAG" ? `${formatCount(itemType.bagSlots)}칸` : formatCount(itemType.stackSize);
 }
@@ -57,6 +57,7 @@ function ItemsView() {
                 <th>종류</th>
                 <th>기준가</th>
                 <th>겹침</th>
+                <th>담긴 공법</th>
               </tr>
             </thead>
             <tbody>
@@ -68,6 +69,7 @@ function ItemsView() {
                   <td>{itemType.categoryName}</td>
                   <td>{formatCount(itemType.baseValue)}</td>
                   <td>{stackLabel(itemType)}</td>
+                  <td>{itemType.techniqueName ?? "-"}</td>
                 </tr>
               ))}
             </tbody>

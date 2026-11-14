@@ -7,24 +7,29 @@ import {
   type ItemCategoryCode,
   type ItemTypeResponse,
   type ItemTypeSaveRequest,
+  type TechniqueSummaryResponse,
 } from "../lib/api";
 import { BAG_GRADES, bagGradeLabel, ITEM_CATEGORIES } from "../lib/items";
 
 type Props = {
   /** 있으면 고치는 폼, 없으면 새로 만드는 폼 */
   initial?: ItemTypeResponse;
+  /** `담긴 공법` 선택지(공법 목록). 이름순으로 보인다 */
+  techniques?: TechniqueSummaryResponse[];
   onSubmit: (request: ItemTypeSaveRequest) => Promise<void>;
 };
 
 /**
- * 아이템 종류 폼. 종류 선택에 영석은 없고, 저물대 등급은 종류가 저물대일 때만 보인다.
+ * 아이템 종류 폼. 종류 선택에 영석은 없고, 저물대 등급은 종류가 저물대·저물탁일 때만,
+ * 담긴 공법은 종류가 옥간·서책일 때만 보인다.
  * 영석이면 모든 칸이 읽기 전용이다. 값 검사는 서버에 맡기고 서버의 detail 을 보인다
  */
-export default function ItemForm({ initial, onSubmit }: Props) {
+export default function ItemForm({ initial, techniques = [], onSubmit }: Props) {
   const readOnly = initial?.spiritStone ?? false;
   const [name, setName] = useState(initial?.name ?? "");
   const [category, setCategory] = useState<ItemCategoryCode>(initial?.category ?? ITEM_CATEGORIES[0].code);
   const [bagGrade, setBagGrade] = useState<BagGradeCode>(initial?.bagGrade ?? BAG_GRADES[0].code);
+  const [techniqueId, setTechniqueId] = useState<number | null>(initial?.techniqueId ?? null);
   const [description, setDescription] = useState(initial?.description ?? "");
   const [baseValue, setBaseValue] = useState(String(initial?.baseValue ?? 0));
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +37,7 @@ export default function ItemForm({ initial, onSubmit }: Props) {
 
   // 관리자가 만들 수 있는 종류만 고르게 한다. 영석을 열었을 때만 지금 종류를 함께 보인다.
   const categories = ITEM_CATEGORIES.filter((c) => c.creatable || c.code === initial?.category);
+  const techniqueOptions = techniqueChoices(techniques, initial);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -44,6 +50,7 @@ export default function ItemForm({ initial, onSubmit }: Props) {
         category,
         baseValue: Number(baseValue),
         bagGrade: category === "BAG" ? bagGrade : null,
+        techniqueId: category === "SCROLL" ? techniqueId : null,
       });
     } catch (e) {
       setError(errorMessage(e));
@@ -85,6 +92,23 @@ export default function ItemForm({ initial, onSubmit }: Props) {
           </select>
         </label>
       )}
+      {category === "SCROLL" && (
+        <label>
+          담긴 공법
+          <select
+            value={techniqueId ?? ""}
+            disabled={readOnly}
+            onChange={(e) => setTechniqueId(e.target.value === "" ? null : Number(e.target.value))}
+          >
+            <option value="">없음</option>
+            {techniqueOptions.map((technique) => (
+              <option key={technique.id} value={technique.id}>
+                {technique.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label>
         묘사
         <textarea
@@ -117,4 +141,16 @@ export default function ItemForm({ initial, onSubmit }: Props) {
       )}
     </form>
   );
+}
+
+/** 공법 이름순 선택지. 지금 담긴 공법이 목록에 없으면(다른 곳에서 지움 등) 그 이름을 함께 보인다 */
+function techniqueChoices(
+  techniques: TechniqueSummaryResponse[],
+  initial: ItemTypeResponse | undefined,
+): { id: number; name: string }[] {
+  const choices = techniques.map((t) => ({ id: t.id, name: t.name }));
+  if (initial?.techniqueId != null && !choices.some((c) => c.id === initial.techniqueId)) {
+    choices.push({ id: initial.techniqueId, name: initial.techniqueName ?? String(initial.techniqueId) });
+  }
+  return choices.sort((a, b) => a.name.localeCompare(b.name, "ko"));
 }

@@ -2,7 +2,7 @@ import type { BagGradeCode, ItemCategoryCode, ShopKindCode } from "./api";
 
 /**
  * 아이템 종류 표(world-server ItemCategory 와 같음, 룰북 item.md 종류 순서).
- * stackSize 는 한 칸에 겹치는 수(저물대는 칸을 차지하지 않아 0),
+ * stackSize 는 한 칸에 겹치는 수(저물대·저물탁은 칸을 차지하지 않아 0),
  * creatable 은 관리 툴로 만들 수 있는지(영석은 엔진이 심는다)
  */
 export const ITEM_CATEGORIES: {
@@ -20,7 +20,7 @@ export const ITEM_CATEGORIES: {
   { code: "MATERIAL", name: "재료", stackSize: 99, creatable: true },
   { code: "SCROLL", name: "옥간·서책", stackSize: 99, creatable: true },
   { code: "TOOL", name: "제작 도구", stackSize: 1, creatable: true },
-  { code: "BAG", name: "저물대", stackSize: 0, creatable: true },
+  { code: "BAG", name: "저물대·저물탁", stackSize: 0, creatable: true },
   { code: "BEAST_EGG", name: "영수 알·새끼", stackSize: 1, creatable: true },
   { code: "BEAST_FOOD", name: "영수 먹이", stackSize: 99, creatable: true },
   { code: "PUPPET", name: "괴뢰", stackSize: 1, creatable: true },
@@ -28,11 +28,14 @@ export const ITEM_CATEGORIES: {
   { code: "QUEST", name: "퀘스트 물건", stackSize: 1, creatable: true },
 ];
 
-/** 저물대 등급과 칸 수(룰북 item.md 저물대 표) */
+/** 저물대·저물탁 등급과 칸 수(룰북 item.md 저물대 · 저물탁 표). name 은 world-server BagGrade.displayName 과 같다 */
 export const BAG_GRADES: { code: BagGradeCode; name: string; slots: number }[] = [
-  { code: "LOW", name: "하급", slots: 20 },
-  { code: "MIDDLE", name: "중급", slots: 40 },
-  { code: "HIGH", name: "상급", slots: 80 },
+  { code: "LOW", name: "하급 저물대", slots: 20 },
+  { code: "MIDDLE", name: "중급 저물대", slots: 40 },
+  { code: "HIGH", name: "상급 저물대", slots: 80 },
+  { code: "BRACELET_LOW", name: "하급 저물탁", slots: 100 },
+  { code: "BRACELET_MIDDLE", name: "중급 저물탁", slots: 200 },
+  { code: "BRACELET_HIGH", name: "상급 저물탁", slots: 400 },
 ];
 
 /** 상점 종류와 파는 물건 종류(world-server ShopKind 와 같음, 룰북 game-structure.md 상점 표 순서) */
@@ -46,7 +49,7 @@ export const SHOP_KINDS: { code: ShopKindCode; name: string; sells: ItemCategory
   { code: "BEAST_SHOP", name: "영수점", sells: ["BEAST_EGG", "PILL"] },
 ];
 
-/** 저물대 등급 선택에 쓰는 이름. 예: 하급 (20칸) */
+/** 등급 선택에 쓰는 이름. 예: 하급 저물대 (20칸) */
 export function bagGradeLabel(code: BagGradeCode): string {
   const grade = BAG_GRADES.find((g) => g.code === code);
   return grade ? `${grade.name} (${grade.slots}칸)` : code;

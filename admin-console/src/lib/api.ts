@@ -125,8 +125,12 @@ export type ItemCategoryCode =
   | "PUPPET"
   | "PASS"
   | "QUEST";
-export type BagGradeCode = "LOW" | "MIDDLE" | "HIGH";
-/** stackSize 는 저물대 0, bagSlots 는 저물대 밖 0, buyRatePercent 는 상점이 사지 않으면 0 */
+/** LOW·MIDDLE·HIGH 는 저물대, BRACELET_* 는 저물탁 */
+export type BagGradeCode = "LOW" | "MIDDLE" | "HIGH" | "BRACELET_LOW" | "BRACELET_MIDDLE" | "BRACELET_HIGH";
+/**
+ * stackSize 는 저물대·저물탁 0, bagSlots 는 저물대·저물탁 밖 0, buyRatePercent 는 상점이 사지 않으면 0.
+ * bagGradeName 은 `하급 저물대`·`하급 저물탁`, techniqueId·techniqueName 은 담긴 공법(없으면 null)
+ */
 export type ItemTypeResponse = {
   id: number;
   name: string;
@@ -140,17 +144,126 @@ export type ItemTypeResponse = {
   bagSlots: number;
   spiritStone: boolean;
   buyRatePercent: number;
+  techniqueId: number | null;
+  techniqueName: string | null;
 };
-/** bagGrade 는 종류가 저물대일 때만 보내고 나머지는 null */
+/** bagGrade 는 종류가 저물대·저물탁일 때만, techniqueId 는 옥간·서책일 때만 보내고 나머지는 null */
 export type ItemTypeSaveRequest = {
   name: string;
   description: string;
   category: ItemCategoryCode;
   baseValue: number;
   bagGrade: BagGradeCode | null;
+  techniqueId: number | null;
 };
 export type StartingItem = { itemTypeId: number; count: number };
 export type StartingItemResponse = { itemTypeId: number; itemName: string; count: number };
+
+/** 경지 코드(낮은 경지부터) */
+export type RealmCode =
+  | "MORTAL"
+  | "QI_1"
+  | "QI_2"
+  | "QI_3"
+  | "QI_4"
+  | "QI_5"
+  | "QI_6"
+  | "QI_7"
+  | "QI_8"
+  | "QI_9"
+  | "QI_10"
+  | "QI_11"
+  | "QI_12"
+  | "QI_13"
+  | "FOUNDATION_EARLY"
+  | "FOUNDATION_MIDDLE"
+  | "FOUNDATION_LATE"
+  | "FOUNDATION_PEAK";
+/** name 은 `범인`·`연기 1층` 같은 화면 이름 */
+export type RealmResponse = { code: RealmCode; name: string };
+
+/** 오행(오행 순서) */
+export type ElementCode = "METAL" | "WOOD" | "WATER" | "FIRE" | "EARTH";
+export type AbilityKindCode =
+  | "ATTACK"
+  | "AREA_ATTACK"
+  | "DEFENSE"
+  | "EVASION"
+  | "HEALING"
+  | "ESCAPE"
+  | "DETECTION"
+  | "STEALTH"
+  | "CONCEALMENT"
+  | "BUFF";
+export type AbilityTargetCode = "SELF" | "SINGLE" | "ALL_ENEMIES";
+export type CostStatCode = "NONE" | "MANA" | "SENSE" | "ESSENCE";
+export type UsableWhenCode = "COMBAT_ONLY" | "ANYTIME";
+
+/** 공법 단계 한 줄. 1성의 insightRequired 는 0(읽으면 이름) */
+export type TechniqueStage = {
+  insightRequired: number;
+  aptitudeRequired: number;
+  manaBonus: number;
+  senseBonus: number;
+  spiritBonus: number;
+  essenceBonus: number;
+  bodyBonus: number;
+  strengthBonus: number;
+  aptitudeGain: number;
+};
+/** 신통 저장 값. bodyRefining·costPerTick 은 서버에서 필수라 늘 보낸다. costAmount 는 소모 없음이면 0 */
+export type AbilitySaveRequest = {
+  name: string;
+  learnStage: number;
+  kind: AbilityKindCode;
+  elements: ElementCode[];
+  bodyRefining: boolean;
+  target: AbilityTargetCode;
+  costStat: CostStatCode;
+  costAmount: number;
+  costPerTick: boolean;
+  castSeconds: number;
+  cooldownSeconds: number;
+  usableWhen: UsableWhenCode;
+};
+export type AbilityResponse = AbilitySaveRequest & { kindName: string; targetName: string };
+/** stages[0] 이 1성이고 길이가 단계 수다. 단계·신통은 저장할 때 통째로 바뀐다 */
+export type TechniqueSaveRequest = {
+  name: string;
+  description: string;
+  elements: ElementCode[];
+  startRealm: RealmCode;
+  stages: TechniqueStage[];
+  abilities: AbilitySaveRequest[];
+};
+/** elementNames 는 `목`·`화·토`(연체술이면 null), lineName 은 `오행`·`연체술` */
+export type TechniqueSummaryResponse = {
+  id: number;
+  name: string;
+  elements: ElementCode[];
+  elementNames: string | null;
+  lineName: string;
+  startRealm: RealmCode;
+  startRealmName: string;
+  stageCount: number;
+  abilityCount: number;
+  learnerCount: number;
+};
+/** scrollItems 는 이 공법이 담긴 아이템 종류(이름순) */
+export type TechniqueDetailResponse = {
+  id: number;
+  name: string;
+  description: string;
+  elements: ElementCode[];
+  elementNames: string | null;
+  lineName: string;
+  startRealm: RealmCode;
+  startRealmName: string;
+  stages: TechniqueStage[];
+  abilities: AbilityResponse[];
+  learnerCount: number;
+  scrollItems: { id: number; name: string }[];
+};
 
 export type FactionSaveRequest = { kind: FactionKind; name: string; description: string };
 export type ZoneSaveRequest = { name: string; description: string; ownerId: number | null };
@@ -265,6 +378,20 @@ export const deleteItemType = (itemTypeId: number) =>
 export const getStartingItems = () => apiFetch<StartingItemResponse[]>("/api/admin/world/starting-items");
 export const saveStartingItems = (items: StartingItem[]) =>
   apiFetch<StartingItemResponse[]>("/api/admin/world/starting-items", jsonBody("PUT", { items }));
+
+/** 경지 목록(낮은 경지부터) */
+export const listRealms = () => apiFetch<RealmResponse[]>("/api/admin/realms");
+
+/** 공법 목록(이름순) */
+export const listTechniques = () => apiFetch<TechniqueSummaryResponse[]>("/api/admin/techniques");
+export const getTechnique = (techniqueId: number) =>
+  apiFetch<TechniqueDetailResponse>(`/api/admin/techniques/${techniqueId}`);
+export const createTechnique = (request: TechniqueSaveRequest) =>
+  apiFetch<TechniqueDetailResponse>("/api/admin/techniques", jsonBody("POST", request));
+export const updateTechnique = (techniqueId: number, request: TechniqueSaveRequest) =>
+  apiFetch<TechniqueDetailResponse>(`/api/admin/techniques/${techniqueId}`, jsonBody("PUT", request));
+export const deleteTechnique = (techniqueId: number) =>
+  apiFetch<void>(`/api/admin/techniques/${techniqueId}`, { method: "DELETE" });
 
 /** 화면에 보일 오류 문구. 서버가 준 ProblemDetail detail 을 그대로 쓴다. */
 export function errorMessage(error: unknown): string {
