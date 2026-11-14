@@ -1,6 +1,7 @@
 package mudmk3.application.game;
 
 import lombok.RequiredArgsConstructor;
+import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.game.GameSession.PendingPurchase;
 import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
@@ -39,6 +40,8 @@ import java.util.stream.Collectors;
 import static java.util.Objects.requireNonNull;
 import static mudmk3.application.game.ItemCommandHandler.BAG_IN_USE;
 import static mudmk3.application.game.ItemCommandHandler.BAG_LIMIT;
+import static mudmk3.application.game.ItemCommandHandler.BRACELET_IN_USE;
+import static mudmk3.application.game.ItemCommandHandler.BRACELET_LIMIT;
 import static mudmk3.application.game.ItemCommandHandler.INVALID_AMOUNT;
 import static mudmk3.application.game.ItemCommandHandler.NOT_HELD;
 import static mudmk3.application.game.ItemCommandHandler.NO_ROOM;
@@ -67,6 +70,7 @@ class ShopCommandHandler {
     private final ItemTypeFinder itemTypeFinder;
     private final InventoryFinder inventoryFinder;
     private final InventoryEditor inventoryEditor;
+    private final CharacterFinder characterFinder;
     private final Clock clock;
 
     /** 상점 명령을 처리한다. send 는 (연결 id, 메시지)로 보낼 것을 모은다 */
@@ -194,7 +198,8 @@ class ShopCommandHandler {
         ItemType itemType = offer.itemType();
         Long itemTypeId = requireNonNull(itemType.getId());
         long total = Math.multiplyExact(offer.price(), count);
-        PurchaseResult result = inventoryEditor.purchase(player.getCharacterId(), itemTypeId, count, total, confirmed);
+        PurchaseResult result = inventoryEditor.purchase(player.getCharacterId(), itemTypeId, count, total, confirmed,
+                braceletOpen(player));
         switch (result) {
             case PurchaseResult.Bought _ -> reply.item(Josa.withEulReul(things(itemType, count))
                     + " 샀습니다. (하품 영석 -" + Numbers.count(total) + ")");
@@ -205,6 +210,7 @@ class ShopCommandHandler {
             case PurchaseResult.NotEnough notEnough -> reply.error("영석이 모자랍니다. (필요 " + Numbers.count(total)
                     + ", 가진 것 " + Numbers.count(notEnough.have()) + ")");
             case PurchaseResult.BagLimit _ -> reply.error(BAG_LIMIT);
+            case PurchaseResult.BraceletLimit _ -> reply.error(BRACELET_LIMIT);
             case PurchaseResult.NoRoom _ -> reply.error(NO_ROOM);
             case PurchaseResult.NoRoomForChange noRoom -> reply.error("거스름을 받을 자리가 없습니다. (하품 "
                     + Numbers.count(noRoom.change()) + "개, " + Numbers.count(noRoom.slotsShort()) + "칸 필요)");
@@ -272,7 +278,7 @@ class ShopCommandHandler {
 
     /**
      * 실패 순서: 인자 없음 → 수량 오류 → 가지고 있지 않음 → 영석 → 퀘스트 물건 → 사 주지 않는 종류 → 수 넘침
-     * → 값이 1 미만 → 저물대 칸 → 받을 영석 칸(D42)
+     * → 값이 1 미만 → 저물대·저물탁 칸 → 받을 영석 칸(D42)
      */
     private void sell(OnlinePlayer player, String args, Reply reply) {
         Optional<ShopChoice> chosen = chooseShop(player, args, reply);
@@ -306,11 +312,13 @@ class ShopCommandHandler {
             reply.error(npcSays(npc, "값이 너무 적어 사 줄 수가 없소. 더 모아 오시오."));
             return;
         }
-        SaleResult result = inventoryEditor.sell(player.getCharacterId(), requireNonNull(itemType.getId()), count, payout);
+        SaleResult result = inventoryEditor.sell(player.getCharacterId(), requireNonNull(itemType.getId()), count, payout,
+                braceletOpen(player));
         switch (result) {
             case SOLD -> reply.item(Josa.withEulReul(things(itemType, count))
                     + " 팔았습니다. (하품 영석 +" + Numbers.count(payout) + ")");
             case BAG_IN_USE -> reply.error(BAG_IN_USE);
+            case BRACELET_IN_USE -> reply.error(BRACELET_IN_USE);
             case NO_ROOM -> reply.error(NO_ROOM);
         }
     }
@@ -381,6 +389,11 @@ class ShopCommandHandler {
     }
 
     /** {@code 왕씨: "그런 물건은 팔지 않소."} */
+    /** 저물탁 칸이 열렸는지(경지가 축기 초기 이상). 경지는 DB에서 읽는다 */
+    private boolean braceletOpen(OnlinePlayer player) {
+        return characterFinder.find(player.getCharacterId()).getRealm().opensBracelet();
+    }
+
     private static String npcSays(Npc npc, String words) {
         return npc.getName() + ": \"" + words + "\"";
     }

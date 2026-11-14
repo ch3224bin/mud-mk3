@@ -28,7 +28,7 @@ public class ItemTypeFixture {
     }
 
     public static ItemType createBag(BagGrade grade) {
-        return ItemType.create(createBagSaveInfo(grade.koreanName() + " 저물대", grade));
+        return ItemType.create(createBagSaveInfo(grade.displayName(), grade));
     }
 
     public static ItemTypeSaveRequest createItemTypeSaveRequest(String name, ItemCategory category, long baseValue) {

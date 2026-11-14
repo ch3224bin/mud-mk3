@@ -7,8 +7,8 @@ import mudmk3.domain.technique.Technique;
 import org.jspecify.annotations.Nullable;
 
 /**
- * 아이템 종류. {@code stackSize} 는 저물대 0, {@code bagSlots} 는 저물대 밖 0, {@code buyRatePercent} 는 사지 않으면 0,
- * {@code techniqueId}·{@code techniqueName} 은 담긴 공법이 없으면 null
+ * 아이템 종류. {@code stackSize} 는 저물대·저물탁 0, {@code bagGradeName} 은 {@code 하급 저물대}·{@code 하급 저물탁},
+ * {@code bagSlots} 는 저물대·저물탁 밖 0, {@code buyRatePercent} 는 사지 않으면 0, {@code techniqueId}·{@code techniqueName} 은 담긴 공법이 없으면 null
  */
 public record ItemTypeResponse(
         Long id,
@@ -33,7 +33,7 @@ public record ItemTypeResponse(
         return new ItemTypeResponse(itemType.getId(), itemType.getName(), itemType.getDescription(),
                 itemType.getCategory(), itemType.getCategory().koreanName(), itemType.stackSize(),
                 itemType.getBaseValue(), bagGrade,
-                bagGrade == null ? null : bagGrade.koreanName(), itemType.bagSlots(), itemType.isSpiritStone(),
+                bagGrade == null ? null : bagGrade.displayName(), itemType.bagSlots(), itemType.isSpiritStone(),
                 itemType.getCategory().buyRatePercent(),
                 technique == null ? null : technique.getId(), technique == null ? null : technique.getName());
     }

@@ -6,19 +6,22 @@ public final class Slots {
     /** 저물대가 없어도 가진 기본 칸 */
     public static final int BASE = 2;
 
-    /** 함께 찰 수 있는 저물대 수 */
+    /** 함께 찰 수 있는 저물대 수(저물탁은 세지 않음) */
     public static final int MAX_BAGS = 3;
+
+    /** 찰 수 있는 저물탁 수(저물대와 따로 셈) */
+    public static final int MAX_BRACELETS = 1;
 
     private Slots() {
     }
 
-    /** 한 묶음이 차지하는 칸: 저물대는 0, 나머지는 올림(수 ÷ 겹침) */
+    /** 한 묶음이 차지하는 칸: 저물대·저물탁은 0, 나머지는 올림(수 ÷ 겹침) */
     public static int slotsFor(ItemType itemType, long count) {
         if (itemType.isBag()) return 0;
         return Math.toIntExact(Math.ceilDiv(count, (long) itemType.stackSize()));
     }
 
-    /** 전체 칸: 기본 칸 + 가진 저물대 칸의 합 */
+    /** 전체 칸: 기본 칸 + 가진 저물대 칸의 합 + 열린 저물탁 칸의 합 */
     public static int capacity(int bagSlotSum) {
         return BASE + bagSlotSum;
     }

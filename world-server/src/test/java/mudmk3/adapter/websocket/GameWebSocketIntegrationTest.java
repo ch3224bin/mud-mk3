@@ -319,7 +319,7 @@ class GameWebSocketIntegrationTest {
         Client a = enter("hanbai@example.com", "한백");
         Client b = enter("hanli@example.com", "한립");
         assertThat(a.next().get("event").asString()).isEqualTo("appear");
-        inventoryEditor.addUpTo(a.characterId(), requireNonNull(pill.getId()), 3);
+        inventoryEditor.addUpTo(a.characterId(), requireNonNull(pill.getId()), 3, false);
 
         a.command("주기 한립 회춘단 2");
         assertThat(a.next()).isEqualTo(json("""

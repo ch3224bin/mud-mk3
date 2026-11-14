@@ -185,6 +185,44 @@ record WorldSettingsEditorTest(
     }
 
     @Test
+    void twoBraceletsFail() {
+        Long low = itemType("하급 저물탁", ItemCategory.BAG, BagGrade.BRACELET_LOW);
+        Long middle = itemType("중급 저물탁", ItemCategory.BAG, BagGrade.BRACELET_MIDDLE);
+
+        assertThatThrownBy(() -> worldSettingsEditor.replaceStartingItems(List.of(
+                new StartingItemRequest(low, 1), new StartingItemRequest(middle, 1))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("저물탁은 하나까지만 찰 수 있습니다.");
+        assertThatThrownBy(() -> worldSettingsEditor.replaceStartingItems(List.of(new StartingItemRequest(low, 2))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("저물탁은 하나까지만 찰 수 있습니다.");
+    }
+
+    @Test
+    void threeBagsAndBracelet() {
+        Long bag = itemType("하급 저물대", ItemCategory.BAG, BagGrade.LOW);
+        Long bracelet = itemType("하급 저물탁", ItemCategory.BAG, BagGrade.BRACELET_LOW);
+
+        worldSettingsEditor.replaceStartingItems(List.of(new StartingItemRequest(bag, 3), new StartingItemRequest(bracelet, 1)));
+
+        assertThat(worldSettingsFinder.findStartingItems()).hasSize(2);
+    }
+
+    @Test
+    void braceletClosedInStartingCapacity() {
+        Long bracelet = itemType("하급 저물탁", ItemCategory.BAG, BagGrade.BRACELET_LOW);
+        Long lowStone = itemTypeFinder.spiritStone(SpiritStoneGrade.LOW).getId();
+        Long pill = itemType("회춘단", ItemCategory.PILL, null);
+        Long sword = itemType("비검", ItemCategory.ARTIFACT, null);
+
+        assertThatThrownBy(() -> worldSettingsEditor.replaceStartingItems(List.of(
+                new StartingItemRequest(bracelet, 1), new StartingItemRequest(lowStone, 30),
+                new StartingItemRequest(pill, 3), new StartingItemRequest(sword, 1))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("시작 소지품이 칸을 넘습니다. (필요 3칸, 칸 2)");
+    }
+
+    @Test
     void unknownItemFail() {
         assertThatThrownBy(() -> worldSettingsEditor.replaceStartingItems(List.of(new StartingItemRequest(999_999L, 1))))
                 .isInstanceOf(IllegalArgumentException.class)

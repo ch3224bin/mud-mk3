@@ -41,46 +41,48 @@ public class InventoryModifyService implements InventoryEditor {
             items.put(itemTypeFinder.find(startingItem.itemTypeId()), startingItem.count());
         }
         Inventory inventory = Inventory.empty(characterId);
-        inventory.addAll(items);
+        inventory.addAll(items, false);
         inventoryRepository.save(inventory);
     }
 
     @Override
-    public int addUpTo(Long characterId, Long itemTypeId, int count) {
+    public int addUpTo(Long characterId, Long itemTypeId, int count, boolean braceletOpen) {
         if (count < 1) throw new IllegalArgumentException("수는 1 이상이어야 합니다: " + count);
         Inventory inventory = findOrCreate(characterId);
         ItemType itemType = itemTypeFinder.find(itemTypeId);
-        int added = Math.min(count, inventory.roomFor(itemType));
+        int added = Math.min(count, inventory.roomFor(itemType, braceletOpen));
         if (added > 0) {
-            inventory.add(itemType, added);
+            inventory.add(itemType, added, braceletOpen);
         }
         return added;
     }
 
     @Override
-    public RemoveCheck remove(Long characterId, Long itemTypeId, int count) {
+    public RemoveCheck remove(Long characterId, Long itemTypeId, int count, boolean braceletOpen) {
         Inventory inventory = findOrCreate(characterId);
         ItemType itemType = itemTypeFinder.find(itemTypeId);
-        RemoveCheck check = inventory.checkRemove(itemType, count);
+        RemoveCheck check = inventory.checkRemove(itemType, count, braceletOpen);
         if (check == RemoveCheck.OK) {
-            inventory.remove(itemType, count);
+            inventory.remove(itemType, count, braceletOpen);
         }
         return check;
     }
 
     @Override
-    public PurchaseResult purchase(Long characterId, Long itemTypeId, int count, long totalPrice, boolean confirmed) {
+    public PurchaseResult purchase(Long characterId, Long itemTypeId, int count, long totalPrice, boolean confirmed,
+                                   boolean braceletOpen) {
         Inventory inventory = findOrCreate(characterId);
         ItemType itemType = itemTypeFinder.find(itemTypeId);
         Map<SpiritStoneGrade, ItemType> stones = spiritStones();
-        PurchaseResult result = inventory.checkPurchase(itemType, count, totalPrice, stones.get(SpiritStoneGrade.LOW));
+        PurchaseResult result = inventory.checkPurchase(itemType, count, totalPrice, stones.get(SpiritStoneGrade.LOW),
+                braceletOpen);
         return switch (result) {
             case PurchaseResult.Bought bought -> {
-                inventory.purchase(itemType, count, bought.payment(), stones);
+                inventory.purchase(itemType, count, bought.payment(), stones, braceletOpen);
                 yield bought;
             }
             case PurchaseResult.NeedsConfirm needsConfirm when confirmed -> {
-                inventory.purchase(itemType, count, needsConfirm.payment(), stones);
+                inventory.purchase(itemType, count, needsConfirm.payment(), stones, braceletOpen);
                 yield new PurchaseResult.Bought(needsConfirm.payment());
             }
             default -> result;
@@ -88,31 +90,35 @@ public class InventoryModifyService implements InventoryEditor {
     }
 
     @Override
-    public SaleResult sell(Long characterId, Long itemTypeId, int count, long payout) {
+    public SaleResult sell(Long characterId, Long itemTypeId, int count, long payout, boolean braceletOpen) {
         Inventory inventory = findOrCreate(characterId);
         ItemType itemType = itemTypeFinder.find(itemTypeId);
         ItemType lowStone = itemTypeFinder.spiritStone(SpiritStoneGrade.LOW);
-        SaleResult result = inventory.checkSale(itemType, count, payout, lowStone);
+        SaleResult result = inventory.checkSale(itemType, count, payout, lowStone, braceletOpen);
         if (result == SaleResult.SOLD) {
-            inventory.sell(itemType, count, payout, lowStone);
+            inventory.sell(itemType, count, payout, lowStone, braceletOpen);
         }
         return result;
     }
 
     @Override
-    public GiveResult give(Long fromCharacterId, Long toCharacterId, Long itemTypeId, int count) {
+    public GiveResult give(Long fromCharacterId, Long toCharacterId, Long itemTypeId, int count,
+                           boolean giverBraceletOpen, boolean receiverBraceletOpen) {
         state(!fromCharacterId.equals(toCharacterId), "자기 자신에게는 줄 수 없습니다.");
         Inventory giver = findOrCreate(fromCharacterId);
         Inventory receiver = findOrCreate(toCharacterId);
         ItemType itemType = itemTypeFinder.find(itemTypeId);
 
-        if (giver.checkRemove(itemType, count) == RemoveCheck.BAG_IN_USE) return GiveResult.GIVER_BAG_IN_USE;
-        AddCheck addCheck = receiver.checkAdd(itemType, count);
+        RemoveCheck removeCheck = giver.checkRemove(itemType, count, giverBraceletOpen);
+        if (removeCheck == RemoveCheck.BAG_IN_USE) return GiveResult.GIVER_BAG_IN_USE;
+        if (removeCheck == RemoveCheck.BRACELET_IN_USE) return GiveResult.GIVER_BRACELET_IN_USE;
+        AddCheck addCheck = receiver.checkAdd(itemType, count, receiverBraceletOpen);
         if (addCheck == AddCheck.BAG_LIMIT) return GiveResult.RECEIVER_BAG_LIMIT;
+        if (addCheck == AddCheck.BRACELET_LIMIT) return GiveResult.RECEIVER_BRACELET_LIMIT;
         if (addCheck == AddCheck.NO_ROOM) return GiveResult.RECEIVER_NO_ROOM;
 
-        giver.remove(itemType, count);
-        receiver.add(itemType, count);
+        giver.remove(itemType, count, giverBraceletOpen);
+        receiver.add(itemType, count, receiverBraceletOpen);
         return GiveResult.GIVEN;
     }
 

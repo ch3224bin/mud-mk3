@@ -253,7 +253,7 @@ record CharacterCreatorTest(
         Inventory inventory = inventoryFinder.find(character.getId());
         assertThat(inventory.getId()).isNotNull();
         assertThat(inventory.usedSlots()).isEqualTo(3);
-        assertThat(inventory.capacity()).isEqualTo(22);
+        assertThat(inventory.capacity(false)).isEqualTo(22);
         assertThat(inventory.spiritStones()).isEqualTo(Map.of(SpiritStoneGrade.LOW, 30L));
         assertThat(inventory.getEntries())
                 .extracting(entry -> entry.getItemType().getName(), InventoryEntry::getCount)
@@ -293,7 +293,7 @@ record CharacterCreatorTest(
         Inventory inventory = inventoryFinder.find(character.getId());
         assertThat(inventory.getId()).isNotNull();
         assertThat(inventory.usedSlots()).isZero();
-        assertThat(inventory.capacity()).isEqualTo(2);
+        assertThat(inventory.capacity(false)).isEqualTo(2);
         assertThat(inventory.getEntries()).isEmpty();
     }
 

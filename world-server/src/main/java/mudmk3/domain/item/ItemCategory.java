@@ -2,7 +2,7 @@ package mudmk3.domain.item;
 
 /**
  * 아이템 종류(카테고리). 선언 순서가 목록 순서다(룰북 item.md 종류 순서).
- * 3차에 종류가 가르는 것은 겹침·매입 비율·칸 차지(저물대)뿐이다
+ * 종류가 가르는 것은 겹침·매입 비율·칸 차지(저물대·저물탁)·담긴 공법(옥간·서책)이다
  */
 public enum ItemCategory {
     ARTIFACT("법기", 1, 25, true),
@@ -14,7 +14,7 @@ public enum ItemCategory {
     MATERIAL("재료", 99, 40, true),
     SCROLL("옥간·서책", 99, 25, true),
     TOOL("제작 도구", 1, 25, true),
-    BAG("저물대", 0, 25, true),
+    BAG("저물대·저물탁", 0, 25, true),
     BEAST_EGG("영수 알·새끼", 1, 0, true),
     BEAST_FOOD("영수 먹이", 99, 25, true),
     PUPPET("괴뢰", 1, 25, true),
@@ -37,7 +37,7 @@ public enum ItemCategory {
         return koreanName;
     }
 
-    /** 한 칸에 겹치는 수. 저물대는 칸을 차지하지 않아 0 */
+    /** 한 칸에 겹치는 수. 저물대·저물탁은 칸을 차지하지 않아 0 */
     public int stackSize() {
         return stackSize;
     }

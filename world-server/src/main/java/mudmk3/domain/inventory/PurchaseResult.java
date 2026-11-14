@@ -1,7 +1,7 @@
 package mudmk3.domain.inventory;
 
 /**
- * 사기 검사 결과. 검사 순서: 영석 모자람 → 저물대 세 개 → 결제한 영석을 뺀 뒤에도 산 물건이 들어갈 칸 없음
+ * 사기 검사 결과. 검사 순서: 영석 모자람 → 저물대 세 개 → 저물탁 하나 → 결제한 영석을 뺀 뒤에도 산 물건이 들어갈 칸 없음
  * → 거스름까지 넣으면 칸 없음 → 상품·극품을 깨야 해 확인이 필요함 → 살 수 있음
  */
 public sealed interface PurchaseResult {
@@ -20,6 +20,10 @@ public sealed interface PurchaseResult {
 
     /** 저물대는 세 개까지만 찰 수 있음 */
     record BagLimit() implements PurchaseResult {
+    }
+
+    /** 저물탁은 하나까지만 찰 수 있음 */
+    record BraceletLimit() implements PurchaseResult {
     }
 
     /** 결제한 영석을 뺀 뒤에도 산 물건이 들어갈 칸이 없음 */

@@ -92,13 +92,19 @@ public class ItemType extends AbstractEntity {
         return category.stackSize();
     }
 
-    /** 저물대가 늘려 주는 칸. 저물대가 아니면 0 */
+    /** 저물대·저물탁이 늘려 주는 칸(저물탁은 열렸을 때). 저물대·저물탁이 아니면 0 */
     public int bagSlots() {
         return bagGrade == null ? 0 : bagGrade.slots();
     }
 
+    /** 저물대·저물탁 종류인지(칸을 차지하지 않음) */
     public boolean isBag() {
         return category == ItemCategory.BAG;
+    }
+
+    /** 저물탁인지(저물대·저물탁 종류이고 등급이 저물탁) */
+    public boolean isBracelet() {
+        return bagGrade != null && bagGrade.isBracelet();
     }
 
     public boolean isSpiritStone() {

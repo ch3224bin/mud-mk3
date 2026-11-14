@@ -1,6 +1,7 @@
 package mudmk3.application.game;
 
 import lombok.RequiredArgsConstructor;
+import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.floor.provided.RoomFloor;
 import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.InventoryMessage;
@@ -17,6 +18,7 @@ import mudmk3.domain.game.Amount;
 import mudmk3.domain.game.Command;
 import mudmk3.domain.game.ItemArguments;
 import mudmk3.domain.game.OnlinePlayer;
+import mudmk3.domain.inventory.AddCheck;
 import mudmk3.domain.inventory.GiveResult;
 import mudmk3.domain.inventory.Inventory;
 import mudmk3.domain.inventory.InventoryEntry;
@@ -27,6 +29,7 @@ import mudmk3.domain.item.ItemType;
 import mudmk3.domain.item.SpiritStoneGrade;
 import mudmk3.domain.shared.Josa;
 import mudmk3.domain.shared.Numbers;
+import mudmk3.domain.shared.Realm;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -56,6 +59,9 @@ class ItemCommandHandler {
     static final String BAG_LIMIT = "저물대는 세 개까지만 찰 수 있습니다.";
     static final String NOT_HELD = "그런 물건은 가지고 있지 않습니다.";
     static final String BAG_IN_USE = "저물대에 든 물건을 먼저 비우십시오.";
+    static final String BRACELET_LIMIT = "저물탁은 하나까지만 찰 수 있습니다.";
+    static final String BRACELET_IN_USE = "저물탁에 든 물건을 먼저 비우십시오.";
+    static final String BRACELET_CLOSED = " (" + Realm.FOUNDATION_EARLY.koreanName() + " 필요)";
     static final String EMPTY_INVENTORY = "가진 물건이 없습니다.";
     static final String NO_DETAILED_LOOK = "아직 자세히 볼 수 없습니다.";
     static final String NOTHING_TO_SEE = "그런 것은 보이지 않습니다.";
@@ -65,6 +71,7 @@ class ItemCommandHandler {
     private static final int ITEMS_PER_LINE = 3;
 
     private final RoomFloor roomFloor;
+    private final CharacterFinder characterFinder;
     private final InventoryFinder inventoryFinder;
     private final InventoryEditor inventoryEditor;
     private final NpcFinder npcFinder;
@@ -86,6 +93,7 @@ class ItemCommandHandler {
 
     private InventoryMessage inventory(OnlinePlayer player) {
         Inventory inventory = inventoryFinder.find(player.getCharacterId());
+        boolean braceletOpen = braceletOpen(player.getCharacterId());
         List<StoneView> stones = inventory.spiritStones().entrySet().stream()
                 .map(stone -> new StoneView(stone.getKey().itemName(), stone.getValue()))
                 .toList();
@@ -93,16 +101,18 @@ class ItemCommandHandler {
                 .filter(entry -> !entry.getItemType().isSpiritStone())
                 .map(entry -> new ItemView(entry.getItemType().getName(), entry.getCount()))
                 .toList();
-        return InventoryMessage.of(inventory.usedSlots(), inventory.capacity(), stones, items, inventoryText(inventory));
+        return InventoryMessage.of(inventory.usedSlots(), inventory.capacity(braceletOpen), stones, items,
+                inventoryText(inventory, braceletOpen));
     }
 
     /**
      * D45 형식: 첫 줄 {@code [소지품 3/22칸]} 과 가진 영석({@code  하품 영석 30 · 중품 영석 1}),
      * 다음 줄부터 영석 밖 물건을 한 줄에 셋씩(사이 공백 셋). 아무것도 없으면 둘째 줄 {@code 가진 물건이 없습니다.}
+     * 칸이 닫힌 저물탁 뒤에는 {@code  (축기 초기 필요)}. 칸을 넘으면 넘은 그대로({@code [소지품 130/22칸]})
      */
-    String inventoryText(Inventory inventory) {
+    String inventoryText(Inventory inventory, boolean braceletOpen) {
         StringBuilder text = new StringBuilder("[소지품 ")
-                .append(inventory.usedSlots()).append('/').append(inventory.capacity()).append("칸]");
+                .append(inventory.usedSlots()).append('/').append(inventory.capacity(braceletOpen)).append("칸]");
         Map<SpiritStoneGrade, Long> stones = inventory.spiritStones();
         if (!stones.isEmpty()) {
             text.append("  ").append(stones.entrySet().stream()
@@ -111,7 +121,7 @@ class ItemCommandHandler {
         }
         List<String> items = inventory.getEntries().stream()
                 .filter(entry -> !entry.getItemType().isSpiritStone())
-                .map(ItemCommandHandler::inventoryItem)
+                .map(entry -> inventoryItem(entry, braceletOpen))
                 .toList();
         if (stones.isEmpty() && items.isEmpty()) {
             return text.append('\n').append(EMPTY_INVENTORY).toString();
@@ -122,9 +132,10 @@ class ItemCommandHandler {
         return text.toString();
     }
 
-    private static String inventoryItem(InventoryEntry entry) {
+    private static String inventoryItem(InventoryEntry entry, boolean braceletOpen) {
         StringBuilder item = new StringBuilder(entry.getItemType().getName());
         if (entry.getCount() >= 2) item.append(" x").append(Numbers.count(entry.getCount()));
+        if (entry.getItemType().isBracelet() && !braceletOpen) item.append(BRACELET_CLOSED);
         return item.toString();
     }
 
@@ -164,16 +175,22 @@ class ItemCommandHandler {
             send.accept(sessionId, SystemMessage.error(tooMany(name, stack.count())));
             return;
         }
-        int room = inventoryFinder.find(player.getCharacterId()).roomFor(itemType);
+        boolean braceletOpen = braceletOpen(player.getCharacterId());
+        Inventory inventory = inventoryFinder.find(player.getCharacterId());
+        int room = inventory.roomFor(itemType, braceletOpen);
         if (room == 0) {
-            send.accept(sessionId, SystemMessage.error(itemType.isBag() ? BAG_LIMIT : NO_ROOM));
+            send.accept(sessionId, SystemMessage.error(switch (inventory.checkAdd(itemType, 1, braceletOpen)) {
+                case BAG_LIMIT -> BAG_LIMIT;
+                case BRACELET_LIMIT -> BRACELET_LIMIT;
+                case NO_ROOM, OK -> NO_ROOM; // 칸을 넘은 소지품은 저물대 하나로 칸이 맞아도 넣을 자리가 없다
+            }));
             return;
         }
 
         Long itemTypeId = requireNonNull(itemType.getId());
         int count = Math.min(wanted, room);
         int taken = roomFloor.take(roomId, itemTypeId, count);
-        int added = inventoryEditor.addUpTo(player.getCharacterId(), itemTypeId, taken);
+        int added = inventoryEditor.addUpTo(player.getCharacterId(), itemTypeId, taken, braceletOpen);
         state(taken == count && added == taken, () -> "바닥과 소지품의 수가 어긋납니다: " + name);
 
         String things = name + " " + Numbers.count(count) + "개";
@@ -185,7 +202,7 @@ class ItemCommandHandler {
 
     // ---- 버리기
 
-    /** 소지품(D37 순서)에서 찾는다. 검사 순서: 인자 없음 → 수량 오류 → 없음 → 수 넘침 → 저물대 칸 */
+    /** 소지품(D37 순서)에서 찾는다. 검사 순서: 인자 없음 → 수량 오류 → 없음 → 수 넘침 → 저물대·저물탁 칸 */
     private void drop(OnlinePlayer player, ItemArguments args, BiConsumer<String, GameMessage> send) {
         String sessionId = player.getSessionId();
         ItemQuery query = args.item();
@@ -217,8 +234,10 @@ class ItemCommandHandler {
         }
 
         Long itemTypeId = requireNonNull(itemType.getId());
-        if (inventoryEditor.remove(player.getCharacterId(), itemTypeId, count) == RemoveCheck.BAG_IN_USE) {
-            send.accept(sessionId, SystemMessage.error(BAG_IN_USE));
+        RemoveCheck check = inventoryEditor.remove(player.getCharacterId(), itemTypeId, count,
+                braceletOpen(player.getCharacterId()));
+        if (check != RemoveCheck.OK) {
+            send.accept(sessionId, SystemMessage.error(check == RemoveCheck.BRACELET_IN_USE ? BRACELET_IN_USE : BAG_IN_USE));
             return;
         }
         roomFloor.drop(player.getRoomId(), itemTypeId, count);
@@ -270,7 +289,7 @@ class ItemCommandHandler {
 
     /**
      * 같은 방 플레이어에게 준다(D44). 검사 순서: 인자 없음 → 수량 오류 → 대상 없음 → 자기 자신 → 없음 → 수 넘침
-     * → 주는 쪽 저물대 칸 → 받는 쪽 저물대 세 개 → 받는 쪽 칸
+     * → 주는 쪽 저물대·저물탁 칸 → 받는 쪽 저물대 세 개·저물탁 하나 → 받는 쪽 칸
      */
     private void give(OnlinePlayer player, Command.Give give, BiConsumer<String, GameMessage> send) {
         String sessionId = player.getSessionId();
@@ -315,11 +334,15 @@ class ItemCommandHandler {
 
         String receiverName = receiver.getName();
         GiveResult result = inventoryEditor.give(player.getCharacterId(), receiver.getCharacterId(),
-                requireNonNull(itemType.getId()), count);
+                requireNonNull(itemType.getId()), count,
+                braceletOpen(player.getCharacterId()), braceletOpen(receiver.getCharacterId()));
         switch (result) {
             case GIVER_BAG_IN_USE -> send.accept(sessionId, SystemMessage.error(BAG_IN_USE));
+            case GIVER_BRACELET_IN_USE -> send.accept(sessionId, SystemMessage.error(BRACELET_IN_USE));
             case RECEIVER_BAG_LIMIT -> send.accept(sessionId,
                     SystemMessage.error(Josa.withEunNeun(receiverName) + " 저물대를 더 찰 수 없습니다."));
+            case RECEIVER_BRACELET_LIMIT -> send.accept(sessionId,
+                    SystemMessage.error(Josa.withEunNeun(receiverName) + " 저물탁을 더 찰 수 없습니다."));
             case RECEIVER_NO_ROOM -> send.accept(sessionId, SystemMessage.error(receiverName + "의 저물대에 자리가 없습니다."));
             case GIVEN -> {
                 String things = Josa.withEulReul(name + " " + Numbers.count(count) + "개");
@@ -352,6 +375,11 @@ class ItemCommandHandler {
     }
 
     // ---- 공통
+
+    /** 그 캐릭터의 저물탁 칸이 열렸는지(경지가 축기 초기 이상). 경지는 메모리에 두지 않고 DB에서 읽는다 */
+    boolean braceletOpen(Long characterId) {
+        return characterFinder.find(characterId).getRealm().opensBracelet();
+    }
 
     /** 소지품(표시 순서)에서 이름으로 고른다(D46 — 버리기·주기·팔기·값). 종류마다 묶음이 하나뿐이다 */
     static Optional<InventoryEntry> selectHeld(Inventory inventory, ItemQuery query) {

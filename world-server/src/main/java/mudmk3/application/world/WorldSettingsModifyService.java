@@ -49,13 +49,14 @@ public class WorldSettingsModifyService implements WorldSettingsEditor {
     }
 
     /**
-     * 빈 소지품(기본 2칸)에 다 넣을 수 있는지 줄 순서대로 본다: 없는 물건·같은 물건 두 번 → 저물대 네 개 이상 → 칸 넘침.
-     * 칸은 소지품과 같은 규칙({@link Slots})으로 센다
+     * 빈 소지품(기본 2칸)에 다 넣을 수 있는지 줄 순서대로 본다: 없는 물건·같은 물건 두 번 → 저물대 네 개 이상 → 저물탁 두 개 이상
+     * → 칸 넘침. 칸은 소지품과 같은 규칙({@link Slots})으로 센다. 새 캐릭터는 범인이라 저물탁 칸은 0이다
      */
     private void ensureFitsNewInventory(List<StartingItem> startingItems) {
         Set<Long> seen = new HashSet<>();
         long usedSlots = 0;
         long bags = 0;
+        long bracelets = 0;
         long bagSlots = 0;
         for (StartingItem startingItem : startingItems) {
             ItemType itemType = itemTypeFinder.find(startingItem.itemTypeId());
@@ -63,13 +64,18 @@ public class WorldSettingsModifyService implements WorldSettingsEditor {
                 throw new IllegalArgumentException("같은 물건이 두 번 있습니다: " + itemType.getName());
             }
             usedSlots += Slots.slotsFor(itemType, startingItem.count());
-            if (itemType.isBag()) {
+            if (itemType.isBracelet()) {
+                bracelets += startingItem.count();
+            } else if (itemType.isBag()) {
                 bags += startingItem.count();
                 bagSlots += (long) startingItem.count() * itemType.bagSlots();
             }
         }
         if (bags > Slots.MAX_BAGS) {
             throw new IllegalArgumentException("저물대는 세 개까지만 찰 수 있습니다.");
+        }
+        if (bracelets > Slots.MAX_BRACELETS) {
+            throw new IllegalArgumentException("저물탁은 하나까지만 찰 수 있습니다.");
         }
         int capacity = Slots.capacity(Math.toIntExact(bagSlots));
         if (usedSlots > capacity) {

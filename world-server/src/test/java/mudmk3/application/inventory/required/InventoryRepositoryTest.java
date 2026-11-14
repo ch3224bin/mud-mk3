@@ -34,11 +34,11 @@ record InventoryRepositoryTest(InventoryRepository inventoryRepository, ItemType
         ItemType sword = itemTypeRepository.save(ItemTypeFixture.createItemType("비검", ItemCategory.ARTIFACT, 50));
         ItemType bag = itemTypeRepository.save(ItemTypeFixture.createBag(BagGrade.LOW));
         Inventory inventory = Inventory.empty(7L);
-        inventory.add(pill, 3);
-        inventory.add(bag, 1);
-        inventory.add(sword, 2);
+        inventory.add(pill, 3, false);
+        inventory.add(bag, 1, false);
+        inventory.add(sword, 2, false);
         inventoryRepository.save(inventory);
-        inventory.add(stones.get(LOW), 5);
+        inventory.add(stones.get(LOW), 5, false);
         entityManager.flush();
         entityManager.clear();
 
@@ -60,14 +60,14 @@ record InventoryRepositoryTest(InventoryRepository inventoryRepository, ItemType
         ItemType pill = itemTypeRepository.save(ItemTypeFixture.createPill());
         ItemType bag = itemTypeRepository.save(ItemTypeFixture.createBag(BagGrade.LOW));
         Inventory inventory = Inventory.empty(7L);
-        inventory.add(bag, 1);
-        inventory.add(stones.get(LOW), 50);
-        inventory.add(stones.get(MIDDLE), 2);
+        inventory.add(bag, 1, false);
+        inventory.add(stones.get(LOW), 50, false);
+        inventory.add(stones.get(MIDDLE), 2, false);
         inventoryRepository.save(inventory);
         entityManager.flush();
 
-        PurchaseResult.Bought bought = (PurchaseResult.Bought) inventory.checkPurchase(pill, 1, 120, stones.get(LOW));
-        inventory.purchase(pill, 1, bought.payment(), stones);
+        PurchaseResult.Bought bought = (PurchaseResult.Bought) inventory.checkPurchase(pill, 1, 120, stones.get(LOW), false);
+        inventory.purchase(pill, 1, bought.payment(), stones, false);
         entityManager.flush();
         entityManager.clear();
 
@@ -81,10 +81,10 @@ record InventoryRepositoryTest(InventoryRepository inventoryRepository, ItemType
     void removeEmptiedEntry() {
         ItemType pill = itemTypeRepository.save(ItemTypeFixture.createPill());
         Inventory inventory = inventoryRepository.save(Inventory.empty(7L));
-        inventory.add(pill, 3);
+        inventory.add(pill, 3, false);
         entityManager.flush();
 
-        inventory.remove(pill, 3);
+        inventory.remove(pill, 3, false);
         entityManager.flush();
         entityManager.clear();
 
@@ -107,9 +107,9 @@ record InventoryRepositoryTest(InventoryRepository inventoryRepository, ItemType
         ItemType pill = itemTypeRepository.save(ItemTypeFixture.createPill());
         ItemType hide = itemTypeRepository.save(ItemTypeFixture.createWolfHide());
         Inventory first = Inventory.empty(7L);
-        first.add(pill, 3);
+        first.add(pill, 3, false);
         Inventory second = Inventory.empty(8L);
-        second.add(pill, 1);
+        second.add(pill, 1, false);
         inventoryRepository.save(first);
         inventoryRepository.save(second);
         entityManager.flush();

@@ -15,6 +15,18 @@ public class InventoryFixture {
         return Inventory.empty(1L);
     }
 
+    /**
+     * 칸을 넘은 소지품: 저물탁 하나·저물대 둘을 차고 {@code filler}(겹침 1) 130개를 넣었다. 저물탁이 열리면 142칸,
+     * 닫히면 42칸이라 130/42칸이 된다(경지가 내려간 경우)
+     */
+    public static Inventory createOverCapacityInventory(ItemType bracelet, ItemType bag, ItemType filler) {
+        Inventory inventory = createInventory();
+        inventory.add(bracelet, 1, true);
+        inventory.add(bag, 2, true);
+        inventory.add(filler, 130, true);
+        return inventory;
+    }
+
     public static ItemType stone(SpiritStoneGrade grade) {
         return STONES.get(grade);
     }

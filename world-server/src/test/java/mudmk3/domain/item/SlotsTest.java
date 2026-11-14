@@ -30,6 +30,16 @@ class SlotsTest {
     }
 
     @Test
+    void slotsForBracelet() {
+        ItemType bracelet = ItemTypeFixture.createBag(BagGrade.BRACELET_LOW);
+
+        assertThat(bracelet.isBag()).isTrue();
+        assertThat(bracelet.isBracelet()).isTrue();
+        assertThat(bracelet.stackSize()).isZero();
+        assertThat(Slots.slotsFor(bracelet, 1)).isZero();
+    }
+
+    @Test
     void slotsForSingleStack() {
         ItemType sword = ItemTypeFixture.createItemType("비검", ItemCategory.ARTIFACT, 50);
 
@@ -40,6 +50,7 @@ class SlotsTest {
     void capacity() {
         assertThat(Slots.BASE).isEqualTo(2);
         assertThat(Slots.MAX_BAGS).isEqualTo(3);
+        assertThat(Slots.MAX_BRACELETS).isEqualTo(1);
         assertThat(Slots.capacity(0)).isEqualTo(2);
         assertThat(Slots.capacity(20)).isEqualTo(22);
     }

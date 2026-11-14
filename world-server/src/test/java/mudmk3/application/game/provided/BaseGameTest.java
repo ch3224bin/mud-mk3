@@ -7,6 +7,7 @@ import mudmk3.application.account.provided.AccountLoginRequest;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.character.required.CharacterRepository;
 import mudmk3.application.faction.provided.FactionEditor;
 import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.floor.provided.FloorPlacementSaveRequest;
@@ -27,6 +28,7 @@ import mudmk3.application.world.provided.StartingItemRequest;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.application.zone.provided.ZoneSaveRequest;
+import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.faction.Faction;
 import mudmk3.domain.faction.FactionKind;
 import mudmk3.domain.item.BagGrade;
@@ -37,6 +39,7 @@ import mudmk3.domain.npc.Npc;
 import mudmk3.domain.npc.ShopKind;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.room.Room;
+import mudmk3.domain.shared.Realm;
 import mudmk3.domain.zone.Zone;
 import org.junit.jupiter.api.AfterEach;
 import org.jspecify.annotations.Nullable;
@@ -61,6 +64,7 @@ abstract class BaseGameTest {
     protected final CharacterCreator characterCreator;
     protected final CharacterFinder characterFinder;
     protected final CharacterMover characterMover;
+    protected final CharacterRepository characterRepository;
     protected final ZoneEditor zoneEditor;
     protected final RoomEditor roomEditor;
     protected final WorldSettingsEditor worldSettingsEditor;
@@ -83,6 +87,7 @@ abstract class BaseGameTest {
             CharacterCreator characterCreator,
             CharacterFinder characterFinder,
             CharacterMover characterMover,
+            CharacterRepository characterRepository,
             ZoneEditor zoneEditor,
             RoomEditor roomEditor,
             WorldSettingsEditor worldSettingsEditor,
@@ -102,6 +107,7 @@ abstract class BaseGameTest {
         this.characterCreator = characterCreator;
         this.characterFinder = characterFinder;
         this.characterMover = characterMover;
+        this.characterRepository = characterRepository;
         this.zoneEditor = zoneEditor;
         this.roomEditor = roomEditor;
         this.worldSettingsEditor = worldSettingsEditor;
@@ -178,6 +184,16 @@ abstract class BaseGameTest {
         return id(itemType.getId());
     }
 
+    /** 아이템 종류 하급 저물탁(저물대·저물탁 하급 저물탁, 기준가 5,000) */
+    protected Long prepareBracelet() {
+        return prepareBracelet(BagGrade.BRACELET_LOW);
+    }
+
+    /** 그 등급의 저물탁 아이템 종류(이름은 {@code 중급 저물탁} 처럼 등급 이름, 기준가 5,000) */
+    protected Long prepareBracelet(BagGrade grade) {
+        return item(grade.displayName(), "", ItemCategory.BAG, 5_000, grade);
+    }
+
     /** {@link #prepareNpcs} 의 왕씨에게 단약방을 연다: 회춘단(연기 초) 기준가, 회기단(연기 초) 기준가 */
     protected void prepareShop(NpcMap npcs, Items items) {
         npcEditor.openShop(npcs.wangId(), new ShopSaveRequest(ShopKind.PILL_SHOP, List.of(
@@ -199,10 +215,22 @@ abstract class BaseGameTest {
         return id(floorPlacementEditor.create(roomId, new FloorPlacementSaveRequest(itemTypeId, count, respawnMinutes)).getId());
     }
 
-    /** 그 계정 캐릭터의 소지품에 물건을 넣는다(다 들어가야 한다) */
+    /** 그 계정 캐릭터의 소지품에 물건을 넣는다(다 들어가야 한다, 저물탁 칸은 지금 경지대로) */
     protected void give(Long accountId, Long itemTypeId, int count) {
-        int added = inventoryEditor.addUpTo(characterIdOf(accountId), itemTypeId, count);
+        Long characterId = characterIdOf(accountId);
+        boolean braceletOpen = characterFinder.find(characterId).getRealm().opensBracelet();
+        int added = inventoryEditor.addUpTo(characterId, itemTypeId, count, braceletOpen);
         if (added != count) throw new IllegalStateException("소지품에 다 들어가지 않았다: " + added + "/" + count);
+    }
+
+    /**
+     * 그 계정 캐릭터의 경지를 리포지토리로 바로 바꾼다(관리 툴 지정이 아니라 이벤트·알림이 없다). 게임은 명령마다 경지를 DB에서 읽는다
+     */
+    protected void setRealm(Long accountId, Realm realm) {
+        PlayerCharacter character = characterRepository.findByAccountId(accountId).orElseThrow();
+        character.changeRealm(realm);
+        characterRepository.save(character);
+        entityManager.flush();
     }
 
     protected Long characterIdOf(Long accountId) {

@@ -217,7 +217,7 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
     void deleteItemTypeInInventoryFail() {
         long itemTypeId = id(post("/api/admin/item-types", """
                 {"name":"늑대 가죽","category":"MATERIAL","baseValue":2}"""));
-        inventoryEditor.addUpTo(900L, itemTypeId, 3);
+        inventoryEditor.addUpTo(900L, itemTypeId, 3, false);
 
         assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
                 .hasStatus(HttpStatus.CONFLICT)

@@ -218,7 +218,7 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
     @Test
     void deleteItemTypeInInventoryFail() {
         ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
-        inventoryEditor.addUpTo(1L, itemType.getId(), 1);
+        inventoryEditor.addUpTo(1L, itemType.getId(), 1, false);
 
         assertThatThrownBy(() -> itemTypeEditor.delete(itemType.getId()))
                 .isInstanceOf(ItemTypeInUseException.class)
@@ -229,8 +229,8 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
     void changeCategoryInInventoryFail() {
         ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
         ItemType bag = itemTypeEditor.create(createItemTypeSaveRequest("하급 저물대", ItemCategory.BAG, 10, BagGrade.LOW));
-        inventoryEditor.addUpTo(1L, itemType.getId(), 1);
-        inventoryEditor.addUpTo(1L, bag.getId(), 1);
+        inventoryEditor.addUpTo(1L, itemType.getId(), 1, false);
+        inventoryEditor.addUpTo(1L, bag.getId(), 1, false);
 
         assertThatThrownBy(() -> itemTypeEditor.update(itemType.getId(), createItemTypeSaveRequest("회춘단", ItemCategory.MATERIAL, 3)))
                 .isInstanceOf(ItemTypeInUseException.class)
@@ -267,7 +267,7 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
     @Test
     void renameInInventory() {
         ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
-        inventoryEditor.addUpTo(1L, itemType.getId(), 1);
+        inventoryEditor.addUpTo(1L, itemType.getId(), 1, false);
 
         itemTypeEditor.update(itemType.getId(), new ItemTypeSaveRequest("회춘단(연기 초)", "바뀐 묘사다.", ItemCategory.PILL, 5, null, null));
         entityManager.flush();

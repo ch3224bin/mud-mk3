@@ -7,6 +7,7 @@ import mudmk3.application.account.provided.AccountLogin;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.character.required.CharacterRepository;
 import mudmk3.application.faction.provided.FactionEditor;
 import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.game.RecordingGameMessageSender;
@@ -42,9 +43,11 @@ import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.application.zone.provided.ZoneSaveRequest;
 import mudmk3.domain.faction.Faction;
 import mudmk3.domain.faction.FactionKind;
+import mudmk3.domain.item.BagGrade;
 import mudmk3.domain.item.SpiritStoneGrade;
 import mudmk3.domain.npc.Npc;
 import mudmk3.domain.npc.ShopKind;
+import mudmk3.domain.shared.Realm;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -72,6 +75,7 @@ class GameConnectorTest extends BaseGameTest {
             CharacterCreator characterCreator,
             CharacterFinder characterFinder,
             CharacterMover characterMover,
+            CharacterRepository characterRepository,
             ZoneEditor zoneEditor,
             RoomEditor roomEditor,
             WorldSettingsEditor worldSettingsEditor,
@@ -86,7 +90,7 @@ class GameConnectorTest extends BaseGameTest {
             MutableClock clock,
             EntityManager entityManager
     ) {
-        super(gameConnector, sender, accountLogin, characterCreator, characterFinder, characterMover,
+        super(gameConnector, sender, accountLogin, characterCreator, characterFinder, characterMover, characterRepository,
                 zoneEditor, roomEditor, worldSettingsEditor, factionEditor, npcEditor,
                 itemTypeEditor, itemTypeFinder, floorPlacementEditor, inventoryFinder, inventoryEditor, clock, entityManager);
         this.npcFinder = npcFinder;
@@ -1438,7 +1442,7 @@ class GameConnectorTest extends BaseGameTest {
         assertError("a", "팔기 하품", "왕씨: \"그런 물건은 받지 않소.\"");
         assertError("a", "팔기 꾸러미", "왕씨: \"그건 내가 살 물건이 아니오.\"");
         assertError("a", "팔기 가죽", "왕씨: \"그런 물건은 받지 않소.\" (재료는 재료상에 팔 수 있습니다)");
-        assertError("a", "팔기 저물대", "왕씨: \"그런 물건은 받지 않소.\" (저물대는 잡화점에 팔 수 있습니다)");
+        assertError("a", "팔기 저물대", "왕씨: \"그런 물건은 받지 않소.\" (저물대·저물탁은 잡화점에 팔 수 있습니다)");
         assertError("a", "팔기 회춘단 5", "회춘단(연기 초)는 3개뿐입니다.");
         assertError("a", "팔기 회춘단", "왕씨: \"값이 너무 적어 사 줄 수가 없소. 더 모아 오시오.\"");
     }
@@ -1600,6 +1604,116 @@ class GameConnectorTest extends BaseGameTest {
     private static Long id(@org.jspecify.annotations.Nullable Long id) {
         if (id == null) throw new IllegalStateException("저장된 엔티티에 id가 없습니다");
         return id;
+    }
+
+    // ---- 저물탁 (4차)
+
+    @Test
+    void inventoryShowsClosedBracelet() {
+        prepareMap();
+        Long bracelet = prepareBracelet();
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, bracelet, 1);
+        sender.clear();
+
+        gameConnector.handle("a", "소지품");
+
+        InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
+        assertThat(inventory.text()).isEqualTo("[소지품 0/2칸]\n하급 저물탁 (축기 초기 필요)");
+        assertThat(inventory.usedSlots()).isZero();
+        assertThat(inventory.totalSlots()).isEqualTo(2);
+        assertThat(inventory.items()).containsExactly(new ItemView("하급 저물탁", 1));
+    }
+
+    @Test
+    void braceletOpensAtFoundation() {
+        prepareMap();
+        Long bracelet = prepareBracelet();
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, bracelet, 1);
+        setRealm(hanbaek, Realm.FOUNDATION_EARLY);
+        sender.clear();
+
+        gameConnector.handle("a", "소지품");
+
+        InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
+        assertThat(inventory.text()).isEqualTo("[소지품 0/102칸]\n하급 저물탁");
+        assertThat(inventory.totalSlots()).isEqualTo(102);
+    }
+
+    @Test
+    void braceletClosesAfterDemotion() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long bracelet = prepareBracelet(BagGrade.BRACELET_MIDDLE);
+        place(map.entranceId(), items.hide(), 1, null);
+        Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.FOUNDATION_EARLY);
+        give(hanbaek, bracelet, 1);
+        give(hanbaek, items.sword(), 120);
+        setRealm(hanbaek, Realm.MORTAL);
+        sender.clear();
+
+        gameConnector.handle("a", "소지품");
+        InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
+        assertThat(inventory.text()).isEqualTo("[소지품 120/2칸]\n중급 저물탁 (축기 초기 필요)   비검 x120");
+        assertThat(inventory.usedSlots()).isEqualTo(120);
+        assertThat(inventory.totalSlots()).isEqualTo(2);
+
+        assertError("a", "줍기 가죽", "저물대에 자리가 없습니다.");
+        sender.clear();
+        gameConnector.handle("a", "버리기 비검");
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("비검 1개를 버렸습니다."));
+        gameConnector.handle("a", "소지품");
+        assertThat(sender.lastTo("a", InventoryMessage.class).usedSlots()).isEqualTo(119);
+    }
+
+    @Test
+    void pickSecondBraceletFail() {
+        GameMap map = prepareMap();
+        Long bracelet = prepareBracelet();
+        place(map.entranceId(), bracelet, 1, null);
+        enter("a", "한백");
+
+        gameConnector.handle("a", "줍기 저물탁");
+        assertThat(sender.lastTo("a", SystemMessage.class)).isEqualTo(SystemMessage.item("하급 저물탁 1개를 주웠습니다."));
+        place(map.entranceId(), bracelet, 1, null);
+        sender.clear();
+
+        assertError("a", "줍기 저물탁", "저물탁은 하나까지만 찰 수 있습니다.");
+        gameConnector.handle("a", "소지품");
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("하급 저물탁", 1));
+    }
+
+    @Test
+    void giveBraceletToHolderFail() {
+        prepareMap();
+        Long bracelet = prepareBracelet();
+        Long hanbaek = enter("a", "한백");
+        Long hanrip = enter("b", "한립");
+        give(hanbaek, bracelet, 1);
+        give(hanrip, bracelet, 1);
+        sender.clear();
+
+        assertError("a", "주기 한립 저물탁", "한립은 저물탁을 더 찰 수 없습니다.");
+        assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    @Test
+    void dropBraceletInUseFail() {
+        prepareMap();
+        Items items = prepareItems();
+        Long bracelet = prepareBracelet();
+        Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.FOUNDATION_EARLY);
+        give(hanbaek, bracelet, 1);
+        give(hanbaek, items.sword(), 3);
+        sender.clear();
+
+        assertError("a", "버리기 저물탁", "저물탁에 든 물건을 먼저 비우십시오.");
+
+        gameConnector.handle("a", "소지품");
+        assertThat(sender.lastTo("a", InventoryMessage.class).totalSlots()).isEqualTo(102);
     }
 
     private void assertError(String sessionId, String command, String text) {

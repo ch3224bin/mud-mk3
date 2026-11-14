@@ -110,8 +110,8 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
                 .hasStatus(HttpStatus.CREATED)
                 .bodyJson()
                 .isLenientlyEqualTo("""
-                        {"id":8,"category":"BAG","categoryName":"저물대","stackSize":0,"bagGrade":"LOW",
-                         "bagGradeName":"하급","bagSlots":20}""");
+                        {"id":8,"category":"BAG","categoryName":"저물대·저물탁","stackSize":0,"bagGrade":"LOW",
+                         "bagGradeName":"하급 저물대","bagSlots":20}""");
     }
 
     @Test
