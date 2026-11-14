@@ -30,6 +30,7 @@ public class InventoryModifyService implements InventoryEditor {
 
     @Override
     public int addUpTo(Long characterId, Long itemTypeId, int count) {
+        if (count < 1) throw new IllegalArgumentException("수는 1 이상이어야 합니다: " + count);
         Inventory inventory = findOrCreate(characterId);
         ItemType itemType = itemTypeFinder.find(itemTypeId);
         int added = Math.min(count, inventory.roomFor(itemType));

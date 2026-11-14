@@ -67,12 +67,36 @@ class SpiritStonePaymentTest {
     }
 
     @Test
-    void breakHighAndTop() {
+    void highUsedUpTopBroken() {
         SpiritStonePayment payment = SpiritStonePayment.plan(Map.of(LOW, 5L, HIGH, 1L, TOP, 1L), 20_000).orElseThrow();
 
         assertThat(payment.paid()).isEqualTo(Map.of(LOW, 5L, HIGH, 1L, TOP, 1L));
         assertThat(payment.change()).isEqualTo(1_010_005 - 20_000);
-        assertThat(payment.brokenHighGrades()).containsExactly(HIGH, TOP);
+        assertThat(payment.brokenHighGrades()).containsExactly(TOP);
+        assertThat(payment.breaksHighStones()).isTrue();
+    }
+
+    @Test
+    void exactHighDoesNotBreak() {
+        SpiritStonePayment payment = SpiritStonePayment.plan(Map.of(HIGH, 1L), 10_000).orElseThrow();
+
+        assertThat(payment.paid()).isEqualTo(Map.of(HIGH, 1L));
+        assertThat(payment.change()).isZero();
+        assertThat(payment.breaksHighStones()).isFalse();
+        assertThat(payment.brokenHighGrades()).isEmpty();
+    }
+
+    @Test
+    void highUsedUpMiddleBroken() {
+        SpiritStonePayment payment = SpiritStonePayment.plan(Map.of(MIDDLE, 1L, HIGH, 1L), 10_050).orElseThrow();
+
+        assertThat(payment.paid()).isEqualTo(Map.of(MIDDLE, 1L, HIGH, 1L));
+        assertThat(payment.change()).isEqualTo(50);
+        assertThat(payment.brokenHighGrades()).containsExactly(HIGH);
+
+        SpiritStonePayment exact = SpiritStonePayment.plan(Map.of(LOW, 50L, MIDDLE, 1L, HIGH, 1L), 10_150).orElseThrow();
+        assertThat(exact.change()).isZero();
+        assertThat(exact.breaksHighStones()).isFalse();
     }
 
     @Test

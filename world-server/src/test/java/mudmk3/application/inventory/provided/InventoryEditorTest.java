@@ -22,6 +22,7 @@ import static mudmk3.domain.item.ItemTypeFixture.createItemTypeSaveRequest;
 import static mudmk3.domain.item.SpiritStoneGrade.HIGH;
 import static mudmk3.domain.item.SpiritStoneGrade.LOW;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 @ApplicationServiceTest
@@ -116,6 +117,37 @@ record InventoryEditorTest(InventoryEditor inventoryEditor, InventoryFinder inve
         inventoryEditor.addUpTo(HAN, sword.getId(), 3);
 
         assertThat(inventoryEditor.give(HAN, YEO, bag.getId(), false, 1)).isEqualTo(GiveResult.GIVER_BAG_IN_USE);
+    }
+
+    @Test
+    void giveGiverCheckedFirst() {
+        ItemType bag = itemTypeEditor.create(createItemTypeSaveRequest("하급 저물대", ItemCategory.BAG, 10, BagGrade.LOW));
+        ItemType sword = create("비검", ItemCategory.ARTIFACT);
+        inventoryEditor.addUpTo(HAN, bag.getId(), 1);
+        inventoryEditor.addUpTo(HAN, sword.getId(), 3);
+        inventoryEditor.addUpTo(YEO, bag.getId(), 3);
+
+        assertThat(inventoryEditor.give(HAN, YEO, bag.getId(), false, 1)).isEqualTo(GiveResult.GIVER_BAG_IN_USE);
+        reload();
+
+        assertThat(inventoryFinder.find(HAN).bagCount()).isEqualTo(1);
+        assertThat(inventoryFinder.find(YEO).bagCount()).isEqualTo(3);
+    }
+
+    @Test
+    void giveReceiverBagLimitBeforeNoRoom() {
+        ItemType bag = itemTypeEditor.create(createItemTypeSaveRequest("하급 저물대", ItemCategory.BAG, 10, BagGrade.LOW));
+        inventoryEditor.addUpTo(HAN, bag.getId(), 1);
+        inventoryEditor.addUpTo(YEO, bag.getId(), 3);
+
+        assertThat(inventoryEditor.give(HAN, YEO, bag.getId(), false, 1)).isEqualTo(GiveResult.RECEIVER_BAG_LIMIT);
+    }
+
+    @Test
+    void addUpToZeroFail() {
+        ItemType pill = create("회춘단", ItemCategory.PILL);
+
+        assertThatThrownBy(() -> inventoryEditor.addUpTo(HAN, pill.getId(), 0)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

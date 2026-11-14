@@ -60,11 +60,11 @@ public class Inventory extends AbstractEntity {
     }
 
     public int usedSlots() {
-        return after(new Changes()).usedSlots();
+        return Math.toIntExact(after(new Changes()).usedSlots());
     }
 
     public int capacity() {
-        return after(new Changes()).capacity();
+        return Math.toIntExact(after(new Changes()).capacity());
     }
 
     public int bagCount() {
@@ -105,10 +105,11 @@ public class Inventory extends AbstractEntity {
         return Math.toIntExact(free * stack + slack);
     }
 
-    /** 귀속 안 된 그 물건 {@code count} 개를 넣을 수 있는지 */
+    /** 귀속 안 된 그 물건 {@code count} 개를 넣을 수 있는지. 어떤 소지품에도 들어가지 않을 만큼 큰 수는 계산하지 않고 거절한다 */
     public AddCheck checkAdd(ItemType itemType, long count) {
         requireNonNull(itemType);
         requirePositive(count);
+        if (count > Integer.MAX_VALUE) return itemType.isBag() ? AddCheck.BAG_LIMIT : AddCheck.NO_ROOM;
         return checkAdd(new Changes().add(itemType, false, count));
     }
 
@@ -121,14 +122,19 @@ public class Inventory extends AbstractEntity {
         apply(changes);
     }
 
-    /** 가진 그 묶음에서 {@code count} 개를 뺄 수 있는지. 가진 수보다 많으면 {@code IllegalStateException} */
+    /**
+     * 가진 그 묶음에서 {@code count} 개를 뺄 수 있는지(버리기·주기). 가진 수보다 많거나 귀속된 묶음이면
+     * {@code IllegalStateException} — 귀속된 물건은 버리거나 줄 수 없고(룰북 item.md 귀속), 3차에 귀속 물건을 빼는 다른 경로는 없다.
+     * 플레이어 문구는 게임 명령이 먼저 검사해 낸다
+     */
     public RemoveCheck checkRemove(ItemType itemType, boolean bound, int count) {
-        return fits(removal(itemType, bound, count)) ? RemoveCheck.OK : RemoveCheck.BAG_IN_USE;
+        return fits(unboundRemoval(itemType, bound, count)) ? RemoveCheck.OK : RemoveCheck.BAG_IN_USE;
     }
 
+    /** {@link #checkRemove} 가 OK일 때만 뺀다 */
     public void remove(ItemType itemType, boolean bound, int count) {
         state(checkRemove(itemType, bound, count) == RemoveCheck.OK, "저물대에 든 물건을 먼저 비우십시오.");
-        apply(removal(itemType, bound, count));
+        apply(unboundRemoval(itemType, bound, count));
     }
 
     /**
@@ -152,7 +158,8 @@ public class Inventory extends AbstractEntity {
         if (payment.change() > 0) {
             Usage withChange = after(changes.add(lowStone, false, payment.change()));
             if (withChange.usedSlots() > withChange.capacity()) {
-                return new PurchaseResult.NoRoomForChange(payment.change(), withChange.usedSlots() - withItem.usedSlots());
+                int slotsNeeded = Math.toIntExact(withChange.usedSlots() - withItem.usedSlots());
+                return new PurchaseResult.NoRoomForChange(payment.change(), slotsNeeded);
             }
         }
         return payment.breaksHighStones() ? new PurchaseResult.NeedsConfirm(payment) : new PurchaseResult.Bought(payment);
@@ -160,7 +167,7 @@ public class Inventory extends AbstractEntity {
 
     /**
      * 결제한다: 낸 영석을 빼고 산 물건(귀속 안 됨)과 거스름 하품을 넣는다. {@link #checkPurchase} 가 같은 결제로
-     * 살 수 있음이나 확인 필요를 돌려주는 경우에만 바꾼다
+     * 살 수 있음이나 확인 필요를 돌려주는 경우에만 바꾼다(낸 영석은 검사와 같은 가진 묶음에서 뺀다. {@code stones} 는 거스름 하품 종류를 꺼내는 데 쓴다)
      */
     public void purchase(ItemType itemType, int count, SpiritStonePayment payment, Map<SpiritStoneGrade, ItemType> stones) {
         requireNonNull(payment);
@@ -175,18 +182,20 @@ public class Inventory extends AbstractEntity {
         state(payment.equals(planned), () -> "결제할 수 없습니다: " + result);
 
         Changes changes = new Changes();
-        payment.paid().forEach((grade, paid) ->
-                changes.add(requireNonNull(stones.get(grade), () -> "영석 종류가 없습니다: " + grade.itemName()), false, -paid));
+        payment.paid().forEach((grade, paid) -> changes.add(heldStone(grade), false, -paid));
         changes.add(itemType, false, count);
         if (payment.change() > 0) changes.add(lowStone, false, payment.change());
         apply(changes);
     }
 
-    /** 가진 그 묶음 {@code count} 개를 팔고 하품 {@code payout} 개를 받을 수 있는지. 가진 수보다 많으면 {@code IllegalStateException} */
+    /**
+     * 가진 그 묶음 {@code count} 개를 팔고 하품 {@code payout} 개를 받을 수 있는지. 가진 수보다 많거나 귀속된 묶음이면
+     * {@code IllegalStateException}(귀속된 물건은 팔 수 없다, 룰북 item.md 귀속)
+     */
     public SaleResult checkSale(ItemType itemType, boolean bound, int count, long payout, ItemType lowStone) {
         requireLowStone(lowStone);
         if (payout < 0) throw new IllegalArgumentException("받는 영석 수는 0 이상이어야 합니다: " + payout);
-        Changes changes = removal(itemType, bound, count);
+        Changes changes = unboundRemoval(itemType, bound, count);
         if (!fits(changes)) return SaleResult.BAG_IN_USE;
         if (payout > 0 && !fits(changes.add(lowStone, false, payout))) return SaleResult.NO_ROOM;
         return SaleResult.SOLD;
@@ -195,7 +204,7 @@ public class Inventory extends AbstractEntity {
     public void sell(ItemType itemType, boolean bound, int count, long payout, ItemType lowStone) {
         SaleResult result = checkSale(itemType, bound, count, payout, lowStone);
         state(result == SaleResult.SOLD, () -> "팔 수 없습니다: " + result);
-        Changes changes = removal(itemType, bound, count);
+        Changes changes = unboundRemoval(itemType, bound, count);
         if (payout > 0) changes.add(lowStone, false, payout);
         apply(changes);
     }
@@ -220,9 +229,10 @@ public class Inventory extends AbstractEntity {
         apply(changes);
     }
 
-    private Changes removal(ItemType itemType, boolean bound, int count) {
+    private Changes unboundRemoval(ItemType itemType, boolean bound, int count) {
         requireNonNull(itemType);
         requirePositive(count);
+        state(!bound, () -> "귀속된 물건은 버리거나 팔거나 줄 수 없습니다: " + itemType.getName());
         state(held(itemType, bound) >= count, () -> "가진 것보다 많이 뺄 수 없습니다: " + itemType.getName());
         return new Changes().add(itemType, bound, -count);
     }
@@ -275,7 +285,7 @@ public class Inventory extends AbstractEntity {
                 bagSlots += n * itemType.bagSlots();
             }
         }
-        return new Usage(Math.toIntExact(used), Slots.capacity(Math.toIntExact(bagSlots)), bags);
+        return new Usage(used, Slots.BASE + bagSlots, bags);
     }
 
     private void apply(Changes changes) {
@@ -304,7 +314,7 @@ public class Inventory extends AbstractEntity {
     private record Key(ItemType itemType, boolean bound) {
     }
 
-    private record Usage(int usedSlots, int capacity, long bagCount) {
+    private record Usage(long usedSlots, long capacity, long bagCount) {
     }
 
     /** 묶음마다 더하거나 뺄 수. 같은 묶음은 하나로 합친다 */

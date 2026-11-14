@@ -95,6 +95,32 @@ class InventoryTest {
     }
 
     @Test
+    void checkAddHugeCount() {
+        Inventory inventory = createInventory();
+
+        assertThat(inventory.checkAdd(sword, Integer.MAX_VALUE)).isEqualTo(AddCheck.NO_ROOM);
+        assertThat(inventory.checkAdd(lowStone, 3_000_000_000L)).isEqualTo(AddCheck.NO_ROOM);
+        assertThat(inventory.checkAdd(pill, Long.MAX_VALUE)).isEqualTo(AddCheck.NO_ROOM);
+        assertThat(inventory.checkAdd(bag, Long.MAX_VALUE)).isEqualTo(AddCheck.BAG_LIMIT);
+        assertThat(inventory.checkAdd(bag, Integer.MAX_VALUE)).isEqualTo(AddCheck.BAG_LIMIT);
+        assertThatThrownBy(() -> inventory.checkAdd(pill, 0)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void removeAndSellBoundFail() {
+        Inventory inventory = createInventory();
+        inventory.add(sword, 2, false);
+        inventory.bind(sword);
+
+        assertThatThrownBy(() -> inventory.checkRemove(sword, true, 1)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> inventory.remove(sword, true, 1)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> inventory.checkSale(sword, true, 1, 12, lowStone)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> inventory.sell(sword, true, 1, 12, lowStone)).isInstanceOf(IllegalStateException.class);
+        assertThat(inventory.getEntries()).extracting(InventoryEntry::isBound, InventoryEntry::getCount)
+                .containsExactly(tuple(false, 1), tuple(true, 1));
+    }
+
+    @Test
     void fourthBagFail() {
         Inventory inventory = createInventory();
         inventory.add(bag, 3, false);
@@ -191,6 +217,15 @@ class InventoryTest {
         bought.add(lowStone, 50, false);
         assertThat(bought.checkPurchase(pill, 5, 15, lowStone)).isEqualTo(
                 new PurchaseResult.Bought(new SpiritStonePayment(Map.of(LOW, 15L), 0)));
+    }
+
+    @Test
+    void purchaseExactHighStoneNoConfirm() {
+        Inventory inventory = createInventory();
+        inventory.add(stone(HIGH), 1, false);
+
+        assertThat(inventory.checkPurchase(pill, 1, 10_000, lowStone)).isEqualTo(
+                new PurchaseResult.Bought(new SpiritStonePayment(Map.of(HIGH, 1L), 0)));
     }
 
     @Test

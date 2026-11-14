@@ -69,14 +69,25 @@ public record SpiritStonePayment(Map<SpiritStoneGrade, Long> paid, long change) 
         return valueOf(paid);
     }
 
-    /** 상품·극품을 깨는지(중품은 묻지 않는다) */
+    /**
+     * 상품·극품을 깨는지(룰북 item.md: 상품·극품을 깨야 하면 확인). 깬다는 것은 그 돌에서 거스름이 나오는 것이다.
+     * 상품·극품을 값에 그대로 다 쓰면(거스름 0) 깨지 않는다. 중품은 묻지 않는다
+     */
     public boolean breaksHighStones() {
         return !brokenHighGrades().isEmpty();
     }
 
-    /** 깨는 상품·극품 등급(낮은 등급부터) */
+    /**
+     * 깨는 상품·극품 등급. 거스름은 마지막으로 낸 등급에서만 나오므로 많아야 하나다
+     * (예: 상품 1·극품 1로 20,000 → 상품은 다 쓰이고 극품만 깨져 {@code [TOP]})
+     */
     public List<SpiritStoneGrade> brokenHighGrades() {
-        return HIGH_GRADES.stream().filter(paid::containsKey).toList();
+        if (change == 0) return List.of();
+        SpiritStoneGrade last = null;
+        for (SpiritStoneGrade grade : paid.keySet()) {
+            last = grade;
+        }
+        return last != null && HIGH_GRADES.contains(last) ? List.of(last) : List.of();
     }
 
     private static long valueOf(Map<SpiritStoneGrade, Long> stones) {
