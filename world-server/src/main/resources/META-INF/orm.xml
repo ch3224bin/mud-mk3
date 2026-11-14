@@ -162,6 +162,44 @@
         </attributes>
     </entity>
 
+    <entity class="mudmk3.domain.item.ItemType">
+        <table name="item_type">
+            <unique-constraint name="UK_ITEM_TYPE_NAME">
+                <column-name>name</column-name>
+            </unique-constraint>
+            <unique-constraint name="UK_ITEM_TYPE_SPIRIT_STONE_GRADE">
+                <column-name>spirit_stone_grade</column-name>
+            </unique-constraint>
+        </table>
+        <attributes>
+            <basic name="name">
+                <column name="name" length="20" nullable="false"/>
+            </basic>
+            <basic name="description">
+                <column name="description" length="500" nullable="false"/>
+            </basic>
+            <basic name="category">
+                <column name="category" length="32" nullable="false" column-definition="varchar(32)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="baseValue">
+                <column name="base_value" nullable="false"/>
+            </basic>
+            <basic name="tradable">
+                <column name="tradable" nullable="false"/>
+            </basic>
+            <basic name="bagGrade">
+                <column name="bag_grade" length="16" nullable="true" column-definition="varchar(16)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+            <!-- 엔진이 심는 영석만 값이 있다. 등급마다 하나뿐이다 -->
+            <basic name="spiritStoneGrade">
+                <column name="spirit_stone_grade" length="16" nullable="true" column-definition="varchar(16)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+        </attributes>
+    </entity>
+
     <embeddable class="mudmk3.domain.character.CharacterName">
         <attributes>
             <basic name="value">
