@@ -4,7 +4,9 @@ import jakarta.persistence.EntityManager;
 import mudmk3.ApplicationServiceTest;
 import mudmk3.application.account.provided.AccountLogin;
 import mudmk3.application.account.provided.AccountLoginRequest;
+import mudmk3.application.character.CharacterModifyService;
 import mudmk3.application.inventory.provided.InventoryFinder;
+import mudmk3.application.item.ItemTypeModifyService;
 import mudmk3.application.item.provided.ItemTypeEditor;
 import mudmk3.application.item.provided.ItemTypeFinder;
 import mudmk3.application.npc.provided.NpcEditor;
@@ -16,18 +18,24 @@ import mudmk3.domain.character.CharacterAlreadyExistsException;
 import mudmk3.domain.character.CharacterName;
 import mudmk3.domain.character.DuplicateCharacterNameException;
 import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.inventory.Inventory;
 import mudmk3.domain.inventory.InventoryEntry;
 import mudmk3.domain.item.BagGrade;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.SpiritStoneGrade;
 import mudmk3.domain.room.Room;
+import mudmk3.domain.shared.Realm;
 import mudmk3.domain.zone.Zone;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 
+import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.item.ItemTypeFixture.createItemTypeSaveRequest;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
@@ -40,6 +48,7 @@ import static org.assertj.core.api.Assertions.tuple;
 record CharacterCreatorTest(
         CharacterCreator characterCreator,
         CharacterFinder characterFinder,
+        CharacterModifyService characterModifyService,
         AccountLogin accountLogin,
         ZoneEditor zoneEditor,
         RoomEditor roomEditor,
@@ -66,6 +75,91 @@ record CharacterCreatorTest(
         assertThat(characterFinder.isNameTaken("한백")).isTrue();
         assertThat(characterFinder.isNameTaken("한립")).isFalse();
         assertThat(characterFinder.isNameTaken("한 백")).isFalse();
+    }
+
+    @Test
+    void createWithSpiritRoot() {
+        prepareStartRoom();
+        Long accountId = prepareAccount("hanbaek@example.com");
+
+        PlayerCharacter character = characterCreator.create(accountId, "한백", spiritRoot());
+        flushAndClear();
+
+        PlayerCharacter found = characterFinder.find(character.getId());
+        assertThat(found.getRealm()).isEqualTo(Realm.MORTAL);
+        assertThat(found.findSpiritRoot()).map(SpiritRoot::name).contains("목·화 진영근");
+    }
+
+    @Test
+    void createWithSpiritRootChecksInSameOrder() {
+        prepareStartRoom();
+        Long accountId = prepareAccount("hanbaek@example.com");
+        characterCreator.create(accountId, "한백", spiritRoot());
+
+        assertThatThrownBy(() -> characterCreator.create(accountId, "한 백", spiritRoot()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이름은 띄어쓰기 없이 한글 2~6자로 정하십시오.");
+        assertThatThrownBy(() -> characterCreator.create(accountId, "한백", spiritRoot()))
+                .isInstanceOf(CharacterAlreadyExistsException.class);
+        assertThatThrownBy(() -> characterCreator.create(prepareAccount("hanli@example.com"), "한백", spiritRoot()))
+                .isInstanceOf(DuplicateCharacterNameException.class);
+    }
+
+    @Test
+    void chooseSpiritRootForLegacy() {
+        prepareStartRoom();
+        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백");
+        flushAndClear();
+        assertThat(characterFinder.find(character.getId()).findSpiritRoot()).isEmpty();
+
+        characterCreator.chooseSpiritRoot(character.getId(), SpiritRoot.parse("금").orElseThrow());
+        flushAndClear();
+
+        assertThat(characterFinder.find(character.getId()).findSpiritRoot())
+                .map(SpiritRoot::summary).contains("금 100");
+    }
+
+    @Test
+    void chooseSpiritRootTwiceFail() {
+        prepareStartRoom();
+        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백", spiritRoot());
+        SpiritRoot other = SpiritRoot.parse("금").orElseThrow();
+
+        assertThatThrownBy(() -> characterCreator.chooseSpiritRoot(character.getId(), other))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("영근은 이미 정했습니다");
+    }
+
+    @Test
+    void findUnknownFail() {
+        assertThatThrownBy(() -> characterFinder.find(-1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("캐릭터를 찾을 수 없습니다. id: -1");
+        assertThatThrownBy(() -> characterCreator.chooseSpiritRoot(-1L, spiritRoot()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("캐릭터를 찾을 수 없습니다. id: -1");
+    }
+
+    @Test
+    void fillMissingRealmsOnStartupListener() throws NoSuchMethodException {
+        prepareStartRoom();
+        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백");
+        entityManager.flush();
+        entityManager.createNativeQuery("update player_character set realm = null where id = ?")
+                .setParameter(1, character.getId())
+                .executeUpdate();
+        entityManager.clear();
+
+        characterModifyService.fillMissingRealms();
+        entityManager.clear();
+
+        assertThat(characterFinder.find(character.getId()).getRealm()).isEqualTo(Realm.QI_1);
+        Method fill = CharacterModifyService.class.getMethod("fillMissingRealms");
+        assertThat(fill.getAnnotation(EventListener.class)).isNotNull();
+        assertThat(fill.getAnnotation(Order.class).value()).isZero();
+        Method seed = ItemTypeModifyService.class.getMethod("seedSpiritStones");
+        assertThat(seed.getAnnotation(EventListener.class)).isNotNull();
+        assertThat(seed.getAnnotation(Order.class).value()).isEqualTo(10);
     }
 
     @Test

@@ -132,7 +132,18 @@
             <basic name="roomId">
                 <column name="room_id" nullable="false"/>
             </basic>
+            <!-- 4차 전 행은 비어 있다가 서버가 뜰 때 채운다(기존 DB에 열을 더할 수 있게 nullable) -->
+            <basic name="realm">
+                <column name="realm" length="32" nullable="true" column-definition="varchar(32)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
             <embedded name="name"/>
+            <!-- 비어 있으면 영근을 아직 정하지 않은 것이다. 오행 순서는 도메인이 정렬한다 -->
+            <element-collection name="spiritRoots">
+                <collection-table name="character_spirit_root">
+                    <join-column name="character_id"/>
+                </collection-table>
+            </element-collection>
         </attributes>
     </entity>
 
@@ -324,6 +335,18 @@
             <!-- null 이면 기준가를 따라간다 -->
             <basic name="price">
                 <column name="price" nullable="true"/>
+            </basic>
+        </attributes>
+    </embeddable>
+
+    <embeddable class="mudmk3.domain.character.SpiritRootEntry">
+        <attributes>
+            <basic name="element">
+                <column name="element" length="16" nullable="false" column-definition="varchar(16)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="aptitude">
+                <column name="aptitude" nullable="false"/>
             </basic>
         </attributes>
     </embeddable>

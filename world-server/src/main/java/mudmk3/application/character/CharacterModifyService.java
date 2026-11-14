@@ -1,6 +1,7 @@
 package mudmk3.application.character;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import mudmk3.application.account.provided.AccountFinder;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
@@ -14,13 +15,22 @@ import mudmk3.domain.character.CharacterCreateInfo;
 import mudmk3.domain.character.CharacterName;
 import mudmk3.domain.character.DuplicateCharacterNameException;
 import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.room.Room;
+import mudmk3.domain.shared.Josa;
+import mudmk3.domain.shared.Realm;
 import mudmk3.support.stereotype.ApplicationService;
+import org.jspecify.annotations.Nullable;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
+@Slf4j
 @ApplicationService
 @RequiredArgsConstructor
 public class CharacterModifyService implements CharacterCreator, CharacterMover {
@@ -33,6 +43,33 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover 
 
     @Override
     public PlayerCharacter create(Long accountId, String name) {
+        return createCharacter(accountId, name, null);
+    }
+
+    @Override
+    public PlayerCharacter create(Long accountId, String name, SpiritRoot spiritRoot) {
+        return createCharacter(accountId, name, requireNonNull(spiritRoot));
+    }
+
+    @Override
+    public void chooseSpiritRoot(Long characterId, SpiritRoot spiritRoot) {
+        PlayerCharacter character = characterFinder.find(characterId);
+        character.chooseSpiritRoot(spiritRoot);
+        characterRepository.save(character);
+    }
+
+    /** 서버가 뜰 때 경지 열이 비어 있는 기존 캐릭터를 연기 1층으로 채운다(영석 심기보다 먼저) */
+    @EventListener(ApplicationReadyEvent.class)
+    @Order(0)
+    @Transactional
+    public void fillMissingRealms() {
+        int filled = characterRepository.fillMissingRealms(Realm.QI_1);
+        if (filled > 0) {
+            log.info("경지가 비어 있던 캐릭터 {}명을 {} 채웠습니다", filled, Josa.withEuroRo(Realm.QI_1.koreanName()));
+        }
+    }
+
+    private PlayerCharacter createCharacter(Long accountId, String name, @Nullable SpiritRoot spiritRoot) {
         CharacterName characterName = new CharacterName(name);
         accountFinder.find(accountId);
         if (characterFinder.findByAccountId(accountId).isPresent()) {
@@ -45,7 +82,7 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover 
                 .orElseThrow(() -> new WorldNotReadyException(
                         "아직 세계가 열리지 않았습니다. 관리자가 시작 방을 정해야 합니다."));
         PlayerCharacter character = characterRepository.save(PlayerCharacter.create(
-                new CharacterCreateInfo(accountId, characterName, requireNonNull(startRoom.getId()))));
+                new CharacterCreateInfo(accountId, characterName, requireNonNull(startRoom.getId()), spiritRoot)));
         // 같은 트랜잭션에서 시작 소지품을 준다(바꾼 시작 소지품은 그 뒤 만드는 캐릭터부터 받는다)
         inventoryEditor.createWithStartingItems(requireNonNull(character.getId()));
         return character;
@@ -53,7 +90,7 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover 
 
     @Override
     public void moveTo(Long characterId, Long roomId) {
-        PlayerCharacter character = find(characterId);
+        PlayerCharacter character = characterFinder.find(characterId);
         character.moveTo(roomId);
         characterRepository.save(character);
     }
@@ -66,10 +103,5 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover 
                     return requireNonNull(characterRepository.save(character).getId());
                 })
                 .toList();
-    }
-
-    private PlayerCharacter find(Long characterId) {
-        return characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("캐릭터를 찾을 수 없습니다. id: " + characterId));
     }
 }

@@ -3,6 +3,10 @@ package mudmk3.application.character.required;
 import jakarta.persistence.EntityManager;
 import mudmk3.domain.character.CharacterName;
 import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.character.SpiritRoot;
+import mudmk3.domain.character.SpiritRootEntry;
+import mudmk3.domain.shared.Element;
+import mudmk3.domain.shared.Realm;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -10,6 +14,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import static mudmk3.domain.character.CharacterFixture.createCharacter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 @DataJpaTest
 record CharacterRepositoryTest(CharacterRepository characterRepository, EntityManager entityManager) {
@@ -23,6 +28,67 @@ record CharacterRepositoryTest(CharacterRepository characterRepository, EntityMa
         assertThat(found.getAccountId()).isEqualTo(1L);
         assertThat(found.getName()).isEqualTo(new CharacterName("한백"));
         assertThat(found.getRoomId()).isEqualTo(10L);
+    }
+
+    @Test
+    void saveWithSpiritRoot() {
+        PlayerCharacter character = characterRepository.save(
+                createCharacter(1L, "한백", 10L, SpiritRoot.parse("화 금 목").orElseThrow()));
+        flushAndClear();
+
+        PlayerCharacter found = characterRepository.findById(character.getId()).orElseThrow();
+        assertThat(found.getRealm()).isEqualTo(Realm.MORTAL);
+        SpiritRoot root = found.findSpiritRoot().orElseThrow();
+        assertThat(root.entries())
+                .extracting(SpiritRootEntry::element, SpiritRootEntry::aptitude)
+                .containsExactly(
+                        tuple(Element.METAL, 100.0 / 3),
+                        tuple(Element.WOOD, 100.0 / 3),
+                        tuple(Element.FIRE, 100.0 / 3));
+        assertThat(root.name()).isEqualTo("금·목·화 진영근");
+    }
+
+    @Test
+    void saveWithoutSpiritRoot() {
+        PlayerCharacter character = characterRepository.save(createCharacter(1L, "한백", 10L));
+        flushAndClear();
+
+        assertThat(characterRepository.findById(character.getId()).orElseThrow().findSpiritRoot()).isEmpty();
+    }
+
+    @Test
+    void fillMissingRealms() {
+        PlayerCharacter legacy = characterRepository.save(createCharacter(1L, "한백", 10L));
+        PlayerCharacter founded = createCharacter(2L, "한립", 10L);
+        founded.changeRealm(Realm.FOUNDATION_EARLY);
+        characterRepository.save(founded);
+        PlayerCharacter mortal = characterRepository.save(createCharacter(3L, "남궁완", 10L));
+        entityManager.flush();
+        entityManager.createNativeQuery("update player_character set realm = null where id = ?")
+                .setParameter(1, legacy.getId())
+                .executeUpdate();
+        entityManager.clear();
+
+        assertThat(characterRepository.fillMissingRealms(Realm.QI_1)).isEqualTo(1);
+        entityManager.clear();
+
+        assertThat(characterRepository.findById(legacy.getId()).orElseThrow().getRealm()).isEqualTo(Realm.QI_1);
+        assertThat(characterRepository.findById(founded.getId()).orElseThrow().getRealm()).isEqualTo(Realm.FOUNDATION_EARLY);
+        assertThat(characterRepository.findById(mortal.getId()).orElseThrow().getRealm()).isEqualTo(Realm.MORTAL);
+        assertThat(characterRepository.fillMissingRealms(Realm.QI_1)).isZero();
+    }
+
+    @Test
+    void missingRealmFailsOnRead() {
+        PlayerCharacter legacy = characterRepository.save(createCharacter(1L, "한백", 10L));
+        entityManager.flush();
+        entityManager.createNativeQuery("update player_character set realm = null where id = ?")
+                .setParameter(1, legacy.getId())
+                .executeUpdate();
+        entityManager.clear();
+
+        PlayerCharacter found = characterRepository.findById(legacy.getId()).orElseThrow();
+        assertThatThrownBy(found::getRealm).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

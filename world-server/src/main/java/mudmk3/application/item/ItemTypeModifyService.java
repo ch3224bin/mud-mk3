@@ -17,6 +17,7 @@ import mudmk3.domain.shared.Numbers;
 import mudmk3.support.stereotype.ValidatedApplicationService;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -73,8 +74,9 @@ public class ItemTypeModifyService implements ItemTypeEditor {
         itemTypeRepository.delete(itemType);
     }
 
-    /** 서버가 뜰 때 영석 네 등급 중 없는 것을 심는다 */
+    /** 서버가 뜰 때 영석 네 등급 중 없는 것을 심는다(캐릭터 경지 채우기 다음) */
     @EventListener(ApplicationReadyEvent.class)
+    @Order(10)
     @Transactional
     public void seedSpiritStones() {
         for (SpiritStoneGrade grade : SpiritStoneGrade.values()) {

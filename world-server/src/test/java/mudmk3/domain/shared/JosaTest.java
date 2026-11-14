@@ -55,6 +55,19 @@ class JosaTest {
     }
 
     @Test
+    void withEuroRo() {
+        assertThat(Josa.withEuroRo("연기 7층")).isEqualTo("연기 7층으로");
+        assertThat(Josa.withEuroRo("축기 초기")).isEqualTo("축기 초기로");
+        assertThat(Josa.withEuroRo("범인")).isEqualTo("범인으로");
+        assertThat(Josa.withEuroRo("연기 1층")).isEqualTo("연기 1층으로");
+        assertThat(Josa.withEuroRo("축기 대원만")).isEqualTo("축기 대원만으로");
+        assertThat(Josa.withEuroRo("서울")).isEqualTo("서울로");
+        assertThat(Josa.withEuroRo("abc")).isEqualTo("abc로");
+        assertThat(Josa.euroRo("범인")).isEqualTo("으로");
+        assertThat(Josa.euroRo("축기 초기")).isEqualTo("로");
+    }
+
+    @Test
     void skipsTrailingPunctuation() {
         assertThat(Josa.withIGa("회춘단(연기 초)")).isEqualTo("회춘단(연기 초)가");
         assertThat(Josa.withIGa("회기단(연기 중)")).isEqualTo("회기단(연기 중)이");

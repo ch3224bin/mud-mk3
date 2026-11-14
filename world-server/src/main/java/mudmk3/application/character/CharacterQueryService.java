@@ -18,6 +18,12 @@ public class CharacterQueryService implements CharacterFinder {
     private final NpcFinder npcFinder;
 
     @Override
+    public PlayerCharacter find(Long characterId) {
+        return characterRepository.findById(characterId)
+                .orElseThrow(() -> new IllegalArgumentException("캐릭터를 찾을 수 없습니다. id: " + characterId));
+    }
+
+    @Override
     public Optional<PlayerCharacter> findByAccountId(Long accountId) {
         return characterRepository.findByAccountId(accountId);
     }

@@ -10,6 +10,7 @@ public final class Josa {
     private static final char HANGUL_FIRST = '가';
     private static final char HANGUL_LAST = '힣';
     private static final int JONGSEONG_COUNT = 28;
+    private static final int JONGSEONG_RIEUL = 8;
 
     private Josa() {
     }
@@ -54,13 +55,29 @@ public final class Josa {
         return word + gwaWa(word);
     }
 
+    /** 끝 글자에 받침이 없거나 ㄹ 받침이면 {@code 로}, 그 밖의 받침이면 {@code 으로} */
+    public static String euroRo(String word) {
+        int jongseong = jongseong(word);
+        return jongseong == 0 || jongseong == JONGSEONG_RIEUL ? "로" : "으로";
+    }
+
+    /** 낱말에 {@code 으로/로} 를 붙인다: {@code 연기 7층으로}, {@code 축기 초기로}, {@code 범인으로} */
+    public static String withEuroRo(String word) {
+        return word + euroRo(word);
+    }
+
     private static boolean endsWithJongseong(String word) {
+        return jongseong(word) != 0;
+    }
+
+    /** 본 끝 글자의 받침 번호(0 = 받침 없음, 숫자·영문도 0) */
+    private static int jongseong(String word) {
         for (int i = word.length() - 1; i >= 0; i--) {
             char c = word.charAt(i);
             if (Character.isLetterOrDigit(c)) {
-                return c >= HANGUL_FIRST && c <= HANGUL_LAST && (c - HANGUL_FIRST) % JONGSEONG_COUNT != 0;
+                return c >= HANGUL_FIRST && c <= HANGUL_LAST ? (c - HANGUL_FIRST) % JONGSEONG_COUNT : 0;
             }
         }
-        return false;
+        return 0;
     }
 }

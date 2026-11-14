@@ -2,6 +2,9 @@ package mudmk3.application.character.required;
 
 import mudmk3.domain.character.CharacterName;
 import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.shared.Realm;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
 import java.util.List;
@@ -19,4 +22,9 @@ public interface CharacterRepository extends Repository<PlayerCharacter, Long> {
     boolean existsByName(CharacterName name);
 
     List<PlayerCharacter> findAllByRoomId(Long roomId);
+
+    /** 경지 열이 비어 있는 캐릭터를 모두 그 경지로 채우고 채운 행 수를 돌려준다 */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update PlayerCharacter c set c.realm = :realm where c.realm is null")
+    int fillMissingRealms(Realm realm);
 }
