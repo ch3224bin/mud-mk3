@@ -8,8 +8,10 @@
   --room-name: #f0f3ec;
   --exits: #6fb3a8;
   --occupant: #a9c97e;
+  --npc: #d9a3c7;
   --movement: #8f9a8b;
   --speech: #e6d38a;
+  --talk: #e8b48a;
   --error: #e0796f;
   --prompt: #8fb8e8;
   --echo: #6f786c;
@@ -148,12 +150,20 @@ button.small {
   color: var(--occupant);
 }
 
+.line-npc {
+  color: var(--npc);
+}
+
 .line-movement {
   color: var(--movement);
 }
 
 .line-speech {
   color: var(--speech);
+}
+
+.line-talk {
+  color: var(--talk);
 }
 
 .line-error {

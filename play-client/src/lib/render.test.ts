@@ -8,6 +8,7 @@ function roomMessage(overrides: Partial<RoomMessage> = {}): RoomMessage {
     zone: { id: 1, name: "청석숲" },
     zoneEntered: true,
     room: { id: 3, name: "청석숲 오솔길", description: "늙은 소나무 사이로 좁은 길이 굽어 있다." },
+    owner: null,
     exits: ["북", "남동"],
     occupants: [{ name: "한립", kind: "player" }],
     ...overrides,
@@ -55,6 +56,51 @@ describe("renderMessage", () => {
     expect(lines.slice(-2)).toEqual([
       { text: "한립", style: "occupant" },
       { text: "남궁완", style: "occupant" },
+    ]);
+  });
+
+  it("room: 소유가 있으면 방 이름 줄 뒤에 두 칸 띄우고 [소유 이름]", () => {
+    const lines = renderMessage(
+      roomMessage({
+        zoneEntered: false,
+        room: { id: 7, name: "청석성 남문", description: "돌로 쌓은 성문이 우뚝 서 있다." },
+        owner: { kind: "castle", name: "청석성" },
+        occupants: [],
+      }),
+    );
+
+    expect(lines[0]).toEqual({ text: "청석성 남문  [청석성]", style: "room-name" });
+  });
+
+  it("room: NPC 줄은 사람 다음, style 은 npc", () => {
+    const lines = renderMessage(
+      roomMessage({
+        zoneEntered: false,
+        occupants: [
+          { name: "한립", kind: "player" },
+          { name: "왕씨", kind: "npc" },
+        ],
+      }),
+    );
+
+    expect(lines.slice(-2)).toEqual([
+      { text: "한립", style: "occupant" },
+      { text: "왕씨", style: "npc" },
+    ]);
+  });
+
+  it("talk: text 를 줄마다 나누고 style 은 talk", () => {
+    const lines = renderMessage({
+      type: "talk",
+      npc: "왕씨",
+      word: null,
+      text: '왕씨: "어서 오시오."\n물어볼 수 있는 낱말: [단약] [일거리]',
+      tone: "talk",
+    });
+
+    expect(lines).toEqual([
+      { text: '왕씨: "어서 오시오."', style: "talk" },
+      { text: "물어볼 수 있는 낱말: [단약] [일거리]", style: "talk" },
     ]);
   });
 

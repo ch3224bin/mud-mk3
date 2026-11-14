@@ -6,6 +6,14 @@ describe("Completer", () => {
     expect(new Completer().complete("보", [])).toBe("보기");
   });
 
+  it("대화 명령을 채운다", () => {
+    expect(new Completer().complete("대", [])).toBe("대화");
+  });
+
+  it("대화 뒤 낱말은 이름(NPC 포함)에서 채운다", () => {
+    expect(new Completer().complete("대화 왕", ["한립", "왕씨"])).toBe("대화 왕씨");
+  });
+
   it("거듭 부르면 후보를 COMMANDS 순서로 돈다", () => {
     const completer = new Completer();
 

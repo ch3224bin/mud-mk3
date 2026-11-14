@@ -31,7 +31,7 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
 
   const nextId = useRef(0);
   const connection = useRef<GameConnection | null>(null);
-  /** 지금 방 사람 이름(자동완성 후보, D18) */
+  /** 지금 방 사람·NPC 이름(자동완성 후보, D18·D29) */
   const names = useRef<string[]>([]);
   const history = useRef(new CommandHistory());
   const completer = useRef(new Completer());
@@ -172,7 +172,7 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
   );
 }
 
-/** D18: 이름 후보는 마지막 room.occupants 로 정하고 notice 로 더하고 뺀다. */
+/** D18·D29: 이름 후보는 마지막 room.occupants 전부(사람 + NPC)로 정하고 notice 로 사람만 더하고 뺀다. */
 function updateNames(names: { current: string[] }, message: ServerMessage) {
   if (message.type === "room") {
     names.current = message.occupants.map((occupant) => occupant.name);

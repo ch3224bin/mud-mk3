@@ -43,6 +43,7 @@ const room: ServerMessage = {
   zone: { id: 1, name: "청석숲" },
   zoneEntered: true,
   room: { id: 3, name: "청석숲 오솔길", description: "늙은 소나무 사이로 좁은 길이 굽어 있다." },
+  owner: null,
   exits: ["북"],
   occupants: [{ name: "한립", kind: "player" }],
 };
@@ -123,6 +124,33 @@ describe("Terminal", () => {
     expect(input).toHaveValue("말하기 한백");
     await user.keyboard("{Tab}");
     expect(input).toHaveValue("말하기 한백");
+  });
+
+  it("Tab 이름 후보에 room 의 NPC 도 든다", async () => {
+    const user = userEvent.setup();
+    const { connection, input } = renderTerminal();
+    connection.receive({
+      ...room,
+      owner: { kind: "castle", name: "청석성" },
+      occupants: [
+        { name: "한립", kind: "player" },
+        { name: "왕씨", kind: "npc" },
+      ],
+    });
+
+    await user.type(input, "대화 왕");
+    await user.keyboard("{Tab}");
+
+    expect(input).toHaveValue("대화 왕씨");
+    expect(screen.getByText("왕씨")).toHaveClass("line-npc");
+  });
+
+  it("talk 메시지가 오면 줄마다 talk 로 그린다", () => {
+    const { connection } = renderTerminal();
+
+    connection.receive({ type: "talk", npc: "왕씨", word: "일거리", text: '왕씨: "장작을 패 주시오."', tone: "talk" });
+
+    expect(screen.getByText('왕씨: "장작을 패 주시오."')).toHaveClass("line-talk");
   });
 
   it("room 메시지가 오면 방을 그린다", () => {

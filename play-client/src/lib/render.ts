@@ -2,8 +2,8 @@ import type { RoomMessage, ServerMessage } from "./protocol";
 
 /**
  * 출력 로그 한 줄. style 은 화면 CSS 클래스 `line-<style>` 이 된다.
- * 서버 tone(info, error, movement, speech) 을 그대로 쓰고, 방 보기에는 자체 이름(zone, room-name, description,
- * exits, occupant)을, 그 밖에 prompt·echo 를 쓴다.
+ * 서버 tone(info, error, movement, speech, talk) 을 그대로 쓰고, 방 보기에는 자체 이름(zone, room-name, description,
+ * exits, occupant, npc)을, 그 밖에 prompt·echo 를 쓴다.
  */
 export type OutputLine = { text: string; style: string };
 
@@ -14,6 +14,7 @@ export function renderMessage(msg: ServerMessage): OutputLine[] {
     case "system":
     case "notice":
     case "say":
+    case "talk":
       return splitLines(msg.text, msg.tone);
     case "prompt":
       return splitLines(msg.text, "prompt");
@@ -29,17 +30,18 @@ export function echoLine(input: string): OutputLine {
   return { text: `> ${input}`, style: "echo" };
 }
 
-/** D8 방 보기 순서: (지역) · 방 이름 · 묘사 · 출구 · 다른 사람 */
+/** D8·D24 방 보기 순서: (지역) · 방 이름(소유가 있으면 "  [소유]") · 묘사 · 출구 · 다른 사람 · NPC */
 function renderRoom(msg: RoomMessage): OutputLine[] {
   const lines: OutputLine[] = [];
   if (msg.zoneEntered) {
     lines.push({ text: `◇ ${msg.zone.name}`, style: "zone" });
   }
-  lines.push({ text: msg.room.name, style: "room-name" });
+  const roomName = msg.owner ? `${msg.room.name}  [${msg.owner.name}]` : msg.room.name;
+  lines.push({ text: roomName, style: "room-name" });
   lines.push({ text: msg.room.description, style: "description" });
   lines.push({ text: `출구: ${msg.exits.join(" ") || "없음"}`, style: "exits" });
   for (const occupant of msg.occupants) {
-    lines.push({ text: occupant.name, style: "occupant" });
+    lines.push({ text: occupant.name, style: occupant.kind === "npc" ? "npc" : "occupant" });
   }
   return lines;
 }

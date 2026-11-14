@@ -20,16 +20,21 @@ export type SessionMessage = { type: "session"; state: "creating" | "playing"; c
 
 export type PromptMessage = { type: "prompt"; text: string };
 
-export type Occupant = { name: string; kind: "player" };
+export type Occupant = { name: string; kind: "player" | "npc" };
+
+/** 방이 든 지역을 소유한 성(castle)·종문(sect) */
+export type RoomOwner = { kind: "castle" | "sect"; name: string };
 
 export type RoomMessage = {
   type: "room";
   zone: { id: number; name: string };
   zoneEntered: boolean;
   room: { id: number; name: string; description: string };
+  /** 지역 소유, 없으면 null */
+  owner: RoomOwner | null;
   /** 방위 한글 이름, 순서 동 서 남 북 북동 북서 남동 남서 위 아래 */
   exits: string[];
-  /** 나를 뺀 사람, 들어온 순서 */
+  /** 나를 뺀 사람(들어온 순서) 다음 그 방의 NPC(만든 순서) */
   occupants: Occupant[];
 };
 
@@ -48,6 +53,9 @@ export type SayMessage = {
   tone: "speech";
 };
 
+/** NPC 대답(묻는 사람에게만). word 는 물은 낱말(인사면 null), text 는 그린 줄들(\n 으로 나뉨) */
+export type TalkMessage = { type: "talk"; npc: string; word: string | null; text: string; tone: "talk" };
+
 export type ErrorMessage = { type: "error"; code: "AUTH_REQUIRED" | "BAD_MESSAGE"; text: string };
 
 export type ServerMessage =
@@ -57,6 +65,7 @@ export type ServerMessage =
   | SystemMessage
   | NoticeMessage
   | SayMessage
+  | TalkMessage
   | ErrorMessage;
 
 /** 닫기 코드(D5·Task 7). */
