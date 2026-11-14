@@ -67,6 +67,7 @@ class GameConnectorTest extends BaseGameTest {
     private static final String NO_SUCH_NPC = "여기에 그런 상대는 없습니다.";
 
     private final NpcFinder npcFinder;
+    private final PresenceFinder presenceFinder;
 
     GameConnectorTest(
             GameConnector gameConnector,
@@ -82,6 +83,7 @@ class GameConnectorTest extends BaseGameTest {
             FactionEditor factionEditor,
             NpcEditor npcEditor,
             NpcFinder npcFinder,
+            PresenceFinder presenceFinder,
             ItemTypeEditor itemTypeEditor,
             ItemTypeFinder itemTypeFinder,
             FloorPlacementEditor floorPlacementEditor,
@@ -94,6 +96,7 @@ class GameConnectorTest extends BaseGameTest {
                 zoneEditor, roomEditor, worldSettingsEditor, factionEditor, npcEditor,
                 itemTypeEditor, itemTypeFinder, floorPlacementEditor, inventoryFinder, inventoryEditor, clock, entityManager);
         this.npcFinder = npcFinder;
+        this.presenceFinder = presenceFinder;
     }
 
     @Test
@@ -473,6 +476,19 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.disconnect("a");
 
         assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    @Test
+    void presenceListsCharactersInWorld() {
+        prepareMap();
+        Long hanrip = characterFinder.findByAccountId(enter("b", "한립")).orElseThrow().getId();
+        Long hanbaek = characterFinder.findByAccountId(enter("a", "한백")).orElseThrow().getId();
+        // 캐릭터를 만드는 중인 연결은 아직 세계에 없다
+        connect("c", prepareAccount("hangyeol@example.com"));
+
+        gameConnector.disconnect("a");
+
+        assertThat(presenceFinder.onlineCharacterIds()).containsExactly(hanrip).doesNotContain(hanbaek);
     }
 
     @Test

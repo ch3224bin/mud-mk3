@@ -1,6 +1,8 @@
 package mudmk3.adapter.webapi;
 
+import mudmk3.application.character.required.CharacterRepository;
 import mudmk3.application.inventory.provided.InventoryEditor;
+import mudmk3.domain.character.CharacterFixture;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -12,6 +14,7 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 import static mudmk3.adapter.security.SecurityFixture.admin;
 import static mudmk3.adapter.security.SecurityFixture.clientHeader;
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -22,7 +25,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(properties = "spring.datasource.url=jdbc:h2:mem:admin-api;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE")
-record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEditor) {
+record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEditor,
+                               CharacterRepository characterRepository) {
 
     @Test
     void manageMap() {
@@ -211,6 +215,43 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
             assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
                     .hasStatus(HttpStatus.NO_CONTENT);
         }
+    }
+
+    @Test
+    void manageCharacters() {
+        // 방에는 FK가 없으므로 시작 방을 정하지 않고(다른 테스트의 세계 설정을 흐리지 않게) 저장소로 바로 만든다
+        long yeorim = requireNonNull(characterRepository.save(CharacterFixture.createCharacter(
+                9101L, "여림", 1L, CharacterFixture.spiritRoot())).getId());
+        long garam = requireNonNull(characterRepository.save(CharacterFixture.createCharacter(
+                9102L, "가람", 1L)).getId());
+
+        var list = assertThat(mvc.get().with(admin()).uri("/api/admin/characters")).hasStatusOk().bodyJson();
+        list.extractingPath("$[0].id").isEqualTo((int) garam);
+        list.extractingPath("$[0].spiritRootName").isNull();
+        list.extractingPath("$[0].realmName").isEqualTo("범인");
+        list.extractingPath("$[0].online").isEqualTo(false);
+        list.extractingPath("$[1].id").isEqualTo((int) yeorim);
+        list.extractingPath("$[1].spiritRootName").isEqualTo("목·화 진영근");
+        list.extractingPath("$[1].techniqueCount").isEqualTo(0);
+
+        // 지정한 뒤 다시 읽은 상세를 트랜잭션 밖에서 만든다(영근은 지연 로딩)
+        var designated = assertThat(put("/api/admin/characters/%d/realm".formatted(yeorim), """
+                {"realm":"FOUNDATION_EARLY"}""")).hasStatusOk().bodyJson();
+        designated.extractingPath("$.realmName").isEqualTo("축기 초기");
+        designated.extractingPath("$.stats.qiBlood").isEqualTo(360);
+        designated.extractingPath("$.spiritRoot.roots[0].elementName").isEqualTo("목");
+        designated.extractingPath("$.spiritRoot.roots[0].aptitude").isEqualTo(50.0);
+
+        var detail = assertThat(mvc.get().with(admin()).uri("/api/admin/characters/%d".formatted(yeorim)))
+                .hasStatusOk().bodyJson();
+        detail.extractingPath("$.realm").isEqualTo("FOUNDATION_EARLY");
+        detail.extractingPath("$.stats.qiBlood").isEqualTo(360);
+        detail.extractingPath("$.spiritRoot.name").isEqualTo("목·화 진영근");
+        assertThat(mvc.get().with(admin()).uri("/api/admin/characters/%d".formatted(garam))).hasStatusOk()
+                .bodyJson().extractingPath("$.spiritRoot").isNull();
+
+        assertThat(mvc.get().with(admin()).uri("/api/admin/characters/999999")).hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson().extractingPath("$.detail").isEqualTo("캐릭터를 찾을 수 없습니다. id: 999999");
     }
 
     @Test
