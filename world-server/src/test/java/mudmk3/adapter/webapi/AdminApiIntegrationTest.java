@@ -73,6 +73,33 @@ record AdminApiIntegrationTest(MockMvcTester mvc) {
         assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/zones/%d".formatted(zoneId))).hasStatus(HttpStatus.CONFLICT);
     }
 
+    @Test
+    void manageFactionsAndOwnership() {
+        long factionId = id(post("/api/admin/factions", """
+                {"kind":"CASTLE","name":"청석성","description":"푸른 돌로 쌓은 성이다."}"""));
+        long zoneId = id(post("/api/admin/zones", """
+                {"name":"청석성 남문","ownerId":%d}""".formatted(factionId)));
+
+        var zones = assertThat(mvc.get().with(admin()).uri("/api/admin/zones")).hasStatusOk().bodyJson();
+        zones.extractingPath("$[?(@.id==%d)].ownerName".formatted(zoneId)).asArray().containsExactly("청석성");
+        zones.extractingPath("$[?(@.id==%d)].ownerKind".formatted(zoneId)).asArray().containsExactly("CASTLE");
+        assertThat(mvc.get().with(admin()).uri("/api/admin/factions")).hasStatusOk().bodyJson()
+                .extractingPath("$[?(@.id==%d)].zoneCount".formatted(factionId)).asArray().containsExactly(1);
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/factions/%d".formatted(factionId)))
+                .hasStatus(HttpStatus.CONFLICT)
+                .bodyJson().extractingPath("$.detail").isEqualTo("소유한 지역이 있는 성·종문은 지울 수 없습니다");
+
+        assertThat(put("/api/admin/zones/%d".formatted(zoneId), """
+                {"name":"청석성 남문","ownerId":null}""")).hasStatusOk().bodyJson()
+                .extractingPath("$.ownerName").isNull();
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/factions/%d".formatted(factionId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        // 같은 DB를 쓰는 다른 테스트의 지역 목록 순서를 흐리지 않게 지운다
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/zones/%d".formatted(zoneId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+    }
+
     private MvcTestResult post(String uri, String json) {
         return mvc.post().with(admin()).with(clientHeader()).uri(uri).contentType(MediaType.APPLICATION_JSON).content(json).exchange();
     }

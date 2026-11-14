@@ -2,9 +2,11 @@ package mudmk3.adapter.webapi;
 
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import mudmk3.application.faction.provided.FactionInUseException;
 import mudmk3.application.room.provided.ExitConflictException;
 import mudmk3.application.room.provided.StartRoomDeletionException;
 import mudmk3.application.zone.provided.ZoneNotEmptyException;
+import mudmk3.domain.faction.DuplicateFactionNameException;
 import mudmk3.domain.zone.DuplicateZoneNameException;
 import mudmk3.support.exception.ValidationException;
 import org.jspecify.annotations.Nullable;
@@ -34,6 +36,8 @@ public class ApiControllerAdvice extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler({
             DuplicateZoneNameException.class,
+            DuplicateFactionNameException.class,
+            FactionInUseException.class,
             ZoneNotEmptyException.class,
             ExitConflictException.class,
             StartRoomDeletionException.class

@@ -6,6 +6,8 @@ import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.application.zone.provided.ZoneFinder;
 import mudmk3.application.zone.provided.ZoneNotEmptyException;
 import mudmk3.application.zone.provided.ZoneSaveRequest;
+import mudmk3.domain.faction.Faction;
+import mudmk3.domain.faction.FactionKind;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.room.Room;
 import mudmk3.domain.room.RoomFixture;
@@ -68,8 +70,29 @@ record ZoneApiWebMvcTest(MockMvcTester mvc, ZoneFinder zoneFinder, ZoneEditor zo
                 .hasStatus(HttpStatus.CREATED)
                 .bodyJson()
                 .isStrictlyEqualTo("""
-                        {"id":1,"name":"청석숲","description":"푸른 돌이 흩어진 숲이다.","roomCount":0}""");
+                        {"id":1,"name":"청석숲","description":"푸른 돌이 흩어진 숲이다.","roomCount":0,
+                         "ownerId":null,"ownerName":null,"ownerKind":null}""");
         verify(zoneEditor).create(new ZoneSaveRequest("청석숲", "푸른 돌이 흩어진 숲이다.", null));
+    }
+
+    @Test
+    void createWithOwner() {
+        Faction owner = FactionApiWebMvcTest.faction(7L, FactionKind.CASTLE, "청석성");
+        Zone zone = ZoneFixture.createZone("청석숲");
+        zone.update(ZoneFixture.createZoneSaveInfo("청석숲"), owner);
+        ReflectionTestUtils.setField(zone, "id", 1L);
+        when(zoneEditor.create(any())).thenReturn(zone);
+        when(zoneFinder.countRooms(1L)).thenReturn(0L);
+
+        assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/zones")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name":"청석숲","description":"푸른 돌이 흩어진 숲이다.","ownerId":7}"""))
+                .hasStatus(HttpStatus.CREATED)
+                .bodyJson()
+                .isLenientlyEqualTo("""
+                        {"id":1,"name":"청석숲","ownerId":7,"ownerName":"청석성","ownerKind":"CASTLE"}""");
+        verify(zoneEditor).create(new ZoneSaveRequest("청석숲", "푸른 돌이 흩어진 숲이다.", 7L));
     }
 
     @Test

@@ -56,6 +56,12 @@ record SecurityIntegrationTest(MockMvcTester mvc, CharacterRepository characterR
     }
 
     @Test
+    void factionApiUnauthenticatedAndPlayerFail() {
+        assertThat(mvc.get().uri("/api/admin/factions")).hasStatus(HttpStatus.UNAUTHORIZED);
+        assertThat(mvc.get().with(player()).uri("/api/admin/factions")).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
     void adminApiAdmin() {
         assertThat(mvc.get().with(admin()).uri("/api/admin/zones")).hasStatusOk();
     }
