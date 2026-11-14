@@ -43,7 +43,8 @@ export type RoomMessage = {
   items: FloorItem[];
 };
 
-export type SystemMessage = { type: "system"; text: string; tone: "info" | "error" | "item" };
+/** tone growth 는 읽기 성공·관리 툴 경지 지정 알림(4차 D71) */
+export type SystemMessage = { type: "system"; text: string; tone: "info" | "error" | "item" | "growth" };
 
 /** 이동 이벤트(arrive·leave·appear·disappear)와 물건 이벤트(pick·drop·give, 3차 D47) */
 export type NoticeEvent = "arrive" | "leave" | "appear" | "disappear" | "pick" | "drop" | "give";
@@ -65,6 +66,32 @@ export type InventoryMessage = {
   items: { name: string; count: number }[];
   text: string;
   tone: "item";
+};
+
+/** 현재·최대 수치 한 쌍 */
+export type Gauge = { current: number; max: number };
+
+/**
+ * 상태(묻는 사람에게만, 4차 D71). 필드 순서는 서버 StatusMessage 와 같다.
+ * roots 는 오행 순, aptitude 는 소수점 버린 정수. cultivation 은 범인이면 null. text 는 그린 줄들(\n).
+ */
+export type StatusMessage = {
+  type: "status";
+  characterName: string;
+  realm: { code: string; name: string };
+  spiritRoot: { name: string; roots: { element: string; elementName: string; aptitude: number }[] };
+  stats: {
+    qiBlood: Gauge;
+    mana: Gauge;
+    sense: Gauge;
+    essence: Gauge;
+    spirit: Gauge;
+    body: number;
+    strength: number;
+  };
+  cultivation: { current: number; required: number } | null;
+  text: string;
+  tone: "status";
 };
 
 export type SayMessage = {
@@ -90,6 +117,7 @@ export type ServerMessage =
   | SayMessage
   | TalkMessage
   | InventoryMessage
+  | StatusMessage
   | ErrorMessage;
 
 /** 닫기 코드(D5·Task 7). */

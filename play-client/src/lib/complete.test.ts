@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMANDS, Completer } from "./complete";
+import { COMMANDS, Completer, nameCandidates } from "./complete";
 
 describe("Completer", () => {
   it("첫 낱말은 명령어에서 앞부분이 맞는 것으로 채운다", () => {
@@ -19,11 +19,34 @@ describe("Completer", () => {
     expect(new Completer().complete("소", [])).toBe("소지품");
   });
 
-  it("COMMANDS 는 D51 순서", () => {
+  it("COMMANDS 는 D76 순서", () => {
     expect(COMMANDS).toEqual([
-      "보기", "말하기", "대화", "소지품", "줍기", "버리기", "주기", "목록", "사기", "팔기", "값", "확인", "취소",
-      "누구", "도움말", "종료",
+      "보기", "말하기", "대화", "상태", "공법", "신통", "읽기", "소지품", "줍기", "버리기", "주기", "목록", "사기",
+      "팔기", "값", "확인", "취소", "누구", "도움말", "종료",
       "동", "서", "남", "북", "북동", "북서", "남동", "남서", "위", "아래",
+    ]);
+  });
+
+  it("4차 명령을 채운다", () => {
+    expect(new Completer().complete("읽", [])).toBe("읽기");
+    expect(new Completer().complete("상", [])).toBe("상태");
+    expect(new Completer().complete("공", [])).toBe("공법");
+    expect(new Completer().complete("신", [])).toBe("신통");
+  });
+
+  it("읽기 뒤 낱말은 마지막 inventory 의 물건 이름에서 채운다", () => {
+    const names = nameCandidates(["한립"], ["장춘공 옥간", "비검"]);
+
+    expect(new Completer().complete("읽기 장", names)).toBe("읽기 장춘공 옥간");
+  });
+
+  it("이름 후보 순서는 방 이름(occupants → 바닥 물건) 다음 소지품, 겹치면 앞에 나온 것만", () => {
+    expect(nameCandidates(["한립", "왕씨", "늑대 가죽"], ["비검", "늑대 가죽", "장춘공 옥간", "비검"])).toEqual([
+      "한립",
+      "왕씨",
+      "늑대 가죽",
+      "비검",
+      "장춘공 옥간",
     ]);
   });
 

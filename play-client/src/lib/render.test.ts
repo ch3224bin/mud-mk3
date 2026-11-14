@@ -148,6 +148,87 @@ describe("renderMessage", () => {
     ]);
   });
 
+  it("status: text 를 줄마다 나누고 style 은 status", () => {
+    const lines = renderMessage({
+      type: "status",
+      characterName: "한백",
+      realm: { code: "QI_1", name: "연기 1층" },
+      spiritRoot: {
+        name: "목·화 진영근",
+        roots: [
+          { element: "WOOD", elementName: "목", aptitude: 50 },
+          { element: "FIRE", elementName: "화", aptitude: 50 },
+        ],
+      },
+      stats: {
+        qiBlood: { current: 60, max: 60 },
+        mana: { current: 25, max: 25 },
+        sense: { current: 20, max: 20 },
+        essence: { current: 20, max: 20 },
+        spirit: { current: 5, max: 5 },
+        body: 6,
+        strength: 3,
+      },
+      cultivation: { current: 0, required: 190 },
+      text:
+        "한백 · 연기 1층 · 목·화 진영근 (목 50, 화 50)\n" +
+        "기혈  60 / 60     법력  25 / 25\n" +
+        "의식  20 / 20     정혈  20 / 20\n" +
+        "육신  6   근력  3   영력  5 / 5\n" +
+        "수위  0 / 190\n" +
+        "깨달음  금 0 · 목 0 · 수 0 · 화 0 · 토 0 · 연체 0",
+      tone: "status",
+    });
+
+    expect(lines).toEqual([
+      { text: "한백 · 연기 1층 · 목·화 진영근 (목 50, 화 50)", style: "status" },
+      { text: "기혈  60 / 60     법력  25 / 25", style: "status" },
+      { text: "의식  20 / 20     정혈  20 / 20", style: "status" },
+      { text: "육신  6   근력  3   영력  5 / 5", style: "status" },
+      { text: "수위  0 / 190", style: "status" },
+      { text: "깨달음  금 0 · 목 0 · 수 0 · 화 0 · 토 0 · 연체 0", style: "status" },
+    ]);
+  });
+
+  it("status: 범인은 cultivation 이 null 이고 수위 줄이 없다", () => {
+    const lines = renderMessage({
+      type: "status",
+      characterName: "한백",
+      realm: { code: "MORTAL", name: "범인" },
+      spiritRoot: { name: "화 천영근", roots: [{ element: "FIRE", elementName: "화", aptitude: 100 }] },
+      stats: {
+        qiBlood: { current: 10, max: 10 },
+        mana: { current: 0, max: 0 },
+        sense: { current: 10, max: 10 },
+        essence: { current: 10, max: 10 },
+        spirit: { current: 0, max: 0 },
+        body: 1,
+        strength: 1,
+      },
+      cultivation: null,
+      text: "한백 · 범인 · 화 천영근 (화 100)\n기혈  10 / 10     법력  0 / 0",
+      tone: "status",
+    });
+
+    expect(lines).toEqual([
+      { text: "한백 · 범인 · 화 천영근 (화 100)", style: "status" },
+      { text: "기혈  10 / 10     법력  0 / 0", style: "status" },
+    ]);
+  });
+
+  it("system: tone growth 는 여러 줄을 줄마다 style growth", () => {
+    const lines = renderMessage({
+      type: "system",
+      text: "옥간을 이마에 대자 구결이 머릿속으로 흘러든다. 장춘공 1성에 이르렀습니다!\n새 신통을 깨쳤습니다: 화탄술",
+      tone: "growth",
+    });
+
+    expect(lines).toEqual([
+      { text: "옥간을 이마에 대자 구결이 머릿속으로 흘러든다. 장춘공 1성에 이르렀습니다!", style: "growth" },
+      { text: "새 신통을 깨쳤습니다: 화탄술", style: "growth" },
+    ]);
+  });
+
   it("system: tone item 은 style item", () => {
     expect(renderMessage({ type: "system", text: "늑대 가죽 2개를 주웠습니다.", tone: "item" })).toEqual([
       { text: "늑대 가죽 2개를 주웠습니다.", style: "item" },
@@ -231,6 +312,24 @@ describe("renderMessage", () => {
 
     expect(lines).toEqual([
       { text: "이름 한백", style: "prompt" },
+      { text: "이대로 만들려면 '확인', 고치려면 '뒤로'.", style: "prompt" },
+    ]);
+  });
+
+  it("prompt: 영근 확인 prompt 네 줄", () => {
+    const lines = renderMessage({
+      type: "prompt",
+      text:
+        "목·화 진영근 — 목 50, 화 50\n" +
+        "────────\n" +
+        "이름 한백 · 영근 목·화 진영근 (목 50, 화 50)\n" +
+        "이대로 만들려면 '확인', 고치려면 '뒤로'.",
+    });
+
+    expect(lines).toEqual([
+      { text: "목·화 진영근 — 목 50, 화 50", style: "prompt" },
+      { text: "────────", style: "prompt" },
+      { text: "이름 한백 · 영근 목·화 진영근 (목 50, 화 50)", style: "prompt" },
       { text: "이대로 만들려면 '확인', 고치려면 '뒤로'.", style: "prompt" },
     ]);
   });

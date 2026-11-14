@@ -1,8 +1,12 @@
-/** 명령어(1차 D6 + 2차 대화 + 3차 물건, D51). 자동완성 후보 순서이기도 하다. */
+/** 명령어(1차 D6 + 2차 대화 + 3차 물건 + 4차 상태·공법·신통·읽기, D76). 자동완성 후보 순서이기도 하다. */
 export const COMMANDS = [
   "보기",
   "말하기",
   "대화",
+  "상태",
+  "공법",
+  "신통",
+  "읽기",
   "소지품",
   "줍기",
   "버리기",
@@ -27,6 +31,14 @@ export const COMMANDS = [
   "위",
   "아래",
 ];
+
+/**
+ * 이름 후보(D74): 방 이름(occupants → 바닥 물건) 다음 마지막 inventory 의 물건 이름.
+ * 겹치면 앞에 나온 것만 남긴다.
+ */
+export function nameCandidates(roomNames: string[], inventoryNames: string[]): string[] {
+  return [...new Set([...roomNames, ...inventoryNames])];
+}
 
 /**
  * 탭 자동완성(D18). 첫 낱말이면 명령어에서, 그 뒤 낱말이면 이름에서 앞부분이 맞는 후보로 마지막 낱말을 바꾼다.

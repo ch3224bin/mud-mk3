@@ -1,7 +1,7 @@
 "use client";
 
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
-import { Completer } from "../lib/complete";
+import { Completer, nameCandidates } from "../lib/complete";
 import { GameSocket, type GameSocketHandlers, gameSocketUrl } from "../lib/gameSocket";
 import { CommandHistory } from "../lib/history";
 import { COMMAND_MAX_LENGTH, CloseCode, type ServerMessage } from "../lib/protocol";
@@ -33,6 +33,8 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
   const connection = useRef<GameConnection | null>(null);
   /** 지금 방 사람·NPC·바닥 물건 이름(자동완성 후보, D18·D29·D51) */
   const names = useRef<string[]>([]);
+  /** 마지막 inventory 의 물건 이름(자동완성 후보, D74) */
+  const inventoryNames = useRef<string[]>([]);
   const history = useRef(new CommandHistory());
   const completer = useRef(new Completer());
   const logRef = useRef<HTMLDivElement>(null);
@@ -54,6 +56,9 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
     const current = connectRef.current({
       onMessage(message) {
         updateNames(names, message);
+        if (message.type === "inventory") {
+          inventoryNames.current = message.items.map((item) => item.name);
+        }
         append(renderMessage(message));
       },
       onClose(code) {
@@ -83,6 +88,7 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
 
   function reconnect() {
     names.current = [];
+    inventoryNames.current = [];
     setConnected(true);
     setAttempt((n) => n + 1);
     inputRef.current?.focus();
@@ -122,7 +128,7 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
         // Shift+Tab 은 기본 동작(앞 요소로 포커스 이동)으로 둔다. 키보드 사용자가 버튼으로 나갈 수 있게.
         if (event.shiftKey) break;
         event.preventDefault();
-        setInput(completer.current.complete(input, names.current));
+        setInput(completer.current.complete(input, nameCandidates(names.current, inventoryNames.current)));
         break;
     }
   }

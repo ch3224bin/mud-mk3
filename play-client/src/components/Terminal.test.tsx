@@ -167,6 +167,81 @@ describe("Terminal", () => {
     expect(input).toHaveValue("보기 늑대 가죽");
   });
 
+  it("Tab 이름 후보에 마지막 inventory 의 물건 이름이 방 이름 다음으로 들고, 새 inventory 가 오면 바뀐다", async () => {
+    const user = userEvent.setup();
+    const { connection, input } = renderTerminal();
+    connection.receive({ ...room, items: [{ name: "장작", count: 1 }] });
+    connection.receive({
+      type: "inventory",
+      usedSlots: 2,
+      totalSlots: 20,
+      stones: [],
+      items: [
+        { name: "장춘공 옥간", count: 1 },
+        { name: "장작", count: 1 },
+      ],
+      text: "[소지품 2/20칸]\n장춘공 옥간   장작",
+      tone: "item",
+    });
+
+    await user.type(input, "읽기 장");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("읽기 장작");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("읽기 장춘공 옥간");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("읽기 장작");
+
+    connection.receive({
+      type: "inventory",
+      usedSlots: 1,
+      totalSlots: 20,
+      stones: [],
+      items: [{ name: "비검", count: 1 }],
+      text: "[소지품 1/20칸]\n비검",
+      tone: "item",
+    });
+    await user.clear(input);
+    await user.type(input, "읽기 장");
+    await user.keyboard("{Tab}{Tab}");
+    expect(input).toHaveValue("읽기 장작");
+    await user.clear(input);
+    await user.type(input, "주기 한립 비");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("주기 한립 비검");
+  });
+
+  it("status 는 줄마다 status, system growth 는 growth 로 그린다", () => {
+    const { connection } = renderTerminal();
+
+    connection.receive({
+      type: "status",
+      characterName: "한백",
+      realm: { code: "MORTAL", name: "범인" },
+      spiritRoot: { name: "화 천영근", roots: [{ element: "FIRE", elementName: "화", aptitude: 100 }] },
+      stats: {
+        qiBlood: { current: 10, max: 10 },
+        mana: { current: 0, max: 0 },
+        sense: { current: 10, max: 10 },
+        essence: { current: 10, max: 10 },
+        spirit: { current: 0, max: 0 },
+        body: 1,
+        strength: 1,
+      },
+      cultivation: null,
+      text: "한백 · 범인 · 화 천영근 (화 100)\n기혈  10 / 10     법력  0 / 0",
+      tone: "status",
+    });
+    connection.receive({ type: "system", text: "경지가 연기 1층이 되었습니다.", tone: "growth" });
+
+    expect(screen.getByText("한백 · 범인 · 화 천영근 (화 100)")).toHaveClass("line-status");
+    // 서버가 넣은 공백 그대로(pre-wrap) 한 줄이다
+    expect(screen.getByText("기혈  10 / 10     법력  0 / 0", { normalizer: (text) => text })).toHaveClass(
+      "line-status",
+    );
+    expect(screen.getByText("경지가 연기 1층이 되었습니다.")).toHaveClass("line-growth");
+  });
+
   it("talk 메시지가 오면 줄마다 talk 로 그린다", () => {
     const { connection } = renderTerminal();
 

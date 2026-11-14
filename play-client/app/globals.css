@@ -16,6 +16,8 @@
   --error: #e0796f;
   --prompt: #8fb8e8;
   --echo: #6f786c;
+  --status: #c8d3f5;
+  --growth: #f0c674;
   --accent: #6fb3a8;
   color-scheme: dark;
   font-family: "D2Coding", "Nanum Gothic Coding", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -181,6 +183,14 @@ button.small {
 
 .line-echo {
   color: var(--echo);
+}
+
+.line-status {
+  color: var(--status);
+}
+
+.line-growth {
+  color: var(--growth);
 }
 
 .reconnect {

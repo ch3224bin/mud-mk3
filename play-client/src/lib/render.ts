@@ -2,7 +2,7 @@ import type { RoomMessage, ServerMessage } from "./protocol";
 
 /**
  * 출력 로그 한 줄. style 은 화면 CSS 클래스 `line-<style>` 이 된다.
- * 서버 tone(info, error, movement, speech, talk, item) 을 그대로 쓰고, 방 보기에는 자체 이름(zone, room-name, description,
+ * 서버 tone(info, error, movement, speech, talk, item, 4차 status·growth) 을 그대로 쓰고, 방 보기에는 자체 이름(zone, room-name, description,
  * exits, occupant, npc)과 바닥 물건 줄의 item 을, 그 밖에 prompt·echo 를 쓴다.
  */
 export type OutputLine = { text: string; style: string };
@@ -16,6 +16,7 @@ export function renderMessage(msg: ServerMessage): OutputLine[] {
     case "say":
     case "talk":
     case "inventory":
+    case "status":
       return splitLines(msg.text, msg.tone);
     case "prompt":
       return splitLines(msg.text, "prompt");
