@@ -57,7 +57,6 @@ function ItemsView() {
                 <th>종류</th>
                 <th>기준가</th>
                 <th>겹침</th>
-                <th>거래</th>
               </tr>
             </thead>
             <tbody>
@@ -69,7 +68,6 @@ function ItemsView() {
                   <td>{itemType.categoryName}</td>
                   <td>{formatCount(itemType.baseValue)}</td>
                   <td>{stackLabel(itemType)}</td>
-                  <td>{itemType.tradable ? "가능" : "불가"}</td>
                 </tr>
               ))}
             </tbody>

@@ -12,30 +12,25 @@ class ItemTypeTest {
 
     @Test
     void create() {
-        ItemType itemType = ItemType.create(new ItemTypeSaveInfo("  늑대   가죽 ", null, ItemCategory.MATERIAL, 2, true, null));
+        ItemType itemType = ItemType.create(new ItemTypeSaveInfo("  늑대   가죽 ", null, ItemCategory.MATERIAL, 2, null));
 
         assertThat(itemType.getName()).isEqualTo("늑대 가죽");
         assertThat(itemType.getDescription()).isEmpty();
         assertThat(itemType.getCategory()).isEqualTo(ItemCategory.MATERIAL);
         assertThat(itemType.getBaseValue()).isEqualTo(2);
-        assertThat(itemType.isTradable()).isTrue();
         assertThat(itemType.findBagGrade()).isEmpty();
         assertThat(itemType.findSpiritStoneGrade()).isEmpty();
         assertThat(itemType.stackSize()).isEqualTo(99);
         assertThat(itemType.bagSlots()).isZero();
         assertThat(itemType.isBag()).isFalse();
         assertThat(itemType.isSpiritStone()).isFalse();
-        assertThat(itemType.isQuest()).isFalse();
-        assertThat(itemType.isBindable()).isFalse();
     }
 
     @Test
     void createWithDescription() {
-        ItemType itemType = ItemType.create(new ItemTypeSaveInfo("비검", "날이 선 작은 검이다.", ItemCategory.ARTIFACT, 50, false, null));
+        ItemType itemType = ItemType.create(new ItemTypeSaveInfo("비검", "날이 선 작은 검이다.", ItemCategory.ARTIFACT, 50, null));
 
         assertThat(itemType.getDescription()).isEqualTo("날이 선 작은 검이다.");
-        assertThat(itemType.isTradable()).isFalse();
-        assertThat(itemType.isBindable()).isTrue();
         assertThat(itemType.stackSize()).isEqualTo(1);
     }
 
@@ -47,24 +42,17 @@ class ItemTypeTest {
         assertThat(bag.findBagGrade()).contains(BagGrade.MIDDLE);
         assertThat(bag.bagSlots()).isEqualTo(40);
         assertThat(bag.stackSize()).isZero();
-        assertThat(bag.isBindable()).isTrue();
-    }
-
-    @Test
-    void quest() {
-        assertThat(ItemTypeFixture.createItemType("붉은 편지", ItemCategory.QUEST, 0).isQuest()).isTrue();
     }
 
     @Test
     void update() {
         ItemType itemType = createPill();
 
-        itemType.update(new ItemTypeSaveInfo(" 회기단  (연기 초) ", "푸른 단약이다.", ItemCategory.PILL, 4, false, null));
+        itemType.update(new ItemTypeSaveInfo(" 회기단  (연기 초) ", "푸른 단약이다.", ItemCategory.PILL, 4, null));
 
         assertThat(itemType.getName()).isEqualTo("회기단 (연기 초)");
         assertThat(itemType.getDescription()).isEqualTo("푸른 단약이다.");
         assertThat(itemType.getBaseValue()).isEqualTo(4);
-        assertThat(itemType.isTradable()).isFalse();
     }
 
     @Test
@@ -88,14 +76,14 @@ class ItemTypeTest {
 
     @Test
     void bagNeedsGrade() {
-        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("저물대", null, ItemCategory.BAG, 10, true, null)))
+        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("저물대", null, ItemCategory.BAG, 10, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("저물대 등급을 고르십시오.");
     }
 
     @Test
     void gradeOnlyForBag() {
-        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("회춘단", null, ItemCategory.PILL, 3, true, BagGrade.LOW)))
+        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("회춘단", null, ItemCategory.PILL, 3, BagGrade.LOW)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("저물대 등급은 저물대에만 정합니다.");
     }
@@ -126,7 +114,7 @@ class ItemTypeTest {
 
     @Test
     void descriptionLengthFail() {
-        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("회춘단", "가".repeat(501), ItemCategory.PILL, 3, true, null)))
+        assertThatThrownBy(() -> ItemType.create(new ItemTypeSaveInfo("회춘단", "가".repeat(501), ItemCategory.PILL, 3, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("묘사는 500자까지 쓸 수 있습니다.");
     }
@@ -162,7 +150,6 @@ class ItemTypeTest {
         assertThat(stone.getBaseValue()).isEqualTo(1);
         assertThat(stone.getDescription()).isEqualTo("영기가 옅게 서린 돌. 수선자들이 값을 치르는 데 쓴다.");
         assertThat(stone.getCategory()).isEqualTo(ItemCategory.SPIRIT_STONE);
-        assertThat(stone.isTradable()).isTrue();
         assertThat(stone.stackSize()).isEqualTo(10_000);
         assertThat(stone.isSpiritStone()).isTrue();
         assertThat(stone.findSpiritStoneGrade()).contains(SpiritStoneGrade.LOW);

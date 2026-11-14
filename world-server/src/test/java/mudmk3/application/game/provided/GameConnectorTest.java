@@ -35,7 +35,6 @@ import mudmk3.application.npc.provided.NpcSaveRequest;
 import mudmk3.application.npc.provided.NpcTopicRequest;
 import mudmk3.application.npc.provided.ShopItemRequest;
 import mudmk3.application.npc.provided.ShopSaveRequest;
-import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.StartingItemRequest;
 import mudmk3.application.world.provided.WorldSettingsEditor;
@@ -43,7 +42,6 @@ import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.application.zone.provided.ZoneSaveRequest;
 import mudmk3.domain.faction.Faction;
 import mudmk3.domain.faction.FactionKind;
-import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.SpiritStoneGrade;
 import mudmk3.domain.npc.Npc;
 import mudmk3.domain.npc.ShopKind;
@@ -419,7 +417,7 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.handle("a", "도움말");
 
         assertThat(sender.messagesTo("a")).containsExactly(new SystemMessage(
-                "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량] · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 귀속 <물건> · 귀속 해제 <물건> · 확인 · 취소 · 누구 · 도움말 · 종료",
+                "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량] · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 확인 · 취소 · 누구 · 도움말 · 종료",
                 "info"));
     }
 
@@ -875,8 +873,8 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(inventory.totalSlots()).isEqualTo(22);
         assertThat(inventory.tone()).isEqualTo("item");
         assertThat(inventory.stones()).containsExactly(new StoneView("하품 영석", 30));
-        assertThat(inventory.items()).containsExactly(new ItemView("하급 저물대", 1, false, false),
-                new ItemView("회춘단(연기 초)", 3, false, false), new ItemView("회기단(연기 초)", 3, false, false));
+        assertThat(inventory.items()).containsExactly(new ItemView("하급 저물대", 1),
+                new ItemView("회춘단(연기 초)", 3), new ItemView("회기단(연기 초)", 3));
 
         sender.clear();
         gameConnector.handle("a", "ㅈ");
@@ -884,14 +882,14 @@ class GameConnectorTest extends BaseGameTest {
     }
 
     @Test
-    void inventoryMarksBoundAndQuestAndWraps() {
+    void inventoryWrapsWithoutMarks() {
         prepareMap();
         Items items = prepareItems();
         Long hanbaek = enter("a", "한백");
         give(hanbaek, items.bag(), 1);
-        give(hanbaek, items.sword(), 2);
-        inventoryEditor.bind(characterIdOf(hanbaek), items.sword());
+        give(hanbaek, items.sword(), 1);
         give(hanbaek, items.quest(), 1);
+        give(hanbaek, items.sword(), 1);
         give(hanbaek, items.hide(), 1);
         sender.clear();
 
@@ -899,9 +897,9 @@ class GameConnectorTest extends BaseGameTest {
 
         InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
         assertThat(inventory.text()).isEqualTo(
-                "[소지품 4/22칸]\n하급 저물대   비검   비검 (귀속)\n왕씨의 약초 꾸러미 (퀘스트)   늑대 가죽");
-        assertThat(inventory.items()).contains(new ItemView("비검", 1, true, false),
-                new ItemView("왕씨의 약초 꾸러미", 1, false, true));
+                "[소지품 4/22칸]\n하급 저물대   비검 x2   왕씨의 약초 꾸러미\n늑대 가죽");
+        assertThat(inventory.items()).containsExactly(new ItemView("하급 저물대", 1), new ItemView("비검", 2),
+                new ItemView("왕씨의 약초 꾸러미", 1), new ItemView("늑대 가죽", 1));
     }
 
     @Test
@@ -979,7 +977,7 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.handle("a", "보기");
         assertThat(sender.lastTo("a", RoomMessage.class).items()).containsExactly(new FloorItemView("늑대 가죽", 1));
         gameConnector.handle("a", "소지품");
-        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("늑대 가죽", 2, false, false));
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("늑대 가죽", 2));
     }
 
     @Test
@@ -996,7 +994,7 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.handle("a", "보기");
         assertThat(sender.lastTo("a", RoomMessage.class).items()).isEmpty();
         gameConnector.handle("a", "소지품");
-        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("늑대 가죽", 3, false, false));
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("늑대 가죽", 3));
     }
 
     @Test
@@ -1063,7 +1061,7 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.handle("a", "줍기 이빨 전부");
         assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("늑대 이빨 2개를 주웠습니다."));
         gameConnector.handle("a", "소지품");
-        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("늑대 이빨", 2, false, false));
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("늑대 이빨", 2));
     }
 
     @Test
@@ -1091,33 +1089,27 @@ class GameConnectorTest extends BaseGameTest {
         enter("b", "한립");
         give(hanbaek, items.bag(), 1);
         give(hanbaek, items.fang(), 2);
-        give(hanbaek, items.quest(), 1);
-        give(hanbaek, items.sword(), 1);
-        inventoryEditor.bind(characterIdOf(hanbaek), items.sword());
 
         assertError("a", "버리기", "무엇을 버리시겠습니까? (예: 버리기 늑대 가죽)");
         assertError("a", "버리기 곰", "그런 물건은 가지고 있지 않습니다.");
         assertError("a", "버리기 이빨 0", "수량은 1 이상의 수로 적으십시오.");
         assertError("a", "버리기 이빨 3", "늑대 이빨은 2개뿐입니다.");
-        assertError("a", "버리기 꾸러미", "퀘스트 물건은 버릴 수 없습니다.");
-        assertError("a", "버리기 비검", "귀속된 물건은 버릴 수 없습니다.");
         assertThat(sender.messagesTo("b")).isEmpty();
     }
 
     @Test
-    void dropPrefersUnboundEntry() {
+    void dropQuestItem() {
         prepareMap();
         Items items = prepareItems();
         Long hanbaek = enter("a", "한백");
-        give(hanbaek, items.sword(), 2);
-        inventoryEditor.bind(characterIdOf(hanbaek), items.sword());
+        give(hanbaek, items.quest(), 1);
         sender.clear();
 
-        gameConnector.handle("a", "버리기 비검");
+        gameConnector.handle("a", "버리기 꾸러미");
 
-        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("비검 1개를 버렸습니다."));
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("왕씨의 약초 꾸러미 1개를 버렸습니다."));
         gameConnector.handle("a", "소지품");
-        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("비검", 1, true, false));
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).isEmpty();
     }
 
     @Test
@@ -1296,7 +1288,7 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.handle("a", "소지품");
         InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
         assertThat(inventory.stones()).containsExactly(new StoneView("하품 영석", 15));
-        assertThat(inventory.items()).containsExactly(new ItemView("회춘단(연기 초)", 5, false, false));
+        assertThat(inventory.items()).containsExactly(new ItemView("회춘단(연기 초)", 5));
         assertThat(sender.messagesTo("b")).isEmpty();
     }
 
@@ -1437,8 +1429,6 @@ class GameConnectorTest extends BaseGameTest {
         give(hanbaek, items.bag(), 1);
         give(hanbaek, items.lowStone(), 1);
         give(hanbaek, items.quest(), 1);
-        give(hanbaek, items.sword(), 1);
-        inventoryEditor.bind(characterIdOf(hanbaek), items.sword());
         give(hanbaek, items.hide(), 1);
         give(hanbaek, items.pill(), 3);
 
@@ -1447,7 +1437,6 @@ class GameConnectorTest extends BaseGameTest {
         assertError("a", "팔기 곰", "그런 물건은 가지고 있지 않습니다.");
         assertError("a", "팔기 하품", "왕씨: \"그런 물건은 받지 않소.\"");
         assertError("a", "팔기 꾸러미", "왕씨: \"그건 내가 살 물건이 아니오.\"");
-        assertError("a", "팔기 비검", "왕씨: \"귀속된 물건은 사 줄 수 없소.\"");
         assertError("a", "팔기 가죽", "왕씨: \"그런 물건은 받지 않소.\" (재료는 재료상에 팔 수 있습니다)");
         assertError("a", "팔기 저물대", "왕씨: \"그런 물건은 받지 않소.\" (저물대는 잡화점에 팔 수 있습니다)");
         assertError("a", "팔기 회춘단 5", "회춘단(연기 초)는 3개뿐입니다.");
@@ -1496,7 +1485,7 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.handle("b", "소지품");
         InventoryMessage inventory = sender.lastTo("b", InventoryMessage.class);
         assertThat(inventory.stones()).containsExactly(new StoneView("하품 영석", 5));
-        assertThat(inventory.items()).containsExactly(new ItemView("회춘단(연기 초)", 2, false, false));
+        assertThat(inventory.items()).containsExactly(new ItemView("회춘단(연기 초)", 2));
         assertThat(inventoryFinder.find(characterIdOf(hanli)).spiritStoneValue()).isEqualTo(5);
         assertThat(inventoryFinder.find(characterIdOf(hanbaek)).spiritStoneValue()).isEqualTo(5);
     }
@@ -1517,7 +1506,7 @@ class GameConnectorTest extends BaseGameTest {
         assertError("a", "주기 곰 회춘단", "여기에 곰은 없습니다.");
         assertError("a", "주기 왕씨 회춘단", "여기에 왕씨는 없습니다.");
         gameConnector.handle("a", "소지품");
-        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("회춘단(연기 초)", 1, false, false));
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("회춘단(연기 초)", 1));
     }
 
     @Test
@@ -1538,37 +1527,27 @@ class GameConnectorTest extends BaseGameTest {
         Long hanbaek = enter("a", "한백");
         enter("b", "한립");
         give(hanbaek, items.sword(), 1);
-        inventoryEditor.bind(characterIdOf(hanbaek), items.sword());
 
         assertError("a", "주기 곰 회춘단 0", "수량은 1 이상의 수로 적으십시오.");
         assertError("a", "주기 곰 비검", "여기에 곰은 없습니다.");
         assertError("a", "주기 한백 곰", "자기 자신에게는 줄 수 없습니다.");
         assertError("a", "주기 한립 곰", "그런 물건은 가지고 있지 않습니다.");
-        assertError("a", "주기 한립 비검 5", "귀속된 물건은 남에게 줄 수 없습니다.");
+        assertError("a", "주기 한립 비검 5", "비검은 1개뿐입니다.");
     }
 
     @Test
     void giveFails() {
         prepareMap();
         Items items = prepareItems();
-        Long sealed = id(itemTypeEditor.create(
-                new ItemTypeSaveRequest("봉인 부적", "", ItemCategory.TALISMAN, 1, false, null)).getId());
         Long hanbaek = enter("a", "한백");
         Long hanli = enter("b", "한립");
         give(hanbaek, items.bag(), 2);
-        give(hanbaek, items.sword(), 1);
-        inventoryEditor.bind(characterIdOf(hanbaek), items.sword());
-        give(hanbaek, items.quest(), 1);
-        give(hanbaek, sealed, 1);
         give(hanbaek, items.pill(), 1);
         give(hanli, items.hide(), 99 * 2);
 
         assertError("a", "주기", "누구에게 무엇을 주시겠습니까? (예: 주기 한립 회춘단 2)");
         assertError("a", "주기 한립", "누구에게 무엇을 주시겠습니까? (예: 주기 한립 회춘단 2)");
         assertError("a", "주기 한립 회춘단 0", "수량은 1 이상의 수로 적으십시오.");
-        assertError("a", "주기 한립 비검", "귀속된 물건은 남에게 줄 수 없습니다.");
-        assertError("a", "주기 한립 꾸러미", "퀘스트 물건은 남에게 줄 수 없습니다.");
-        assertError("a", "주기 한립 부적", "봉인 부적은 남에게 줄 수 없는 물건입니다.");
         assertError("a", "주기 한립 회춘단 5", "회춘단(연기 초)는 1개뿐입니다.");
         assertError("a", "주기 한립 회춘단", "한립의 저물대에 자리가 없습니다.");
 
@@ -1589,59 +1568,33 @@ class GameConnectorTest extends BaseGameTest {
         assertError("a", "주기 한립 저물대", "저물대에 든 물건을 먼저 비우십시오.");
     }
 
-    // ---- 귀속 (3차)
-
     @Test
-    void bindAndUnbind() {
+    void giveQuestItem() {
         prepareMap();
         Items items = prepareItems();
         Long hanbaek = enter("a", "한백");
-        give(hanbaek, items.sword(), 1);
-
-        assertOnly("a", "귀속 비검", SystemMessage.item("비검에 정혈을 한 방울 떨어뜨린다. 비검이 당신에게 귀속되었습니다."));
-        gameConnector.handle("a", "소지품");
-        assertThat(sender.lastTo("a", InventoryMessage.class).text()).isEqualTo("[소지품 1/2칸]\n비검 (귀속)");
-        assertError("a", "버리기 비검", "귀속된 물건은 버릴 수 없습니다.");
-
-        assertOnly("a", "귀속 해제 비검", SystemMessage.item("비검과 이어진 정혈의 끈을 끊었습니다. 귀속이 풀렸습니다."));
-        gameConnector.handle("a", "소지품");
-        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("비검", 1, false, false));
-    }
-
-    @Test
-    void bindFails() {
-        prepareMap();
-        Items items = prepareItems();
-        Long hanbaek = enter("a", "한백");
-        give(hanbaek, items.bag(), 1);
-        give(hanbaek, items.pill(), 1);
-        give(hanbaek, items.sword(), 1);
+        enter("b", "한립");
         give(hanbaek, items.quest(), 1);
+        sender.clear();
 
-        assertError("a", "귀속", "무엇을 귀속하시겠습니까? (예: 귀속 비검)");
-        assertError("a", "귀속 해제", "무엇의 귀속을 푸시겠습니까? (예: 귀속 해제 비검)");
-        assertError("a", "귀속 곰", "그런 물건은 가지고 있지 않습니다.");
-        assertError("a", "귀속 해제 곰", "그런 물건은 가지고 있지 않습니다.");
-        assertError("a", "귀속 회춘단", "단약은 귀속할 수 없습니다.");
-        assertError("a", "귀속 해제 비검", "귀속된 물건이 아닙니다.");
-        assertError("a", "귀속 해제 꾸러미", "퀘스트 물건과 본명법보는 이렇게 풀 수 없습니다.");
-        gameConnector.handle("a", "귀속 비검");
-        assertError("a", "귀속 비검", "이미 당신에게 귀속된 물건입니다.");
+        gameConnector.handle("a", "주기 한립 꾸러미");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("한립에게 왕씨의 약초 꾸러미 1개를 주었습니다."));
+        assertThat(sender.messagesTo("b")).containsExactly(SystemMessage.item("한백이 왕씨의 약초 꾸러미 1개를 건넸습니다."));
     }
 
+    // ---- 지운 명령
+
     @Test
-    void boundAndUnboundPreferUnbound() {
+    void removedBindCommandIsUnknown() {
         prepareMap();
         Items items = prepareItems();
         Long hanbaek = enter("a", "한백");
-        give(hanbaek, items.sword(), 2);
+        give(hanbaek, items.sword(), 1);
 
-        gameConnector.handle("a", "귀속 비검");
-        assertOnly("a", "귀속 비검", SystemMessage.item("비검에 정혈을 한 방울 떨어뜨린다. 비검이 당신에게 귀속되었습니다."));
-        gameConnector.handle("a", "귀속 해제 비검");
-        assertOnly("a", "버리기 비검", SystemMessage.item("비검 1개를 버렸습니다."));
-        gameConnector.handle("a", "소지품");
-        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("비검", 1, true, false));
+        assertError("a", "귀속", "무슨 말인지 모르겠습니다. ('도움말' 로 명령을 볼 수 있습니다)");
+        assertError("a", "귀속 비검", "무슨 말인지 모르겠습니다. ('도움말' 로 명령을 볼 수 있습니다)");
+        assertError("a", "귀속 해제 비검", "무슨 말인지 모르겠습니다. ('도움말' 로 명령을 볼 수 있습니다)");
     }
 
     private static Long id(@org.jspecify.annotations.Nullable Long id) {

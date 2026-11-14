@@ -135,7 +135,6 @@ export type ItemTypeResponse = {
   categoryName: string;
   stackSize: number;
   baseValue: number;
-  tradable: boolean;
   bagGrade: BagGradeCode | null;
   bagGradeName: string | null;
   bagSlots: number;
@@ -148,7 +147,6 @@ export type ItemTypeSaveRequest = {
   description: string;
   category: ItemCategoryCode;
   baseValue: number;
-  tradable: boolean;
   bagGrade: BagGradeCode | null;
 };
 export type StartingItem = { itemTypeId: number; count: number };

@@ -109,7 +109,7 @@ public sealed interface GameMessage {
         public record StoneView(String name, long count) {
         }
 
-        public record ItemView(String name, int count, boolean bound, boolean quest) {
+        public record ItemView(String name, int count) {
         }
     }
 

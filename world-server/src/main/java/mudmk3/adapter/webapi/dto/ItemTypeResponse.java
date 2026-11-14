@@ -14,7 +14,6 @@ public record ItemTypeResponse(
         String categoryName,
         int stackSize,
         long baseValue,
-        boolean tradable,
         @Nullable BagGrade bagGrade,
         @Nullable String bagGradeName,
         int bagSlots,
@@ -26,7 +25,7 @@ public record ItemTypeResponse(
         BagGrade bagGrade = itemType.findBagGrade().orElse(null);
         return new ItemTypeResponse(itemType.getId(), itemType.getName(), itemType.getDescription(),
                 itemType.getCategory(), itemType.getCategory().koreanName(), itemType.stackSize(),
-                itemType.getBaseValue(), itemType.isTradable(), bagGrade,
+                itemType.getBaseValue(), bagGrade,
                 bagGrade == null ? null : bagGrade.koreanName(), itemType.bagSlots(), itemType.isSpiritStone(),
                 itemType.getCategory().buyRatePercent());
     }

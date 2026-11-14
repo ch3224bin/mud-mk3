@@ -13,7 +13,6 @@ function itemType(patch: Partial<ItemTypeResponse> = {}): ItemTypeResponse {
     categoryName: "단약",
     stackSize: 99,
     baseValue: 3,
-    tradable: true,
     bagGrade: null,
     bagGradeName: null,
     bagSlots: 0,
@@ -36,13 +35,12 @@ const spiritStone = itemType({
 });
 
 describe("ItemForm", () => {
-  it("새 아이템은 기준가 0·거래 가능 켬으로 열리고, 저물대가 아니면 bagGrade 는 null 이다", async () => {
+  it("새 아이템은 기준가 0으로 열리고, 저물대가 아니면 bagGrade 는 null 이다", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<ItemForm onSubmit={onSubmit} />);
 
     expect(screen.getByLabelText("기준가 (하품)")).toHaveValue(0);
-    expect(screen.getByLabelText("거래 가능")).toBeChecked();
     expect(screen.queryByLabelText("저물대 등급")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("이름"), "회춘단");
     await user.selectOptions(screen.getByLabelText("종류"), screen.getByRole("option", { name: "단약" }));
@@ -56,7 +54,6 @@ describe("ItemForm", () => {
       description: "상처를 아물게 하는 단약.",
       category: "PILL",
       baseValue: 3,
-      tradable: true,
       bagGrade: null,
     });
   });
@@ -123,7 +120,7 @@ describe("ItemForm", () => {
   it("고칠 때는 저장된 값으로 열린다", () => {
     render(
       <ItemForm
-        initial={itemType({ name: "중급 저물대", category: "BAG", categoryName: "저물대", bagGrade: "MIDDLE", tradable: false })}
+        initial={itemType({ name: "중급 저물대", category: "BAG", categoryName: "저물대", bagGrade: "MIDDLE" })}
         onSubmit={vi.fn()}
       />,
     );
@@ -131,7 +128,6 @@ describe("ItemForm", () => {
     expect(screen.getByLabelText("이름")).toHaveValue("중급 저물대");
     expect(screen.getByLabelText("종류")).toHaveValue("BAG");
     expect(screen.getByLabelText("저물대 등급")).toHaveValue("MIDDLE");
-    expect(screen.getByLabelText("거래 가능")).not.toBeChecked();
   });
 
   it("영석이면 모든 칸이 읽기 전용이고 안내 문구를 보이며 저장 버튼이 없다", () => {
@@ -144,7 +140,6 @@ describe("ItemForm", () => {
     expect(screen.getByLabelText("종류")).toHaveValue("SPIRIT_STONE");
     expect(screen.getByLabelText("묘사")).toBeDisabled();
     expect(screen.getByLabelText("기준가 (하품)")).toBeDisabled();
-    expect(screen.getByLabelText("거래 가능")).toBeDisabled();
     expect(screen.queryByRole("button", { name: "저장" })).not.toBeInTheDocument();
   });
 

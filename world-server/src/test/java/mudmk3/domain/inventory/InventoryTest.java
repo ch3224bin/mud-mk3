@@ -46,7 +46,7 @@ class InventoryTest {
     void bagAddsSlots() {
         Inventory inventory = createInventory();
 
-        inventory.add(bag, 1, false);
+        inventory.add(bag, 1);
 
         assertThat(inventory.capacity()).isEqualTo(22);
         assertThat(inventory.usedSlots()).isZero();
@@ -66,8 +66,8 @@ class InventoryTest {
 
         assertThat(inventory.usedSlots()).isEqualTo(3);
         assertThat(inventory.capacity()).isEqualTo(22);
-        assertThat(inventory.getEntries()).extracting(InventoryEntry::getItemType, InventoryEntry::getCount, InventoryEntry::isBound)
-                .containsExactly(tuple(lowStone, 30, false), tuple(pill, 3, false), tuple(sword, 1, false), tuple(bag, 1, false));
+        assertThat(inventory.getEntries()).extracting(InventoryEntry::getItemType, InventoryEntry::getCount)
+                .containsExactly(tuple(lowStone, 30), tuple(pill, 3), tuple(sword, 1), tuple(bag, 1));
     }
 
     @Test
@@ -85,8 +85,8 @@ class InventoryTest {
     void stackFillsFirst() {
         Inventory inventory = createInventory();
 
-        inventory.add(pill, 98, false);
-        inventory.add(pill, 3, false);
+        inventory.add(pill, 98);
+        inventory.add(pill, 3);
 
         assertThat(inventory.getEntries()).extracting(InventoryEntry::getItemType, InventoryEntry::getCount)
                 .containsExactly(tuple(pill, 101));
@@ -97,7 +97,7 @@ class InventoryTest {
     void stonesTakeSlots() {
         Inventory inventory = createInventory();
 
-        inventory.add(lowStone, 10_001, false);
+        inventory.add(lowStone, 10_001);
 
         assertThat(inventory.usedSlots()).isEqualTo(2);
         assertThat(inventory.spiritStones()).isEqualTo(Map.of(LOW, 10_001L));
@@ -107,7 +107,7 @@ class InventoryTest {
     @Test
     void roomForPartial() {
         Inventory inventory = createInventory();
-        inventory.add(lowStone, 1, false);
+        inventory.add(lowStone, 1);
 
         assertThat(inventory.roomFor(sword)).isEqualTo(1);
         assertThat(inventory.roomFor(lowStone)).isEqualTo(19_999);
@@ -119,9 +119,9 @@ class InventoryTest {
     @Test
     void addNoRoomFail() {
         Inventory inventory = createInventory();
-        inventory.add(sword, 2, false);
+        inventory.add(sword, 2);
 
-        assertThatThrownBy(() -> inventory.add(pill, 1, false)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> inventory.add(pill, 1)).isInstanceOf(IllegalStateException.class);
         assertThat(inventory.getEntries()).extracting(InventoryEntry::getItemType).containsExactly(sword);
     }
 
@@ -138,38 +138,24 @@ class InventoryTest {
     }
 
     @Test
-    void removeAndSellBoundFail() {
-        Inventory inventory = createInventory();
-        inventory.add(sword, 2, false);
-        inventory.bind(sword);
-
-        assertThatThrownBy(() -> inventory.checkRemove(sword, true, 1)).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> inventory.remove(sword, true, 1)).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> inventory.checkSale(sword, true, 1, 12, lowStone)).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> inventory.sell(sword, true, 1, 12, lowStone)).isInstanceOf(IllegalStateException.class);
-        assertThat(inventory.getEntries()).extracting(InventoryEntry::isBound, InventoryEntry::getCount)
-                .containsExactly(tuple(false, 1), tuple(true, 1));
-    }
-
-    @Test
     void fourthBagFail() {
         Inventory inventory = createInventory();
-        inventory.add(bag, 3, false);
+        inventory.add(bag, 3);
 
         assertThat(inventory.roomFor(bag)).isZero();
         assertThat(inventory.checkAdd(bag, 1)).isEqualTo(AddCheck.BAG_LIMIT);
-        assertThatThrownBy(() -> inventory.add(bag, 1, false)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> inventory.add(bag, 1)).isInstanceOf(IllegalStateException.class);
         assertThat(inventory.bagCount()).isEqualTo(3);
     }
 
     @Test
     void removeBagInUseFail() {
         Inventory inventory = createInventory();
-        inventory.add(bag, 1, false);
-        inventory.add(sword, 21, false);
+        inventory.add(bag, 1);
+        inventory.add(sword, 21);
 
-        assertThat(inventory.checkRemove(bag, false, 1)).isEqualTo(RemoveCheck.BAG_IN_USE);
-        assertThatThrownBy(() -> inventory.remove(bag, false, 1)).isInstanceOf(IllegalStateException.class);
+        assertThat(inventory.checkRemove(bag, 1)).isEqualTo(RemoveCheck.BAG_IN_USE);
+        assertThatThrownBy(() -> inventory.remove(bag, 1)).isInstanceOf(IllegalStateException.class);
         assertThat(inventory.bagCount()).isEqualTo(1);
         assertThat(inventory.usedSlots()).isEqualTo(21);
     }
@@ -177,82 +163,75 @@ class InventoryTest {
     @Test
     void removeMoreThanHeldFail() {
         Inventory inventory = createInventory();
-        inventory.add(pill, 2, false);
+        inventory.add(pill, 2);
 
-        assertThatThrownBy(() -> inventory.remove(pill, false, 3)).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> inventory.remove(pill, true, 1)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> inventory.remove(pill, 3)).isInstanceOf(IllegalStateException.class);
         assertThat(inventory.getEntries()).extracting(InventoryEntry::getCount).containsExactly(2);
     }
 
     @Test
-    void boundIsSeparateEntry() {
+    void sameItemTypeMergesIntoOneEntry() {
         Inventory inventory = createInventory();
-        inventory.add(sword, 2, false);
+        inventory.add(bag, 1);
+        inventory.add(sword, 1);
+        inventory.add(pill, 2);
 
-        inventory.bind(sword);
+        inventory.add(sword, 2);
+        inventory.addAll(new LinkedHashMap<>(Map.of(pill, 3)));
 
         assertThat(inventory.getEntries())
-                .extracting(entry -> entry.getItemType().getName(), InventoryEntry::isBound, InventoryEntry::getCount)
-                .containsExactly(tuple("비검", false, 1), tuple("비검", true, 1));
-        assertThat(inventory.usedSlots()).isEqualTo(2);
+                .extracting(entry -> entry.getItemType().getName(), InventoryEntry::getCount)
+                .containsExactly(tuple(bag.getName(), 1), tuple("비검", 3), tuple("회춘단(연기 초)", 5));
+        assertThat(inventory.usedSlots()).isEqualTo(4);
     }
 
     @Test
-    void bindNotBindableFail() {
+    void removeTakesFromTheOneEntry() {
         Inventory inventory = createInventory();
-        inventory.add(pill, 1, false);
+        inventory.add(sword, 2);
 
-        assertThatThrownBy(() -> inventory.bind(pill)).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> inventory.unbind(pill)).isInstanceOf(IllegalStateException.class);
-    }
+        inventory.remove(sword, 1);
 
-    @Test
-    void unbindMerges() {
-        Inventory inventory = createInventory();
-        inventory.add(sword, 2, false);
-        inventory.bind(sword);
-
-        inventory.unbind(sword);
-
-        assertThat(inventory.getEntries()).extracting(InventoryEntry::isBound, InventoryEntry::getCount)
-                .containsExactly(tuple(false, 2));
+        assertThat(inventory.getEntries()).extracting(InventoryEntry::getCount).containsExactly(1);
+        inventory.remove(sword, 1);
+        assertThat(inventory.getEntries()).isEmpty();
     }
 
     @Test
     void purchaseOrder() {
         Inventory notEnough = createInventory();
-        notEnough.add(lowStone, 9, false);
+        notEnough.add(lowStone, 9);
         assertThat(notEnough.checkPurchase(pill, 5, 15, lowStone)).isEqualTo(new PurchaseResult.NotEnough(9));
 
         Inventory bagLimit = createInventory();
-        bagLimit.add(bag, 3, false);
-        bagLimit.add(lowStone, 100, false);
+        bagLimit.add(bag, 3);
+        bagLimit.add(lowStone, 100);
         assertThat(bagLimit.checkPurchase(bag, 1, 10, lowStone)).isEqualTo(new PurchaseResult.BagLimit());
 
         Inventory noRoom = createInventory();
-        noRoom.add(lowStone, 100, false);
-        noRoom.add(hide, 1, false);
+        noRoom.add(lowStone, 100);
+        noRoom.add(hide, 1);
         assertThat(noRoom.checkPurchase(sword, 1, 10, lowStone)).isEqualTo(new PurchaseResult.NoRoom());
 
         Inventory noRoomForChange = createInventory();
-        noRoomForChange.add(stone(MIDDLE), 1, false);
-        noRoomForChange.add(hide, 1, false);
+        noRoomForChange.add(stone(MIDDLE), 1);
+        noRoomForChange.add(hide, 1);
         assertThat(noRoomForChange.checkPurchase(pill, 1, 3, lowStone)).isEqualTo(new PurchaseResult.NoRoomForChange(97, 1));
 
         // 거스름 999,997개는 100칸을 더 쓰지만 빈 칸이 둘이라 모자란 칸은 98
         Inventory shortOfSlots = createInventory();
-        shortOfSlots.add(bag, 1, false);
-        shortOfSlots.add(stone(TOP), 1, false);
-        shortOfSlots.add(hide, 99 * 19, false);
+        shortOfSlots.add(bag, 1);
+        shortOfSlots.add(stone(TOP), 1);
+        shortOfSlots.add(hide, 99 * 19);
         assertThat(shortOfSlots.checkPurchase(pill, 1, 3, lowStone)).isEqualTo(new PurchaseResult.NoRoomForChange(999_997, 98));
 
         Inventory needsConfirm = createInventory();
-        needsConfirm.add(stone(HIGH), 1, false);
+        needsConfirm.add(stone(HIGH), 1);
         assertThat(needsConfirm.checkPurchase(pill, 1, 120, lowStone)).isEqualTo(
                 new PurchaseResult.NeedsConfirm(new SpiritStonePayment(Map.of(HIGH, 1L), 9_880)));
 
         Inventory bought = createInventory();
-        bought.add(lowStone, 50, false);
+        bought.add(lowStone, 50);
         assertThat(bought.checkPurchase(pill, 5, 15, lowStone)).isEqualTo(
                 new PurchaseResult.Bought(new SpiritStonePayment(Map.of(LOW, 15L), 0)));
     }
@@ -260,7 +239,7 @@ class InventoryTest {
     @Test
     void purchaseExactHighStoneNoConfirm() {
         Inventory inventory = createInventory();
-        inventory.add(stone(HIGH), 1, false);
+        inventory.add(stone(HIGH), 1);
 
         assertThat(inventory.checkPurchase(pill, 1, 10_000, lowStone)).isEqualTo(
                 new PurchaseResult.Bought(new SpiritStonePayment(Map.of(HIGH, 1L), 0)));
@@ -269,9 +248,9 @@ class InventoryTest {
     @Test
     void purchaseWithChange() {
         Inventory inventory = createInventory();
-        inventory.add(bag, 1, false);
-        inventory.add(lowStone, 50, false);
-        inventory.add(stone(MIDDLE), 2, false);
+        inventory.add(bag, 1);
+        inventory.add(lowStone, 50);
+        inventory.add(stone(MIDDLE), 2);
 
         PurchaseResult result = inventory.checkPurchase(pill, 1, 120, lowStone);
         SpiritStonePayment payment = ((PurchaseResult.Bought) result).payment();
@@ -285,7 +264,7 @@ class InventoryTest {
     @Test
     void purchaseUnplannedPaymentFail() {
         Inventory inventory = createInventory();
-        inventory.add(lowStone, 10, false);
+        inventory.add(lowStone, 10);
 
         assertThatThrownBy(() -> inventory.purchase(pill, 1, new SpiritStonePayment(Map.of(LOW, 20L), 0), stones()))
                 .isInstanceOf(IllegalStateException.class);
@@ -296,10 +275,10 @@ class InventoryTest {
     @Test
     void sell() {
         Inventory inventory = createInventory();
-        inventory.add(hide, 10, false);
+        inventory.add(hide, 10);
 
-        assertThat(inventory.checkSale(hide, false, 10, 8, lowStone)).isEqualTo(SaleResult.SOLD);
-        inventory.sell(hide, false, 10, 8, lowStone);
+        assertThat(inventory.checkSale(hide, 10, 8, lowStone)).isEqualTo(SaleResult.SOLD);
+        inventory.sell(hide, 10, 8, lowStone);
 
         assertThat(inventory.getEntries()).extracting(InventoryEntry::getItemType, InventoryEntry::getCount)
                 .containsExactly(tuple(lowStone, 8));
@@ -308,31 +287,31 @@ class InventoryTest {
     @Test
     void saleNoRoomFail() {
         Inventory inventory = createInventory();
-        inventory.add(pill, 3, false);
-        inventory.add(hide, 5, false);
+        inventory.add(pill, 3);
+        inventory.add(hide, 5);
 
-        assertThat(inventory.checkSale(pill, false, 1, 1, lowStone)).isEqualTo(SaleResult.NO_ROOM);
-        assertThatThrownBy(() -> inventory.sell(pill, false, 1, 1, lowStone)).isInstanceOf(IllegalStateException.class);
+        assertThat(inventory.checkSale(pill, 1, 1, lowStone)).isEqualTo(SaleResult.NO_ROOM);
+        assertThatThrownBy(() -> inventory.sell(pill, 1, 1, lowStone)).isInstanceOf(IllegalStateException.class);
         assertThat(inventory.getEntries()).extracting(InventoryEntry::getCount).containsExactly(3, 5);
     }
 
     @Test
     void saleBagInUseFail() {
         Inventory inventory = createInventory();
-        inventory.add(bag, 1, false);
-        inventory.add(sword, 3, false);
+        inventory.add(bag, 1);
+        inventory.add(sword, 3);
 
-        assertThat(inventory.checkSale(bag, false, 1, 2, lowStone)).isEqualTo(SaleResult.BAG_IN_USE);
+        assertThat(inventory.checkSale(bag, 1, 2, lowStone)).isEqualTo(SaleResult.BAG_IN_USE);
     }
 
     @Test
     void entriesDisplayOrder() {
         Inventory inventory = createInventory();
-        inventory.add(bag, 1, false);
-        inventory.add(hide, 1, false);
-        inventory.add(stone(MIDDLE), 1, false);
-        inventory.add(pill, 1, false);
-        inventory.add(lowStone, 1, false);
+        inventory.add(bag, 1);
+        inventory.add(hide, 1);
+        inventory.add(stone(MIDDLE), 1);
+        inventory.add(pill, 1);
+        inventory.add(lowStone, 1);
 
         assertThat(inventory.getEntries()).extracting(InventoryEntry::getItemType)
                 .containsExactly(lowStone, stone(MIDDLE), bag, hide, pill);
@@ -342,10 +321,10 @@ class InventoryTest {
     @Test
     void zeroEntriesRemoved() {
         Inventory inventory = createInventory();
-        inventory.add(pill, 3, false);
-        inventory.add(hide, 1, false);
+        inventory.add(pill, 3);
+        inventory.add(hide, 1);
 
-        inventory.remove(pill, false, 3);
+        inventory.remove(pill, 3);
 
         assertThat(inventory.getEntries()).extracting(InventoryEntry::getItemType).containsExactly(hide);
     }

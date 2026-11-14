@@ -165,7 +165,6 @@ describe("createItemType", () => {
       description: "",
       category: "BAG",
       baseValue: 50,
-      tradable: true,
       bagGrade: "LOW",
     });
 
@@ -177,7 +176,6 @@ describe("createItemType", () => {
       description: "",
       category: "BAG",
       baseValue: 50,
-      tradable: true,
       bagGrade: "LOW",
     });
     expect(headersOf(init).get("X-MUD-Client")).toBe("1");

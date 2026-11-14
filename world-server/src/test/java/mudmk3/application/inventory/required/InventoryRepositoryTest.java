@@ -34,25 +34,23 @@ record InventoryRepositoryTest(InventoryRepository inventoryRepository, ItemType
         ItemType sword = itemTypeRepository.save(ItemTypeFixture.createItemType("비검", ItemCategory.ARTIFACT, 50));
         ItemType bag = itemTypeRepository.save(ItemTypeFixture.createBag(BagGrade.LOW));
         Inventory inventory = Inventory.empty(7L);
-        inventory.add(pill, 3, false);
-        inventory.add(bag, 1, false);
-        inventory.add(sword, 2, false);
-        inventory.bind(sword);
+        inventory.add(pill, 3);
+        inventory.add(bag, 1);
+        inventory.add(sword, 2);
         inventoryRepository.save(inventory);
-        inventory.add(stones.get(LOW), 5, false);
+        inventory.add(stones.get(LOW), 5);
         entityManager.flush();
         entityManager.clear();
 
         Inventory found = inventoryRepository.findByCharacterId(7L).orElseThrow();
         assertThat(found.getCharacterId()).isEqualTo(7L);
         assertThat(found.getEntries())
-                .extracting(entry -> entry.getItemType().getName(), InventoryEntry::isBound, InventoryEntry::getCount)
+                .extracting(entry -> entry.getItemType().getName(), InventoryEntry::getCount)
                 .containsExactly(
-                        tuple("하품 영석", false, 5),
-                        tuple("회춘단(연기 초)", false, 3),
-                        tuple("하급 저물대", false, 1),
-                        tuple("비검", false, 1),
-                        tuple("비검", true, 1));
+                        tuple("하품 영석", 5),
+                        tuple("회춘단(연기 초)", 3),
+                        tuple("하급 저물대", 1),
+                        tuple("비검", 2));
         assertThat(inventoryRepository.findByCharacterId(8L)).isEmpty();
     }
 
@@ -62,9 +60,9 @@ record InventoryRepositoryTest(InventoryRepository inventoryRepository, ItemType
         ItemType pill = itemTypeRepository.save(ItemTypeFixture.createPill());
         ItemType bag = itemTypeRepository.save(ItemTypeFixture.createBag(BagGrade.LOW));
         Inventory inventory = Inventory.empty(7L);
-        inventory.add(bag, 1, false);
-        inventory.add(stones.get(LOW), 50, false);
-        inventory.add(stones.get(MIDDLE), 2, false);
+        inventory.add(bag, 1);
+        inventory.add(stones.get(LOW), 50);
+        inventory.add(stones.get(MIDDLE), 2);
         inventoryRepository.save(inventory);
         entityManager.flush();
 
@@ -83,10 +81,10 @@ record InventoryRepositoryTest(InventoryRepository inventoryRepository, ItemType
     void removeEmptiedEntry() {
         ItemType pill = itemTypeRepository.save(ItemTypeFixture.createPill());
         Inventory inventory = inventoryRepository.save(Inventory.empty(7L));
-        inventory.add(pill, 3, false);
+        inventory.add(pill, 3);
         entityManager.flush();
 
-        inventory.remove(pill, false, 3);
+        inventory.remove(pill, 3);
         entityManager.flush();
         entityManager.clear();
 
@@ -109,9 +107,9 @@ record InventoryRepositoryTest(InventoryRepository inventoryRepository, ItemType
         ItemType pill = itemTypeRepository.save(ItemTypeFixture.createPill());
         ItemType hide = itemTypeRepository.save(ItemTypeFixture.createWolfHide());
         Inventory first = Inventory.empty(7L);
-        first.add(pill, 3, false);
+        first.add(pill, 3);
         Inventory second = Inventory.empty(8L);
-        second.add(pill, 1, false);
+        second.add(pill, 1);
         inventoryRepository.save(first);
         inventoryRepository.save(second);
         entityManager.flush();

@@ -42,7 +42,7 @@ import static java.util.Objects.requireNonNull;
 import static org.springframework.util.Assert.state;
 
 /**
- * 물건 명령(소지품·줍기·버리기·물건 보기·주기·귀속, D43~D47)을 처리한다. {@link GameService} 가 게임 락과 트랜잭션 안에서 부른다.
+ * 물건 명령(소지품·줍기·버리기·물건 보기·주기, D44~D47)을 처리한다. {@link GameService} 가 게임 락과 트랜잭션 안에서 부른다.
  * 바꾸는 명령은 검사를 다 한 뒤에 바꾸고, 같은 방 다른 사람에게 알린다
  */
 @Component
@@ -55,21 +55,12 @@ class ItemCommandHandler {
     static final String NO_ROOM = "저물대에 자리가 없습니다.";
     static final String BAG_LIMIT = "저물대는 세 개까지만 찰 수 있습니다.";
     static final String NOT_HELD = "그런 물건은 가지고 있지 않습니다.";
-    static final String QUEST_DROP = "퀘스트 물건은 버릴 수 없습니다.";
-    static final String BOUND_DROP = "귀속된 물건은 버릴 수 없습니다.";
     static final String BAG_IN_USE = "저물대에 든 물건을 먼저 비우십시오.";
     static final String EMPTY_INVENTORY = "가진 물건이 없습니다.";
     static final String NO_DETAILED_LOOK = "아직 자세히 볼 수 없습니다.";
     static final String NOTHING_TO_SEE = "그런 것은 보이지 않습니다.";
     static final String GIVE_NO_ARGUMENT = "누구에게 무엇을 주시겠습니까? (예: 주기 한립 회춘단 2)";
     static final String GIVE_SELF = "자기 자신에게는 줄 수 없습니다.";
-    static final String QUEST_GIVE = "퀘스트 물건은 남에게 줄 수 없습니다.";
-    static final String BOUND_GIVE = "귀속된 물건은 남에게 줄 수 없습니다.";
-    static final String BIND_NO_ARGUMENT = "무엇을 귀속하시겠습니까? (예: 귀속 비검)";
-    static final String UNBIND_NO_ARGUMENT = "무엇의 귀속을 푸시겠습니까? (예: 귀속 해제 비검)";
-    static final String ALREADY_BOUND = "이미 당신에게 귀속된 물건입니다.";
-    static final String NOT_BOUND = "귀속된 물건이 아닙니다.";
-    static final String QUEST_UNBIND = "퀘스트 물건과 본명법보는 이렇게 풀 수 없습니다.";
 
     private static final int ITEMS_PER_LINE = 3;
 
@@ -79,7 +70,7 @@ class ItemCommandHandler {
     private final NpcFinder npcFinder;
     private final PresenceRepository presenceRepository;
 
-    /** 물건 명령(주기·귀속 포함)과 인자 있는 {@code 보기} 를 처리한다. send 는 (연결 id, 메시지)로 보낼 것을 모은다 */
+    /** 물건 명령(주기 포함)과 인자 있는 {@code 보기} 를 처리한다. send 는 (연결 id, 메시지)로 보낼 것을 모은다 */
     void handle(Command command, OnlinePlayer player, BiConsumer<String, GameMessage> send) {
         switch (command) {
             case Command.Inventory _ -> send.accept(player.getSessionId(), inventory(player));
@@ -87,8 +78,6 @@ class ItemCommandHandler {
             case Command.Drop drop -> drop(player, drop.args(), send);
             case Command.Look(String argument) when argument != null -> look(player, argument, send);
             case Command.Give give -> give(player, give, send);
-            case Command.Bind bind -> bind(player, bind.args(), send);
-            case Command.Unbind unbind -> unbind(player, unbind.args(), send);
             default -> throw new IllegalArgumentException("물건 명령이 아닙니다: " + command);
         }
     }
@@ -102,8 +91,7 @@ class ItemCommandHandler {
                 .toList();
         List<ItemView> items = inventory.getEntries().stream()
                 .filter(entry -> !entry.getItemType().isSpiritStone())
-                .map(entry -> new ItemView(entry.getItemType().getName(), entry.getCount(), entry.isBound(),
-                        entry.getItemType().isQuest()))
+                .map(entry -> new ItemView(entry.getItemType().getName(), entry.getCount()))
                 .toList();
         return InventoryMessage.of(inventory.usedSlots(), inventory.capacity(), stones, items, inventoryText(inventory));
     }
@@ -137,8 +125,6 @@ class ItemCommandHandler {
     private static String inventoryItem(InventoryEntry entry) {
         StringBuilder item = new StringBuilder(entry.getItemType().getName());
         if (entry.getCount() >= 2) item.append(" x").append(Numbers.count(entry.getCount()));
-        if (entry.isBound()) item.append(" (귀속)");
-        if (entry.getItemType().isQuest()) item.append(" (퀘스트)");
         return item.toString();
     }
 
@@ -199,7 +185,7 @@ class ItemCommandHandler {
 
     // ---- 버리기
 
-    /** 소지품(D37 순서)에서 찾는다. 검사 순서: 인자 없음 → 수량 오류 → 없음 → 퀘스트 → 귀속 → 수 넘침 → 저물대 칸 */
+    /** 소지품(D37 순서)에서 찾는다. 검사 순서: 인자 없음 → 수량 오류 → 없음 → 수 넘침 → 저물대 칸 */
     private void drop(OnlinePlayer player, ItemArguments args, BiConsumer<String, GameMessage> send) {
         String sessionId = player.getSessionId();
         ItemQuery query = args.item();
@@ -220,14 +206,6 @@ class ItemCommandHandler {
         InventoryEntry entry = found.get();
         ItemType itemType = entry.getItemType();
         String name = itemType.getName();
-        if (itemType.isQuest()) {
-            send.accept(sessionId, SystemMessage.error(QUEST_DROP));
-            return;
-        }
-        if (entry.isBound()) {
-            send.accept(sessionId, SystemMessage.error(BOUND_DROP));
-            return;
-        }
         int count = switch (args.amount()) {
             case Amount.Count(int value) -> value;
             case Amount.All _ -> entry.getCount();
@@ -239,7 +217,7 @@ class ItemCommandHandler {
         }
 
         Long itemTypeId = requireNonNull(itemType.getId());
-        if (inventoryEditor.remove(player.getCharacterId(), itemTypeId, false, count) == RemoveCheck.BAG_IN_USE) {
+        if (inventoryEditor.remove(player.getCharacterId(), itemTypeId, count) == RemoveCheck.BAG_IN_USE) {
             send.accept(sessionId, SystemMessage.error(BAG_IN_USE));
             return;
         }
@@ -291,8 +269,8 @@ class ItemCommandHandler {
     // ---- 주기
 
     /**
-     * 같은 방 플레이어에게 준다(D44). 검사 순서: 인자 없음 → 수량 오류 → 대상 없음 → 자기 자신 → 없음 → 퀘스트 → 귀속
-     * → 거래 불가 → 수 넘침 → 주는 쪽 저물대 칸 → 받는 쪽 저물대 세 개 → 받는 쪽 칸
+     * 같은 방 플레이어에게 준다(D44). 검사 순서: 인자 없음 → 수량 오류 → 대상 없음 → 자기 자신 → 없음 → 수 넘침
+     * → 주는 쪽 저물대 칸 → 받는 쪽 저물대 세 개 → 받는 쪽 칸
      */
     private void give(OnlinePlayer player, Command.Give give, BiConsumer<String, GameMessage> send) {
         String sessionId = player.getSessionId();
@@ -325,18 +303,6 @@ class ItemCommandHandler {
         InventoryEntry entry = held.get();
         ItemType itemType = entry.getItemType();
         String name = itemType.getName();
-        if (itemType.isQuest()) {
-            send.accept(sessionId, SystemMessage.error(QUEST_GIVE));
-            return;
-        }
-        if (entry.isBound()) {
-            send.accept(sessionId, SystemMessage.error(BOUND_GIVE));
-            return;
-        }
-        if (!itemType.isTradable()) {
-            send.accept(sessionId, SystemMessage.error(Josa.withEunNeun(name) + " 남에게 줄 수 없는 물건입니다."));
-            return;
-        }
         int count = switch (args.amount()) {
             case Amount.Count(int value) -> value;
             case Amount.All _ -> entry.getCount();
@@ -349,7 +315,7 @@ class ItemCommandHandler {
 
         String receiverName = receiver.getName();
         GiveResult result = inventoryEditor.give(player.getCharacterId(), receiver.getCharacterId(),
-                requireNonNull(itemType.getId()), false, count);
+                requireNonNull(itemType.getId()), count);
         switch (result) {
             case GIVER_BAG_IN_USE -> send.accept(sessionId, SystemMessage.error(BAG_IN_USE));
             case RECEIVER_BAG_LIMIT -> send.accept(sessionId,
@@ -385,89 +351,11 @@ class ItemCommandHandler {
                 .or(() -> player.getName().toLowerCase(Locale.ROOT).startsWith(input) ? Optional.of(player) : Optional.empty());
     }
 
-    // ---- 귀속
-
-    /** 직접 귀속 종류의 귀속 안 된 것 하나를 귀속한다(D43, 3차는 정혈을 쓰지 않는다) */
-    private void bind(OnlinePlayer player, String argument, BiConsumer<String, GameMessage> send) {
-        String sessionId = player.getSessionId();
-        String name = ItemNames.normalize(argument);
-        if (name.isEmpty()) {
-            send.accept(sessionId, SystemMessage.error(BIND_NO_ARGUMENT));
-            return;
-        }
-        Optional<InventoryEntry> found = selectPreferring(inventoryFinder.find(player.getCharacterId()),
-                ItemQuery.parse(name), false);
-        if (found.isEmpty()) {
-            send.accept(sessionId, SystemMessage.error(NOT_HELD));
-            return;
-        }
-        InventoryEntry entry = found.get();
-        ItemType itemType = entry.getItemType();
-        String itemName = itemType.getName();
-        if (!itemType.isBindable()) {
-            send.accept(sessionId, SystemMessage.error(
-                    Josa.withEunNeun(itemType.getCategory().koreanName()) + " 귀속할 수 없습니다."));
-            return;
-        }
-        if (entry.isBound()) {
-            send.accept(sessionId, SystemMessage.error(ALREADY_BOUND));
-            return;
-        }
-        inventoryEditor.bind(player.getCharacterId(), requireNonNull(itemType.getId()));
-        send.accept(sessionId, SystemMessage.item(itemName + "에 정혈을 한 방울 떨어뜨린다. "
-                + Josa.withIGa(itemName) + " 당신에게 귀속되었습니다."));
-    }
-
-    /** 귀속된 것 하나의 귀속을 푼다. 퀘스트 물건은 풀 수 없다 */
-    private void unbind(OnlinePlayer player, String argument, BiConsumer<String, GameMessage> send) {
-        String sessionId = player.getSessionId();
-        String name = ItemNames.normalize(argument);
-        if (name.isEmpty()) {
-            send.accept(sessionId, SystemMessage.error(UNBIND_NO_ARGUMENT));
-            return;
-        }
-        Optional<InventoryEntry> found = selectPreferring(inventoryFinder.find(player.getCharacterId()),
-                ItemQuery.parse(name), true);
-        if (found.isEmpty()) {
-            send.accept(sessionId, SystemMessage.error(NOT_HELD));
-            return;
-        }
-        InventoryEntry entry = found.get();
-        ItemType itemType = entry.getItemType();
-        if (itemType.isQuest()) {
-            send.accept(sessionId, SystemMessage.error(QUEST_UNBIND));
-            return;
-        }
-        if (!entry.isBound()) {
-            send.accept(sessionId, SystemMessage.error(NOT_BOUND));
-            return;
-        }
-        inventoryEditor.unbind(player.getCharacterId(), requireNonNull(itemType.getId()));
-        send.accept(sessionId, SystemMessage.item(Josa.withGwaWa(itemType.getName())
-                + " 이어진 정혈의 끈을 끊었습니다. 귀속이 풀렸습니다."));
-    }
-
     // ---- 공통
 
-    /**
-     * 소지품(표시 순서)에서 이름으로 고른다. 번호 없이 고른 묶음이 귀속이고 같은 종류의 귀속 안 된 묶음이 있으면
-     * 귀속 안 된 묶음을 쓴다(D46 — 버리기·주기·팔기·값)
-     */
+    /** 소지품(표시 순서)에서 이름으로 고른다(D46 — 버리기·주기·팔기·값). 종류마다 묶음이 하나뿐이다 */
     static Optional<InventoryEntry> selectHeld(Inventory inventory, ItemQuery query) {
-        return selectPreferring(inventory, query, false);
-    }
-
-    /**
-     * 소지품(표시 순서)에서 이름으로 고르되, 번호 없이 고른 묶음의 귀속 여부가 {@code bound} 와 다르고 같은 종류의
-     * {@code bound} 묶음이 있으면 그 묶음을 쓴다(귀속은 귀속 안 된 것을, 귀속 해제는 귀속된 것을 고른다)
-     */
-    private static Optional<InventoryEntry> selectPreferring(Inventory inventory, ItemQuery query, boolean bound) {
-        List<InventoryEntry> entries = inventory.getEntries();
-        return ItemNames.select(entries, entry -> entry.getItemType().getName(), query)
-                .map(selected -> selected.isBound() == bound || query.hasOrdinal() ? selected : entries.stream()
-                        .filter(entry -> entry.isBound() == bound && entry.getItemType().equals(selected.getItemType()))
-                        .findFirst()
-                        .orElse(selected));
+        return ItemNames.select(inventory.getEntries(), entry -> entry.getItemType().getName(), query);
     }
 
     /** {@code 늑대 가죽은 3개뿐입니다.} */

@@ -16,7 +16,7 @@ import static java.util.Objects.requireNonNullElse;
 import static org.springframework.util.Assert.state;
 
 /**
- * 아이템 종류: 이름·묘사·종류·기준가(하품 영석)·거래 가능·저물대 등급. 이름은 영문 대소문자를 무시하고 하나뿐이다.
+ * 아이템 종류: 이름·묘사·종류·기준가(하품 영석)·저물대 등급. 이름은 영문 대소문자를 무시하고 하나뿐이다.
  * 영석 네 등급은 엔진이 {@link #spiritStone} 으로 심고 고치지 않는다
  */
 @Entity
@@ -41,8 +41,6 @@ public class ItemType extends AbstractEntity {
 
     private long baseValue;
 
-    private boolean tradable;
-
     @Getter(AccessLevel.NONE)
     private @Nullable BagGrade bagGrade;
 
@@ -55,14 +53,13 @@ public class ItemType extends AbstractEntity {
         return itemType;
     }
 
-    /** 엔진이 심는 영석 종류: 이름 {@code 하품 영석}, 기준가는 등급 값, 거래 가능 */
+    /** 엔진이 심는 영석 종류: 이름 {@code 하품 영석}, 기준가는 등급 값 */
     public static ItemType spiritStone(SpiritStoneGrade grade) {
         ItemType itemType = new ItemType();
         itemType.name = grade.itemName();
         itemType.description = grade.description();
         itemType.category = ItemCategory.SPIRIT_STONE;
         itemType.baseValue = grade.value();
-        itemType.tradable = true;
         itemType.spiritStoneGrade = requireNonNull(grade);
         return itemType;
     }
@@ -98,15 +95,6 @@ public class ItemType extends AbstractEntity {
         return spiritStoneGrade != null;
     }
 
-    public boolean isQuest() {
-        return category == ItemCategory.QUEST;
-    }
-
-    /** {@code 귀속} 명령으로 직접 귀속할 수 있는 종류인지 */
-    public boolean isBindable() {
-        return category.bindable();
-    }
-
     /** 이름 전체가 같은지(영문 대소문자 무시) */
     public boolean isCalled(String input) {
         return name.equalsIgnoreCase(input);
@@ -138,7 +126,6 @@ public class ItemType extends AbstractEntity {
         this.description = newDescription;
         this.category = newCategory;
         this.baseValue = info.baseValue();
-        this.tradable = info.tradable();
         this.bagGrade = info.bagGrade();
     }
 

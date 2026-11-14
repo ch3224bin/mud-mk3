@@ -375,7 +375,7 @@ async function run() {
     step(`16. 관리자 — 아이템 종류 ${bagName}·${pillName}·${hideName}·${swordName}, 목록 앞 넷은 영석`);
     const itemType = (name, category, baseValue, { description = "", bagGrade = null } = {}) =>
       api(admin, "POST", "/api/admin/item-types",
-        { name, description, category, baseValue, tradable: true, bagGrade }, { expect: 201 });
+        { name, description, category, baseValue, bagGrade }, { expect: 201 });
     const bag = await itemType(bagName, "BAG", 30, { bagGrade: "LOW" });
     if (bag.categoryName !== "저물대" || bag.bagGradeName !== "하급" || bag.bagSlots !== 20) {
       fail(`저물대 응답이 다름: ${JSON.stringify(bag)}`);
@@ -503,16 +503,8 @@ async function run() {
     await expectSystem(c, `값 ${pillName}`, `${pillName} 1개에 하품 영석 0.75 — 3개면 2`, "item");
     await expectSystem(c, `팔기 ${hideName}`, `${merchantName}: "그런 물건은 받지 않소." (재료는 재료상에 팔 수 있습니다)`, "error");
 
-    step(`23. C 귀속 ${swordName} → 버리기·팔기·주기 거절 → 귀속 해제`);
-    await expectSystem(c, `귀속 ${swordName}`, `${swordName}에 정혈을 한 방울 떨어뜨린다. ${swordName}가 당신에게 귀속되었습니다.`, "item");
-    const boundInventory = await inventoryOf(c);
-    if (!boundInventory.items.some((i) => i.name === swordName && i.bound === true)) {
-      fail(`소지품에 귀속된 ${swordName} 이 없음: ${JSON.stringify(boundInventory.items)}`);
-    }
-    await expectSystem(c, `버리기 ${swordName}`, "귀속된 물건은 버릴 수 없습니다.", "error");
-    await expectSystem(c, `팔기 ${swordName}`, `${merchantName}: "귀속된 물건은 사 줄 수 없소."`, "error");
-    await expectSystem(c, `주기 ${nameD} ${swordName}`, "귀속된 물건은 남에게 줄 수 없습니다.", "error");
-    await expectSystem(c, `귀속 해제 ${swordName}`, `${swordName}와 이어진 정혈의 끈을 끊었습니다. 귀속이 풀렸습니다.`, "item");
+    step(`23. C 귀속 ${swordName} → 지운 명령이라 모르는 명령 응답`);
+    await expectSystem(c, `귀속 ${swordName}`, "무슨 말인지 모르겠습니다. ('도움말' 로 명령을 볼 수 있습니다)", "error");
 
     step(`24. C 주기 ${nameD} — 회춘단·하품 5, 칸 없는 D는 가죽 거절, 없는 사람, 도움말`);
     dMark = d.mark();
@@ -526,8 +518,8 @@ async function run() {
     await expectSystem(c, `주기 없는사람 ${pillName}`, "여기에 없는사람은 없습니다.", "error");
     mark = c.send("도움말");
     const help3 = await c.waitFor((m) => m.type === "system" && m.text.startsWith("명령:"), "3차 도움말", mark);
-    if (!help3.text.includes("주기 <대상> <물건> [수량]") || !help3.text.includes("귀속 해제 <물건>")) {
-      fail(`도움말에 주기·귀속 해제가 없음: ${help3.text}`);
+    if (!help3.text.includes("주기 <대상> <물건> [수량]") || help3.text.includes("귀속")) {
+      fail(`도움말에 주기가 없거나 귀속이 남아 있음: ${help3.text}`);
     }
 
     step("25. 관리자 — 시작 소지품을 처음 값으로 되돌림");

@@ -162,12 +162,12 @@ record CharacterCreatorTest(
         assertThat(inventory.capacity()).isEqualTo(22);
         assertThat(inventory.spiritStones()).isEqualTo(Map.of(SpiritStoneGrade.LOW, 30L));
         assertThat(inventory.getEntries())
-                .extracting(entry -> entry.getItemType().getName(), InventoryEntry::getCount, InventoryEntry::isBound)
+                .extracting(entry -> entry.getItemType().getName(), InventoryEntry::getCount)
                 .containsExactly(
-                        tuple("하품 영석", 30, false),
-                        tuple("하급 저물대", 1, false),
-                        tuple("회춘단(연기 초)", 3, false),
-                        tuple("회기단(연기 초)", 3, false));
+                        tuple("하품 영석", 30),
+                        tuple("하급 저물대", 1),
+                        tuple("회춘단(연기 초)", 3),
+                        tuple("회기단(연기 초)", 3));
     }
 
     @Test

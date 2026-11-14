@@ -52,18 +52,18 @@ public class InventoryModifyService implements InventoryEditor {
         ItemType itemType = itemTypeFinder.find(itemTypeId);
         int added = Math.min(count, inventory.roomFor(itemType));
         if (added > 0) {
-            inventory.add(itemType, added, false);
+            inventory.add(itemType, added);
         }
         return added;
     }
 
     @Override
-    public RemoveCheck remove(Long characterId, Long itemTypeId, boolean bound, int count) {
+    public RemoveCheck remove(Long characterId, Long itemTypeId, int count) {
         Inventory inventory = findOrCreate(characterId);
         ItemType itemType = itemTypeFinder.find(itemTypeId);
-        RemoveCheck check = inventory.checkRemove(itemType, bound, count);
+        RemoveCheck check = inventory.checkRemove(itemType, count);
         if (check == RemoveCheck.OK) {
-            inventory.remove(itemType, bound, count);
+            inventory.remove(itemType, count);
         }
         return check;
     }
@@ -88,43 +88,32 @@ public class InventoryModifyService implements InventoryEditor {
     }
 
     @Override
-    public SaleResult sell(Long characterId, Long itemTypeId, boolean bound, int count, long payout) {
+    public SaleResult sell(Long characterId, Long itemTypeId, int count, long payout) {
         Inventory inventory = findOrCreate(characterId);
         ItemType itemType = itemTypeFinder.find(itemTypeId);
         ItemType lowStone = itemTypeFinder.spiritStone(SpiritStoneGrade.LOW);
-        SaleResult result = inventory.checkSale(itemType, bound, count, payout, lowStone);
+        SaleResult result = inventory.checkSale(itemType, count, payout, lowStone);
         if (result == SaleResult.SOLD) {
-            inventory.sell(itemType, bound, count, payout, lowStone);
+            inventory.sell(itemType, count, payout, lowStone);
         }
         return result;
     }
 
     @Override
-    public GiveResult give(Long fromCharacterId, Long toCharacterId, Long itemTypeId, boolean bound, int count) {
+    public GiveResult give(Long fromCharacterId, Long toCharacterId, Long itemTypeId, int count) {
         state(!fromCharacterId.equals(toCharacterId), "자기 자신에게는 줄 수 없습니다.");
-        state(!bound, "귀속된 물건은 남에게 줄 수 없습니다.");
         Inventory giver = findOrCreate(fromCharacterId);
         Inventory receiver = findOrCreate(toCharacterId);
         ItemType itemType = itemTypeFinder.find(itemTypeId);
 
-        if (giver.checkRemove(itemType, false, count) == RemoveCheck.BAG_IN_USE) return GiveResult.GIVER_BAG_IN_USE;
+        if (giver.checkRemove(itemType, count) == RemoveCheck.BAG_IN_USE) return GiveResult.GIVER_BAG_IN_USE;
         AddCheck addCheck = receiver.checkAdd(itemType, count);
         if (addCheck == AddCheck.BAG_LIMIT) return GiveResult.RECEIVER_BAG_LIMIT;
         if (addCheck == AddCheck.NO_ROOM) return GiveResult.RECEIVER_NO_ROOM;
 
-        giver.remove(itemType, false, count);
-        receiver.add(itemType, count, false);
+        giver.remove(itemType, count);
+        receiver.add(itemType, count);
         return GiveResult.GIVEN;
-    }
-
-    @Override
-    public void bind(Long characterId, Long itemTypeId) {
-        findOrCreate(characterId).bind(itemTypeFinder.find(itemTypeId));
-    }
-
-    @Override
-    public void unbind(Long characterId, Long itemTypeId) {
-        findOrCreate(characterId).unbind(itemTypeFinder.find(itemTypeId));
     }
 
     /** 소지품이 없으면(2차 이전 캐릭터 등) 빈 소지품을 만들어 저장한다 */

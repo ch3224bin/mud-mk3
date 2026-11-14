@@ -11,7 +11,6 @@ public record ItemTypeSaveInfo(
         @Nullable String description,
         ItemCategory category,
         long baseValue,
-        boolean tradable,
         @Nullable BagGrade bagGrade
 ) {
 }

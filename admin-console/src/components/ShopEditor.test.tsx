@@ -20,7 +20,6 @@ function itemType(id: number, name: string, category: ItemCategoryCode, baseValu
     categoryName: "",
     stackSize: 99,
     baseValue,
-    tradable: true,
     bagGrade: null,
     bagGradeName: null,
     bagSlots: 0,

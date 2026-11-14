@@ -27,7 +27,6 @@ export default function ItemForm({ initial, onSubmit }: Props) {
   const [bagGrade, setBagGrade] = useState<BagGradeCode>(initial?.bagGrade ?? BAG_GRADES[0].code);
   const [description, setDescription] = useState(initial?.description ?? "");
   const [baseValue, setBaseValue] = useState(String(initial?.baseValue ?? 0));
-  const [tradable, setTradable] = useState(initial?.tradable ?? true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -44,7 +43,6 @@ export default function ItemForm({ initial, onSubmit }: Props) {
         description,
         category,
         baseValue: Number(baseValue),
-        tradable,
         bagGrade: category === "BAG" ? bagGrade : null,
       });
     } catch (e) {
@@ -106,15 +104,6 @@ export default function ItemForm({ initial, onSubmit }: Props) {
           disabled={readOnly}
           onChange={(e) => setBaseValue(e.target.value)}
         />
-      </label>
-      <label className="checkbox">
-        <input
-          type="checkbox"
-          checked={tradable}
-          disabled={readOnly}
-          onChange={(e) => setTradable(e.target.checked)}
-        />
-        거래 가능
       </label>
       {!readOnly && (
         <button type="submit" disabled={submitting}>

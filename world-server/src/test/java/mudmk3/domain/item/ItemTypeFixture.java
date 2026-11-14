@@ -6,11 +6,11 @@ import org.jspecify.annotations.Nullable;
 public class ItemTypeFixture {
 
     public static ItemTypeSaveInfo createItemTypeSaveInfo(String name, ItemCategory category, long baseValue) {
-        return new ItemTypeSaveInfo(name, name + "의 묘사다.", category, baseValue, true, null);
+        return new ItemTypeSaveInfo(name, name + "의 묘사다.", category, baseValue, null);
     }
 
     public static ItemTypeSaveInfo createBagSaveInfo(String name, BagGrade grade) {
-        return new ItemTypeSaveInfo(name, name + "의 묘사다.", ItemCategory.BAG, 10, true, grade);
+        return new ItemTypeSaveInfo(name, name + "의 묘사다.", ItemCategory.BAG, 10, grade);
     }
 
     public static ItemType createItemType(String name, ItemCategory category, long baseValue) {
@@ -37,6 +37,6 @@ public class ItemTypeFixture {
 
     public static ItemTypeSaveRequest createItemTypeSaveRequest(String name, ItemCategory category, long baseValue,
                                                                 @Nullable BagGrade bagGrade) {
-        return new ItemTypeSaveRequest(name, name + "의 묘사다.", category, baseValue, true, bagGrade);
+        return new ItemTypeSaveRequest(name, name + "의 묘사다.", category, baseValue, bagGrade);
     }
 }

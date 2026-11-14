@@ -12,7 +12,7 @@ import mudmk3.domain.item.ItemType;
 import static java.util.Objects.requireNonNull;
 import static org.springframework.util.Assert.state;
 
-/** 소지품 묶음: 한 소지품 안에서 (종류, 귀속)마다 하나뿐인 물건 묶음과 그 수. Inventory 애그리거트 안의 엔티티다 */
+/** 소지품 묶음: 한 소지품 안에서 종류마다 하나뿐인 물건 묶음과 그 수. Inventory 애그리거트 안의 엔티티다 */
 @Entity
 @Getter
 @ToString(callSuper = true, exclude = {"inventory", "itemType"})
@@ -26,20 +26,17 @@ public class InventoryEntry extends AbstractEntity {
     @ManyToOne
     private ItemType itemType;
 
-    private boolean bound;
-
     private int count;
 
-    static InventoryEntry create(Inventory inventory, ItemType itemType, boolean bound) {
+    static InventoryEntry create(Inventory inventory, ItemType itemType) {
         InventoryEntry entry = new InventoryEntry();
         entry.inventory = requireNonNull(inventory);
         entry.itemType = requireNonNull(itemType);
-        entry.bound = bound;
         return entry;
     }
 
-    boolean isFor(ItemType itemType, boolean bound) {
-        return this.itemType.equals(itemType) && this.bound == bound;
+    boolean isFor(ItemType itemType) {
+        return this.itemType.equals(itemType);
     }
 
     /** 수를 더하거나 뺀다. 0 아래로 내려갈 수 없다 */

@@ -176,7 +176,7 @@ class GameConnectorConcurrencyTest {
         Long start = room(zone, "타작마당");
         worldSettingsEditor.designateStartRoom(start);
         ItemType hide = itemTypeEditor.create(
-                new ItemTypeSaveRequest("동시가죽", "", ItemCategory.MATERIAL, 2, true, null));
+                new ItemTypeSaveRequest("동시가죽", "", ItemCategory.MATERIAL, 2, null));
         floorPlacementEditor.create(start, new FloorPlacementSaveRequest(id(hide.getId()), 50, null));
         enterAt("p-a", "동시갑", start);
         enterAt("p-b", "동시을", start);

@@ -107,17 +107,17 @@ class WebSocketGameMessageSenderTest {
     @Test
     void inventoryJson() {
         InventoryMessage inventory = InventoryMessage.of(3, 22, List.of(new StoneView("하품 영석", 30)),
-                List.of(new ItemView("하급 저물대", 1, false, false), new ItemView("회춘단(연기 초)", 3, false, false),
-                        new ItemView("비검", 1, true, false), new ItemView("왕씨의 약초 꾸러미", 1, false, true)),
-                "[소지품 3/22칸]  하품 영석 30\n하급 저물대   회춘단(연기 초) x3   비검 (귀속)\n왕씨의 약초 꾸러미 (퀘스트)");
+                List.of(new ItemView("하급 저물대", 1), new ItemView("회춘단(연기 초)", 3),
+                        new ItemView("비검", 1), new ItemView("왕씨의 약초 꾸러미", 1)),
+                "[소지품 3/22칸]  하품 영석 30\n하급 저물대   회춘단(연기 초) x3   비검\n왕씨의 약초 꾸러미");
 
         assertJson(inventory, """
                 {"type":"inventory","usedSlots":3,"totalSlots":22,"stones":[{"name":"하품 영석","count":30}],
-                 "items":[{"name":"하급 저물대","count":1,"bound":false,"quest":false},
-                          {"name":"회춘단(연기 초)","count":3,"bound":false,"quest":false},
-                          {"name":"비검","count":1,"bound":true,"quest":false},
-                          {"name":"왕씨의 약초 꾸러미","count":1,"bound":false,"quest":true}],
-                 "text":"[소지품 3/22칸]  하품 영석 30\\n하급 저물대   회춘단(연기 초) x3   비검 (귀속)\\n왕씨의 약초 꾸러미 (퀘스트)",
+                 "items":[{"name":"하급 저물대","count":1},
+                          {"name":"회춘단(연기 초)","count":3},
+                          {"name":"비검","count":1},
+                          {"name":"왕씨의 약초 꾸러미","count":1}],
+                 "text":"[소지품 3/22칸]  하품 영석 30\\n하급 저물대   회춘단(연기 초) x3   비검\\n왕씨의 약초 꾸러미",
                  "tone":"item"}""");
         assertThat(propertyNames(inventory))
                 .containsExactly("type", "usedSlots", "totalSlots", "stones", "items", "text", "tone");

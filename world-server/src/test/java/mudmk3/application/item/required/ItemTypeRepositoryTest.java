@@ -33,7 +33,6 @@ record ItemTypeRepositoryTest(ItemTypeRepository itemTypeRepository, EntityManag
         assertThat(found.getDescription()).isEqualTo(bag.getDescription());
         assertThat(found.getCategory()).isEqualTo(ItemCategory.BAG);
         assertThat(found.getBaseValue()).isEqualTo(10);
-        assertThat(found.isTradable()).isTrue();
         assertThat(found.findBagGrade()).contains(BagGrade.LOW);
         assertThat(found.findSpiritStoneGrade()).isEmpty();
     }

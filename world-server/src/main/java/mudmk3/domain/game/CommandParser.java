@@ -12,7 +12,6 @@ import java.util.Optional;
 public final class CommandParser {
 
     private static final String SAY_PREFIX = "'";
-    private static final String UNBIND_WORD = "해제";
 
     private CommandParser() {
     }
@@ -40,7 +39,6 @@ public final class CommandParser {
             case "팔기" -> new Command.Sell(rest);
             case "값" -> new Command.Appraise(rest);
             case "주기" -> parseGive(rest);
-            case "귀속" -> parseBind(rest);
             case "확인" -> rest.isEmpty() ? new Command.Confirm() : new Command.Unknown(word);
             case "취소" -> rest.isEmpty() ? new Command.Cancel() : new Command.Unknown(word);
             case "누구" -> rest.isEmpty() ? new Command.Who() : new Command.Unknown(word);
@@ -65,13 +63,6 @@ public final class CommandParser {
         int space = rest.indexOf(' ');
         if (space < 0) return new Command.Give(rest, "");
         return new Command.Give(rest.substring(0, space), rest.substring(space + 1));
-    }
-
-    /** {@code 귀속 해제 <물건>} 은 귀속 해제, 그 밖은 {@code 귀속 <물건>} */
-    private static Command parseBind(String rest) {
-        if (rest.equals(UNBIND_WORD)) return new Command.Unbind("");
-        if (rest.startsWith(UNBIND_WORD + " ")) return new Command.Unbind(rest.substring(UNBIND_WORD.length() + 1));
-        return new Command.Bind(rest);
     }
 
     private static Command parseMove(String word, String rest) {

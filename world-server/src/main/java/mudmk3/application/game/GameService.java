@@ -75,7 +75,7 @@ public class GameService implements GameConnector {
     static final String HELP =
             "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말]"
                     + " · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량]"
-                    + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 귀속 <물건> · 귀속 해제 <물건>"
+                    + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건>"
                     + " · 확인 · 취소 · 누구 · 도움말 · 종료";
     static final String TALK_NO_TARGET = "누구에게 말을 거시겠습니까?";
     static final String TALK_NO_SUCH_NPC = "여기에 그런 상대는 없습니다.";
@@ -357,7 +357,7 @@ public class GameService implements GameConnector {
             case Command.Move move -> move(sessionId, session, player, move.direction());
             case Command.Say say -> say(sessionId, player, say.message());
             case Command.Talk talk -> talk(sessionId, player, talk);
-            case Command.Inventory _, Command.Pick _, Command.Drop _, Command.Give _, Command.Bind _, Command.Unbind _ ->
+            case Command.Inventory _, Command.Pick _, Command.Drop _, Command.Give _ ->
                     itemCommandHandler.handle(command, player, this::send);
             case Command.ShopList _, Command.Buy _, Command.Sell _, Command.Appraise _, Command.Confirm _, Command.Cancel _ ->
                     shopCommandHandler.handle(command, player, session, this::send);

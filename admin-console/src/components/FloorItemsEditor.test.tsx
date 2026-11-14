@@ -21,7 +21,6 @@ function itemType(id: number, name: string): ItemTypeResponse {
     categoryName: "재료",
     stackSize: 99,
     baseValue: 1,
-    tradable: true,
     bagGrade: null,
     bagGradeName: null,
     bagSlots: 0,

@@ -82,20 +82,6 @@ public sealed interface Command {
         }
     }
 
-    /** 물건 귀속. 인자가 빠졌으면 빈 문자열 */
-    record Bind(String args) implements Command {
-        public Bind {
-            requireNonNull(args);
-        }
-    }
-
-    /** 물건 귀속 해제. 인자가 빠졌으면 빈 문자열 */
-    record Unbind(String args) implements Command {
-        public Unbind {
-            requireNonNull(args);
-        }
-    }
-
     /** 묻던 것(상위 등급 영석 깨기 결제) 승인 */
     record Confirm() implements Command {
     }

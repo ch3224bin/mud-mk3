@@ -204,9 +204,6 @@
             <basic name="baseValue">
                 <column name="base_value" nullable="false"/>
             </basic>
-            <basic name="tradable">
-                <column name="tradable" nullable="false"/>
-            </basic>
             <basic name="bagGrade">
                 <column name="bag_grade" length="16" nullable="true" column-definition="varchar(16)"/>
                 <enumerated>STRING</enumerated>
@@ -239,14 +236,11 @@
         </attributes>
     </entity>
 
-    <!-- (inventory_id, item_type_id, bound) 묶음 유일은 도메인이 지킨다. 결제에서 하품을 다 내고 거스름 하품을 받을 때처럼
+    <!-- (inventory_id, item_type_id) 묶음 유일은 도메인이 지킨다. 결제에서 하품을 다 내고 거스름 하품을 받을 때처럼
          한 트랜잭션에서 같은 묶음을 비웠다 채울 때 생기는 일시 충돌을 피하려고 DB 유니크 제약은 두지 않는다 -->
     <entity class="mudmk3.domain.inventory.InventoryEntry">
         <table name="inventory_entry"/>
         <attributes>
-            <basic name="bound">
-                <column name="bound" nullable="false"/>
-            </basic>
             <basic name="count">
                 <column name="count" nullable="false"/>
             </basic>

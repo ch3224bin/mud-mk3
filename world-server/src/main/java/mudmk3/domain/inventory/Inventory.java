@@ -26,8 +26,8 @@ import static org.springframework.util.Assert.state;
 
 /**
  * 소지품: 캐릭터마다 하나. 칸 = 기본 2칸 + 가진 저물대 칸의 합, 저물대는 세 개까지이고 칸을 차지하지 않는다. 그 밖의 물건은
- * (종류, 귀속) 묶음마다 올림(수 ÷ 겹침) 칸을 차지한다(룰북 item.md 저물대 · 저물탁). 영석도 칸을 차지하는 물건이다.
- * 캐릭터는 id로만 갖는다(FK 없음). 같은 (종류, 귀속) 묶음은 하나뿐이고, 이미 있으면(수가 0이라도) 그 묶음을 쓴다.
+ * 종류 묶음마다 올림(수 ÷ 겹침) 칸을 차지한다(룰북 item.md 저물대 · 저물탁). 영석도 칸을 차지하는 물건이다.
+ * 캐릭터는 id로만 갖는다(FK 없음). 같은 종류의 묶음은 하나뿐이고, 이미 있으면(수가 0이라도) 그 묶음을 쓴다.
  * 바꾸는 메서드는 검사를 통과하지 못하면 {@code IllegalStateException} 이고 아무것도 바꾸지 않으며, 바꾼 뒤 수가 0인 묶음을 뺀다
  */
 @Entity
@@ -92,7 +92,7 @@ public class Inventory extends AbstractEntity {
         return sum;
     }
 
-    /** 귀속 안 된 그 물건을 더 넣을 수 있는 최대 수. 저물대는 세 개 한도까지 */
+    /** 그 물건을 더 넣을 수 있는 최대 수. 저물대는 세 개 한도까지 */
     public int roomFor(ItemType itemType) {
         requireNonNull(itemType);
         Usage now = after(new Changes());
@@ -100,31 +100,30 @@ public class Inventory extends AbstractEntity {
             return Math.toIntExact(Math.max(0, Slots.MAX_BAGS - now.bagCount()));
         }
         long stack = itemType.stackSize();
-        long held = held(itemType, false);
+        long held = held(itemType);
         long slack = Math.ceilDiv(held, stack) * stack - held;
         long free = Math.max(0, now.capacity() - now.usedSlots());
         return Math.toIntExact(free * stack + slack);
     }
 
-    /** 귀속 안 된 그 물건 {@code count} 개를 넣을 수 있는지. 어떤 소지품에도 들어가지 않을 만큼 큰 수는 계산하지 않고 거절한다 */
+    /** 그 물건 {@code count} 개를 넣을 수 있는지. 어떤 소지품에도 들어가지 않을 만큼 큰 수는 계산하지 않고 거절한다 */
     public AddCheck checkAdd(ItemType itemType, long count) {
         requireNonNull(itemType);
         requirePositive(count);
         if (count > Integer.MAX_VALUE) return itemType.isBag() ? AddCheck.BAG_LIMIT : AddCheck.NO_ROOM;
-        return checkAdd(new Changes().add(itemType, false, count));
+        return checkAdd(new Changes().add(itemType, count));
     }
 
-    public void add(ItemType itemType, int count, boolean bound) {
+    public void add(ItemType itemType, int count) {
         requireNonNull(itemType);
         requirePositive(count);
-        state(!bound || !itemType.isSpiritStone(), "영석은 귀속할 수 없습니다.");
-        Changes changes = new Changes().add(itemType, bound, count);
+        Changes changes = new Changes().add(itemType, count);
         state(checkAdd(changes) == AddCheck.OK, () -> "소지품에 넣을 수 없습니다: " + itemType.getName());
         apply(changes);
     }
 
     /**
-     * 귀속 안 된 물건 여럿을 그 순서대로 한 번에 넣는다(시작 소지품). 다 넣은 뒤의 칸으로 한 번만 검사하므로
+     * 물건 여럿을 그 순서대로 한 번에 넣는다(시작 소지품). 다 넣은 뒤의 칸으로 한 번만 검사하므로
      * 저물대가 뒤에 있어도 된다. 다 들어가지 않으면 {@code IllegalStateException} 이고 아무것도 넣지 않는다
      */
     public void addAll(SequencedMap<ItemType, Integer> items) {
@@ -132,29 +131,28 @@ public class Inventory extends AbstractEntity {
         Changes changes = new Changes();
         items.forEach((itemType, count) -> {
             requirePositive(requireNonNull(count));
-            changes.add(itemType, false, count);
+            changes.add(itemType, count);
         });
         state(checkAdd(changes) == AddCheck.OK, "소지품에 다 넣을 수 없습니다.");
         apply(changes);
     }
 
     /**
-     * 가진 그 묶음에서 {@code count} 개를 뺄 수 있는지(버리기·주기). 가진 수보다 많거나 귀속된 묶음이면
-     * {@code IllegalStateException} — 귀속된 물건은 버리거나 줄 수 없고(룰북 item.md 귀속), 3차에 귀속 물건을 빼는 다른 경로는 없다.
+     * 가진 그 묶음에서 {@code count} 개를 뺄 수 있는지(버리기·주기). 가진 수보다 많으면 {@code IllegalStateException}.
      * 플레이어 문구는 게임 명령이 먼저 검사해 낸다
      */
-    public RemoveCheck checkRemove(ItemType itemType, boolean bound, int count) {
-        return fits(unboundRemoval(itemType, bound, count)) ? RemoveCheck.OK : RemoveCheck.BAG_IN_USE;
+    public RemoveCheck checkRemove(ItemType itemType, int count) {
+        return fits(removal(itemType, count)) ? RemoveCheck.OK : RemoveCheck.BAG_IN_USE;
     }
 
     /** {@link #checkRemove} 가 OK일 때만 뺀다 */
-    public void remove(ItemType itemType, boolean bound, int count) {
-        state(checkRemove(itemType, bound, count) == RemoveCheck.OK, "저물대에 든 물건을 먼저 비우십시오.");
-        apply(unboundRemoval(itemType, bound, count));
+    public void remove(ItemType itemType, int count) {
+        state(checkRemove(itemType, count) == RemoveCheck.OK, "저물대에 든 물건을 먼저 비우십시오.");
+        apply(removal(itemType, count));
     }
 
     /**
-     * 귀속 안 된 그 물건 {@code count} 개를 {@code price}(하품 기준)에 살 수 있는지. 순서: 영석 모자람 → 저물대 세 개 →
+     * 그 물건 {@code count} 개를 {@code price}(하품 기준)에 살 수 있는지. 순서: 영석 모자람 → 저물대 세 개 →
      * 결제한 영석을 뺀 뒤 칸 없음 → 거스름까지 넣으면 칸 없음 → 상품·극품 깨기 확인 → 살 수 있음
      */
     public PurchaseResult checkPurchase(ItemType itemType, int count, long price, ItemType lowStone) {
@@ -166,13 +164,13 @@ public class Inventory extends AbstractEntity {
         SpiritStonePayment payment = plan.get();
 
         Changes changes = new Changes();
-        payment.paid().forEach((grade, paid) -> changes.add(heldStone(grade), false, -paid));
-        changes.add(itemType, false, count);
+        payment.paid().forEach((grade, paid) -> changes.add(heldStone(grade), -paid));
+        changes.add(itemType, count);
         Usage withItem = after(changes);
         if (withItem.bagCount() > Slots.MAX_BAGS) return new PurchaseResult.BagLimit();
         if (withItem.usedSlots() > withItem.capacity()) return new PurchaseResult.NoRoom();
         if (payment.change() > 0) {
-            Usage withChange = after(changes.add(lowStone, false, payment.change()));
+            Usage withChange = after(changes.add(lowStone, payment.change()));
             if (withChange.usedSlots() > withChange.capacity()) {
                 int slotsShort = Math.toIntExact(withChange.usedSlots() - withChange.capacity());
                 return new PurchaseResult.NoRoomForChange(payment.change(), slotsShort);
@@ -182,7 +180,7 @@ public class Inventory extends AbstractEntity {
     }
 
     /**
-     * 결제한다: 낸 영석을 빼고 산 물건(귀속 안 됨)과 거스름 하품을 넣는다. {@link #checkPurchase} 가 같은 결제로
+     * 결제한다: 낸 영석을 빼고 산 물건과 거스름 하품을 넣는다. {@link #checkPurchase} 가 같은 결제로
      * 살 수 있음이나 확인 필요를 돌려주는 경우에만 바꾼다(낸 영석은 검사와 같은 가진 묶음에서 뺀다. {@code stones} 는 거스름 하품 종류를 꺼내는 데 쓴다)
      */
     public void purchase(ItemType itemType, int count, SpiritStonePayment payment, Map<SpiritStoneGrade, ItemType> stones) {
@@ -198,59 +196,38 @@ public class Inventory extends AbstractEntity {
         state(payment.equals(planned), () -> "결제할 수 없습니다: " + result);
 
         Changes changes = new Changes();
-        payment.paid().forEach((grade, paid) -> changes.add(heldStone(grade), false, -paid));
-        changes.add(itemType, false, count);
-        if (payment.change() > 0) changes.add(lowStone, false, payment.change());
+        payment.paid().forEach((grade, paid) -> changes.add(heldStone(grade), -paid));
+        changes.add(itemType, count);
+        if (payment.change() > 0) changes.add(lowStone, payment.change());
         apply(changes);
     }
 
     /**
-     * 가진 그 묶음 {@code count} 개를 팔고 하품 {@code payout} 개를 받을 수 있는지. 가진 수보다 많거나 귀속된 묶음이면
-     * {@code IllegalStateException}(귀속된 물건은 팔 수 없다, 룰북 item.md 귀속)
+     * 가진 그 묶음 {@code count} 개를 팔고 하품 {@code payout} 개를 받을 수 있는지. 가진 수보다 많으면
+     * {@code IllegalStateException}
      */
-    public SaleResult checkSale(ItemType itemType, boolean bound, int count, long payout, ItemType lowStone) {
+    public SaleResult checkSale(ItemType itemType, int count, long payout, ItemType lowStone) {
         requireLowStone(lowStone);
         if (payout < 0) throw new IllegalArgumentException("받는 영석 수는 0 이상이어야 합니다: " + payout);
-        Changes changes = unboundRemoval(itemType, bound, count);
+        Changes changes = removal(itemType, count);
         if (!fits(changes)) return SaleResult.BAG_IN_USE;
-        if (payout > 0 && !fits(changes.add(lowStone, false, payout))) return SaleResult.NO_ROOM;
+        if (payout > 0 && !fits(changes.add(lowStone, payout))) return SaleResult.NO_ROOM;
         return SaleResult.SOLD;
     }
 
-    public void sell(ItemType itemType, boolean bound, int count, long payout, ItemType lowStone) {
-        SaleResult result = checkSale(itemType, bound, count, payout, lowStone);
+    public void sell(ItemType itemType, int count, long payout, ItemType lowStone) {
+        SaleResult result = checkSale(itemType, count, payout, lowStone);
         state(result == SaleResult.SOLD, () -> "팔 수 없습니다: " + result);
-        Changes changes = unboundRemoval(itemType, bound, count);
-        if (payout > 0) changes.add(lowStone, false, payout);
+        Changes changes = removal(itemType, count);
+        if (payout > 0) changes.add(lowStone, payout);
         apply(changes);
     }
 
-    /** 귀속 안 된 묶음에서 하나를 귀속된 묶음으로 옮긴다 */
-    public void bind(ItemType itemType) {
-        requireNonNull(itemType);
-        state(itemType.isBindable(), () -> itemType.getName() + "은(는) 귀속할 수 없는 종류입니다.");
-        moveOne(itemType, false);
-    }
-
-    /** 귀속된 묶음에서 하나를 귀속 안 된 묶음으로 옮긴다 */
-    public void unbind(ItemType itemType) {
-        requireNonNull(itemType);
-        moveOne(itemType, true);
-    }
-
-    private void moveOne(ItemType itemType, boolean fromBound) {
-        state(held(itemType, fromBound) >= 1, () -> (fromBound ? "귀속된 " : "귀속 안 된 ") + itemType.getName() + "이(가) 없습니다.");
-        Changes changes = new Changes().add(itemType, fromBound, -1).add(itemType, !fromBound, 1);
-        state(fits(changes), "소지품 칸이 모자랍니다.");
-        apply(changes);
-    }
-
-    private Changes unboundRemoval(ItemType itemType, boolean bound, int count) {
+    private Changes removal(ItemType itemType, int count) {
         requireNonNull(itemType);
         requirePositive(count);
-        state(!bound, () -> "귀속된 물건은 버리거나 팔거나 줄 수 없습니다: " + itemType.getName());
-        state(held(itemType, bound) >= count, () -> "가진 것보다 많이 뺄 수 없습니다: " + itemType.getName());
-        return new Changes().add(itemType, bound, -count);
+        state(held(itemType) >= count, () -> "가진 것보다 많이 뺄 수 없습니다: " + itemType.getName());
+        return new Changes().add(itemType, -count);
     }
 
     private AddCheck checkAdd(Changes changes) {
@@ -264,8 +241,8 @@ public class Inventory extends AbstractEntity {
         return checkAdd(changes) == AddCheck.OK;
     }
 
-    private long held(ItemType itemType, boolean bound) {
-        return findEntry(itemType, bound).map(InventoryEntry::getCount).orElse(0);
+    private long held(ItemType itemType) {
+        return findEntry(itemType).map(InventoryEntry::getCount).orElse(0);
     }
 
     private ItemType heldStone(SpiritStoneGrade grade) {
@@ -276,23 +253,23 @@ public class Inventory extends AbstractEntity {
                 .orElseThrow(() -> new IllegalStateException("가진 영석이 없습니다: " + grade.itemName()));
     }
 
-    private Optional<InventoryEntry> findEntry(ItemType itemType, boolean bound) {
-        return entries.stream().filter(entry -> entry.isFor(itemType, bound)).findFirst();
+    private Optional<InventoryEntry> findEntry(ItemType itemType) {
+        return entries.stream().filter(entry -> entry.isFor(itemType)).findFirst();
     }
 
     /** 바꾼 뒤의 칸 사용. 바꾸지 않고 계산만 한다 */
     private Usage after(Changes changes) {
-        Map<Key, Long> counts = new LinkedHashMap<>();
+        Map<ItemType, Long> counts = new LinkedHashMap<>();
         for (InventoryEntry entry : entries) {
-            counts.merge(new Key(entry.getItemType(), entry.isBound()), (long) entry.getCount(), Long::sum);
+            counts.merge(entry.getItemType(), (long) entry.getCount(), Long::sum);
         }
         changes.deltas.forEach((key, delta) -> counts.merge(key, delta, Long::sum));
 
         long used = 0;
         long bagSlots = 0;
         long bags = 0;
-        for (Map.Entry<Key, Long> count : counts.entrySet()) {
-            ItemType itemType = count.getKey().itemType();
+        for (Map.Entry<ItemType, Long> count : counts.entrySet()) {
+            ItemType itemType = count.getKey();
             long n = count.getValue();
             state(n >= 0, () -> "묶음의 수는 0 아래로 내려갈 수 없습니다: " + itemType.getName());
             used += Slots.slotsFor(itemType, n);
@@ -305,9 +282,9 @@ public class Inventory extends AbstractEntity {
     }
 
     private void apply(Changes changes) {
-        changes.deltas.forEach((key, delta) -> {
-            InventoryEntry entry = findEntry(key.itemType(), key.bound()).orElseGet(() -> {
-                InventoryEntry created = InventoryEntry.create(this, key.itemType(), key.bound());
+        changes.deltas.forEach((itemType, delta) -> {
+            InventoryEntry entry = findEntry(itemType).orElseGet(() -> {
+                InventoryEntry created = InventoryEntry.create(this, itemType);
                 entries.add(created);
                 return created;
             });
@@ -327,19 +304,16 @@ public class Inventory extends AbstractEntity {
         }
     }
 
-    private record Key(ItemType itemType, boolean bound) {
-    }
-
     private record Usage(long usedSlots, long capacity, long bagCount) {
     }
 
     /** 묶음마다 더하거나 뺄 수. 같은 묶음은 하나로 합친다 */
     private static final class Changes {
 
-        private final Map<Key, Long> deltas = new LinkedHashMap<>();
+        private final Map<ItemType, Long> deltas = new LinkedHashMap<>();
 
-        Changes add(ItemType itemType, boolean bound, long delta) {
-            deltas.merge(new Key(requireNonNull(itemType), bound), delta, Long::sum);
+        Changes add(ItemType itemType, long delta) {
+            deltas.merge(requireNonNull(itemType), delta, Long::sum);
             return this;
         }
     }

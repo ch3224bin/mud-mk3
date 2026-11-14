@@ -1,7 +1,6 @@
 package mudmk3.domain.game;
 
 import mudmk3.domain.game.Command.Appraise;
-import mudmk3.domain.game.Command.Bind;
 import mudmk3.domain.game.Command.Buy;
 import mudmk3.domain.game.Command.Cancel;
 import mudmk3.domain.game.Command.Confirm;
@@ -9,7 +8,6 @@ import mudmk3.domain.game.Command.Empty;
 import mudmk3.domain.game.Command.Give;
 import mudmk3.domain.game.Command.Sell;
 import mudmk3.domain.game.Command.ShopList;
-import mudmk3.domain.game.Command.Unbind;
 import mudmk3.domain.game.Command.Drop;
 import mudmk3.domain.game.Command.Help;
 import mudmk3.domain.game.Command.Inventory;
@@ -132,12 +130,10 @@ class CommandParserTest {
     }
 
     @Test
-    void bindAndUnbind() {
-        assertThat(parse("귀속 비검")).isEqualTo(new Bind("비검"));
-        assertThat(parse("귀속")).isEqualTo(new Bind(""));
-        assertThat(parse("귀속 해제 비검")).isEqualTo(new Unbind("비검"));
-        assertThat(parse("귀속 해제")).isEqualTo(new Unbind(""));
-        assertThat(parse("귀속 해제검")).isEqualTo(new Bind("해제검"));
+    void removedBindIsUnknown() {
+        assertThat(parse("귀속 비검")).isEqualTo(new Unknown("귀속"));
+        assertThat(parse("귀속")).isEqualTo(new Unknown("귀속"));
+        assertThat(parse("귀속 해제 비검")).isEqualTo(new Unknown("귀속"));
     }
 
     @Test

@@ -62,7 +62,7 @@ export type InventoryMessage = {
   usedSlots: number;
   totalSlots: number;
   stones: { name: string; count: number }[];
-  items: { name: string; count: number; bound: boolean; quest: boolean }[];
+  items: { name: string; count: number }[];
   text: string;
   tone: "item";
 };

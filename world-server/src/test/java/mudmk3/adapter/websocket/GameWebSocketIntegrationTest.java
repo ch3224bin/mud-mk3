@@ -287,7 +287,7 @@ class GameWebSocketIntegrationTest {
     @Test
     void pickAndInventory() throws Exception {
         ItemType hide = itemTypeEditor.create(
-                new ItemTypeSaveRequest("늑대 가죽", "거칠고 질긴 늑대의 가죽이다.", ItemCategory.MATERIAL, 2, true, null));
+                new ItemTypeSaveRequest("늑대 가죽", "거칠고 질긴 늑대의 가죽이다.", ItemCategory.MATERIAL, 2, null));
         floorPlacementEditor.create(requireNonNull(entranceId), new FloorPlacementSaveRequest(hide.getId(), 3, null));
         Client a = enter("hanbai@example.com", "한백");
         Client b = enter("hanli@example.com", "한립");
@@ -304,7 +304,7 @@ class GameWebSocketIntegrationTest {
         a.command("소지품");
         assertThat(a.next()).isEqualTo(json("""
                 {"type":"inventory","usedSlots":1,"totalSlots":2,"stones":[],
-                 "items":[{"name":"늑대 가죽","count":2,"bound":false,"quest":false}],
+                 "items":[{"name":"늑대 가죽","count":2}],
                  "text":"[소지품 1/2칸]\\n늑대 가죽 x2","tone":"item"}"""));
 
         b.command("보기");
@@ -315,7 +315,7 @@ class GameWebSocketIntegrationTest {
     @Test
     void giveBetweenTwoSessions() throws Exception {
         ItemType pill = itemTypeEditor.create(
-                new ItemTypeSaveRequest("회춘단(연기 초)", "", ItemCategory.PILL, 3, true, null));
+                new ItemTypeSaveRequest("회춘단(연기 초)", "", ItemCategory.PILL, 3, null));
         Client a = enter("hanbai@example.com", "한백");
         Client b = enter("hanli@example.com", "한립");
         assertThat(a.next().get("event").asString()).isEqualTo("appear");
@@ -329,7 +329,7 @@ class GameWebSocketIntegrationTest {
 
         b.command("소지품");
         assertThat(b.next().get("items")).isEqualTo(json("""
-                [{"name":"회춘단(연기 초)","count":2,"bound":false,"quest":false}]"""));
+                [{"name":"회춘단(연기 초)","count":2}]"""));
     }
 
     @Test

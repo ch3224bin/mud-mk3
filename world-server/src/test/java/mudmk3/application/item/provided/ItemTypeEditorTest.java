@@ -46,12 +46,12 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
     void spiritStonesSeeded() {
         assertThat(SpiritStoneGrade.values())
                 .extracting(grade -> itemTypeFinder.spiritStone(grade))
-                .extracting(ItemType::getName, ItemType::getBaseValue, ItemType::getCategory, ItemType::isTradable)
+                .extracting(ItemType::getName, ItemType::getBaseValue, ItemType::getCategory)
                 .containsExactly(
-                        tuple("하품 영석", 1L, ItemCategory.SPIRIT_STONE, true),
-                        tuple("중품 영석", 100L, ItemCategory.SPIRIT_STONE, true),
-                        tuple("상품 영석", 10_000L, ItemCategory.SPIRIT_STONE, true),
-                        tuple("극품 영석", 1_000_000L, ItemCategory.SPIRIT_STONE, true));
+                        tuple("하품 영석", 1L, ItemCategory.SPIRIT_STONE),
+                        tuple("중품 영석", 100L, ItemCategory.SPIRIT_STONE),
+                        tuple("상품 영석", 10_000L, ItemCategory.SPIRIT_STONE),
+                        tuple("극품 영석", 1_000_000L, ItemCategory.SPIRIT_STONE));
         assertThat(itemTypeFinder.spiritStone(SpiritStoneGrade.LOW).getDescription())
                 .isEqualTo("영기가 옅게 서린 돌. 수선자들이 값을 치르는 데 쓴다.");
     }
@@ -59,7 +59,7 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
     @Test
     void create() {
         ItemType itemType = itemTypeEditor.create(new ItemTypeSaveRequest(
-                "  늑대   가죽 ", "거칠고 질긴 늑대의 가죽이다.", ItemCategory.MATERIAL, 2, true, null));
+                "  늑대   가죽 ", "거칠고 질긴 늑대의 가죽이다.", ItemCategory.MATERIAL, 2, null));
         entityManager.flush();
         entityManager.clear();
 
@@ -68,7 +68,6 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
         assertThat(found.getDescription()).isEqualTo("거칠고 질긴 늑대의 가죽이다.");
         assertThat(found.getCategory()).isEqualTo(ItemCategory.MATERIAL);
         assertThat(found.getBaseValue()).isEqualTo(2);
-        assertThat(found.isTradable()).isTrue();
     }
 
     @Test
@@ -80,17 +79,17 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
 
     @Test
     void createInvalidFail() {
-        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("   ", null, ItemCategory.PILL, 1, true, null)))
+        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("   ", null, ItemCategory.PILL, 1, null)))
                 .isInstanceOf(ConstraintViolationException.class);
-        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("회춘단", null, null, 1, true, null)))
+        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("회춘단", null, null, 1, null)))
                 .isInstanceOf(ConstraintViolationException.class);
-        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("가".repeat(21), null, ItemCategory.PILL, 1, true, null)))
+        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("가".repeat(21), null, ItemCategory.PILL, 1, null)))
                 .isInstanceOf(ConstraintViolationException.class);
-        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("회춘단", "가".repeat(501), ItemCategory.PILL, 1, true, null)))
+        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("회춘단", "가".repeat(501), ItemCategory.PILL, 1, null)))
                 .isInstanceOf(ConstraintViolationException.class);
-        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("회춘단", null, ItemCategory.PILL, -1, true, null)))
+        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("회춘단", null, ItemCategory.PILL, -1, null)))
                 .isInstanceOf(ConstraintViolationException.class);
-        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("회춘단", null, ItemCategory.PILL, 100_000_001, true, null)))
+        assertThatThrownBy(() -> itemTypeEditor.create(new ItemTypeSaveRequest("회춘단", null, ItemCategory.PILL, 100_000_001, null)))
                 .isInstanceOf(ConstraintViolationException.class);
     }
 
@@ -117,7 +116,7 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
     void update() {
         ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
 
-        itemTypeEditor.update(itemType.getId(), new ItemTypeSaveRequest("회기단", null, ItemCategory.ELIXIR, 4, false, null));
+        itemTypeEditor.update(itemType.getId(), new ItemTypeSaveRequest("회기단", null, ItemCategory.ELIXIR, 4, null));
         entityManager.flush();
         entityManager.clear();
 
@@ -126,7 +125,6 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
         assertThat(found.getDescription()).isEmpty();
         assertThat(found.getCategory()).isEqualTo(ItemCategory.ELIXIR);
         assertThat(found.getBaseValue()).isEqualTo(4);
-        assertThat(found.isTradable()).isFalse();
     }
 
     @Test
@@ -134,7 +132,7 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
         ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("Jade Slip", ItemCategory.SCROLL, 1));
 
         ItemType updated = itemTypeEditor.update(itemType.getId(),
-                new ItemTypeSaveRequest("jade slip", "바뀐 묘사다.", ItemCategory.SCROLL, 1, true, null));
+                new ItemTypeSaveRequest("jade slip", "바뀐 묘사다.", ItemCategory.SCROLL, 1, null));
 
         assertThat(updated.getName()).isEqualTo("jade slip");
         assertThat(updated.getDescription()).isEqualTo("바뀐 묘사다.");
@@ -269,7 +267,7 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
         ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
         inventoryEditor.addUpTo(1L, itemType.getId(), 1);
 
-        itemTypeEditor.update(itemType.getId(), new ItemTypeSaveRequest("회춘단(연기 초)", "바뀐 묘사다.", ItemCategory.PILL, 5, false, null));
+        itemTypeEditor.update(itemType.getId(), new ItemTypeSaveRequest("회춘단(연기 초)", "바뀐 묘사다.", ItemCategory.PILL, 5, null));
         entityManager.flush();
         entityManager.clear();
 
@@ -351,7 +349,7 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
         entityManager.clear();
         assertThat(itemTypeFinder.find(itemType.getId()).getBaseValue()).isEqualTo(3);
         // 기준가를 그대로 두면 다른 것은 고칠 수 있다
-        itemTypeEditor.update(itemType.getId(), new ItemTypeSaveRequest("회춘단", "바뀐 묘사다.", ItemCategory.PILL, 3, false, null));
+        itemTypeEditor.update(itemType.getId(), new ItemTypeSaveRequest("회춘단", "바뀐 묘사다.", ItemCategory.PILL, 3, null));
     }
 
     @Test

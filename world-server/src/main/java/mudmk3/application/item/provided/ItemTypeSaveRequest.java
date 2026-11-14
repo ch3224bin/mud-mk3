@@ -20,7 +20,6 @@ public record ItemTypeSaveRequest(
         @Nullable @Size(max = 500) String description,
         @NotNull ItemCategory category,
         @Min(0) @Max(100_000_000) long baseValue,
-        boolean tradable,
         @Nullable BagGrade bagGrade
 ) {
     public ItemTypeSaveRequest {
@@ -28,7 +27,7 @@ public record ItemTypeSaveRequest(
     }
 
     public ItemTypeSaveInfo toInfo() {
-        return new ItemTypeSaveInfo(name, description, category, baseValue, tradable, bagGrade);
+        return new ItemTypeSaveInfo(name, description, category, baseValue, bagGrade);
     }
 
     /** 검증 전 입력은 null일 수 있으므로 null은 그대로 두고 {@code @NotBlank} 가 막게 한다 */

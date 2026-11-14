@@ -65,15 +65,15 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"name":"회춘단(연기 초)","description":"회춘단(연기 초)의 묘사다.","category":"PILL",
-                         "baseValue":3,"tradable":true,"bagGrade":null}"""))
+                         "baseValue":3,"bagGrade":null}"""))
                 .hasStatus(HttpStatus.CREATED)
                 .bodyJson()
                 .isStrictlyEqualTo("""
                         {"id":7,"name":"회춘단(연기 초)","description":"회춘단(연기 초)의 묘사다.","category":"PILL",
-                         "categoryName":"단약","stackSize":99,"baseValue":3,"tradable":true,"bagGrade":null,
+                         "categoryName":"단약","stackSize":99,"baseValue":3,"bagGrade":null,
                          "bagGradeName":null,"bagSlots":0,"spiritStone":false,"buyRatePercent":25}""");
         verify(itemTypeEditor).create(new ItemTypeSaveRequest(
-                "회춘단(연기 초)", "회춘단(연기 초)의 묘사다.", ItemCategory.PILL, 3, true, null));
+                "회춘단(연기 초)", "회춘단(연기 초)의 묘사다.", ItemCategory.PILL, 3, null));
     }
 
     @Test
@@ -83,7 +83,7 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
         assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/item-types")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"name":"하급 저물대","category":"BAG","baseValue":10,"tradable":true,"bagGrade":"LOW"}"""))
+                        {"name":"하급 저물대","category":"BAG","baseValue":10,"bagGrade":"LOW"}"""))
                 .hasStatus(HttpStatus.CREATED)
                 .bodyJson()
                 .isLenientlyEqualTo("""
@@ -117,7 +117,7 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
         assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/item-types")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"name":"   ","category":"PILL","baseValue":3,"tradable":true}"""))
+                        {"name":"   ","category":"PILL","baseValue":3}"""))
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson()
                 .extractingPath("$.detail").isEqualTo("입력 값이 올바르지 않습니다: name");
@@ -129,7 +129,7 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
         assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/item-types")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"name":"회춘단","category":"POTION","baseValue":3,"tradable":true}"""))
+                        {"name":"회춘단","category":"POTION","baseValue":3}"""))
                 .hasStatus(HttpStatus.BAD_REQUEST);
         verify(itemTypeEditor, never()).create(any());
     }
@@ -141,7 +141,7 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
         var result = assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/item-types")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"name":"회춘단","category":"PILL","baseValue":3,"tradable":true}"""))
+                        {"name":"회춘단","category":"PILL","baseValue":3}"""))
                 .hasStatus(HttpStatus.CONFLICT)
                 .bodyJson();
         result.extractingPath("$.detail").isEqualTo("이미 있는 물건 이름입니다: 회춘단");
@@ -155,7 +155,7 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
         var result = assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/item-types")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"name":"회춘단","category":"PILL","baseValue":3,"tradable":true}"""))
+                        {"name":"회춘단","category":"PILL","baseValue":3}"""))
                 .hasStatus(HttpStatus.CONFLICT)
                 .bodyJson();
         result.extractingPath("$.detail").isEqualTo("다른 곳에서 함께 바꾸고 있어 저장하지 못했습니다. 다시 시도하십시오.");
@@ -170,13 +170,13 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"name":"늑대 가죽","description":"늑대 가죽의 묘사다.","category":"MATERIAL",
-                         "baseValue":2,"tradable":true}"""))
+                         "baseValue":2}"""))
                 .hasStatusOk()
                 .bodyJson()
                 .isLenientlyEqualTo("""
                         {"id":5,"name":"늑대 가죽","categoryName":"재료"}""");
         verify(itemTypeEditor).update(5L, new ItemTypeSaveRequest(
-                "늑대 가죽", "늑대 가죽의 묘사다.", ItemCategory.MATERIAL, 2, true, null));
+                "늑대 가죽", "늑대 가죽의 묘사다.", ItemCategory.MATERIAL, 2, null));
     }
 
     @Test
@@ -187,7 +187,7 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
         var result = assertThat(mvc.put().with(admin()).with(clientHeader()).uri("/api/admin/item-types/1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"name":"하품 영석2","category":"PILL","baseValue":1,"tradable":true}"""))
+                        {"name":"하품 영석2","category":"PILL","baseValue":1}"""))
                 .hasStatus(HttpStatus.CONFLICT)
                 .bodyJson();
         result.extractingPath("$.detail").isEqualTo("영석은 엔진이 정한 물건이라 고치거나 지울 수 없습니다.");
@@ -200,7 +200,7 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
         assertThat(mvc.put().with(admin()).with(clientHeader()).uri("/api/admin/item-types/1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"name":"","category":"PILL","baseValue":1,"tradable":true}"""))
+                        {"name":"","category":"PILL","baseValue":1}"""))
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson()
                 .extractingPath("$.detail").isEqualTo("입력 값이 올바르지 않습니다: name");
@@ -215,7 +215,7 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
         var result = assertThat(mvc.put().with(admin()).with(clientHeader()).uri("/api/admin/item-types/5")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"name":"늑대 가죽","category":"PILL","baseValue":2,"tradable":true}"""))
+                        {"name":"늑대 가죽","category":"PILL","baseValue":2}"""))
                 .hasStatus(HttpStatus.CONFLICT)
                 .bodyJson();
         result.extractingPath("$.detail").isEqualTo("쓰이는 물건은 종류·저물대 등급을 바꿀 수 없습니다: 늑대 가죽");
@@ -262,7 +262,7 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
         assertThat(mvc.post().with(admin()).uri("/api/admin/item-types")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"name":"회춘단","category":"PILL","baseValue":3,"tradable":true}"""))
+                        {"name":"회춘단","category":"PILL","baseValue":3}"""))
                 .hasStatus(HttpStatus.FORBIDDEN);
         verifyNoInteractions(itemTypeEditor);
     }

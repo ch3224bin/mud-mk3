@@ -174,7 +174,7 @@ abstract class BaseGameTest {
 
     private Long item(String name, String description, ItemCategory category, long baseValue, @Nullable BagGrade bagGrade) {
         ItemType itemType = itemTypeEditor.create(
-                new ItemTypeSaveRequest(name, description, category, baseValue, true, bagGrade));
+                new ItemTypeSaveRequest(name, description, category, baseValue, bagGrade));
         return id(itemType.getId());
     }
 
@@ -199,7 +199,7 @@ abstract class BaseGameTest {
         return id(floorPlacementEditor.create(roomId, new FloorPlacementSaveRequest(itemTypeId, count, respawnMinutes)).getId());
     }
 
-    /** 그 계정 캐릭터의 소지품에 귀속 안 된 물건을 넣는다(다 들어가야 한다) */
+    /** 그 계정 캐릭터의 소지품에 물건을 넣는다(다 들어가야 한다) */
     protected void give(Long accountId, Long itemTypeId, int count) {
         int added = inventoryEditor.addUpTo(characterIdOf(accountId), itemTypeId, count);
         if (added != count) throw new IllegalStateException("소지품에 다 들어가지 않았다: " + added + "/" + count);

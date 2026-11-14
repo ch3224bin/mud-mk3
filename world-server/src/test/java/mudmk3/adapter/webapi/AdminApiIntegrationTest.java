@@ -143,7 +143,7 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
         list.extractingPath("$[0:4].spiritStone").asArray().containsOnly(true);
 
         long itemTypeId = id(post("/api/admin/item-types", """
-                {"name":"회춘단","description":"몸을 되살리는 단약이다.","category":"PILL","baseValue":3,"tradable":true}"""));
+                {"name":"회춘단","description":"몸을 되살리는 단약이다.","category":"PILL","baseValue":3}"""));
         var found = assertThat(mvc.get().with(admin()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
                 .hasStatusOk().bodyJson();
         found.extractingPath("$.name").isEqualTo("회춘단");
@@ -151,11 +151,10 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
         found.extractingPath("$.stackSize").isEqualTo(99);
 
         var updated = assertThat(put("/api/admin/item-types/%d".formatted(itemTypeId), """
-                {"name":"회춘단(연기 초)","description":"몸을 되살리는 단약이다.","category":"PILL","baseValue":5,"tradable":false}"""))
+                {"name":"회춘단(연기 초)","description":"몸을 되살리는 단약이다.","category":"PILL","baseValue":5}"""))
                 .hasStatusOk().bodyJson();
         updated.extractingPath("$.name").isEqualTo("회춘단(연기 초)");
         updated.extractingPath("$.baseValue").isEqualTo(5);
-        updated.extractingPath("$.tradable").isEqualTo(false);
 
         assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
                 .hasStatus(HttpStatus.NO_CONTENT);
@@ -167,14 +166,14 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
     @Test
     void deleteItemTypeInInventoryFail() {
         long itemTypeId = id(post("/api/admin/item-types", """
-                {"name":"늑대 가죽","category":"MATERIAL","baseValue":2,"tradable":true}"""));
+                {"name":"늑대 가죽","category":"MATERIAL","baseValue":2}"""));
         inventoryEditor.addUpTo(900L, itemTypeId, 3);
 
         assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
                 .hasStatus(HttpStatus.CONFLICT)
                 .bodyJson().extractingPath("$.detail").isEqualTo("쓰이는 물건은 지울 수 없습니다: 늑대 가죽");
         assertThat(put("/api/admin/item-types/%d".formatted(itemTypeId), """
-                {"name":"늑대 가죽","category":"PILL","baseValue":2,"tradable":true}"""))
+                {"name":"늑대 가죽","category":"PILL","baseValue":2}"""))
                 .hasStatus(HttpStatus.CONFLICT);
     }
 
@@ -183,9 +182,9 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
         var itemTypes = assertThat(mvc.get().with(admin()).uri("/api/admin/item-types")).hasStatusOk().bodyJson();
         long lowStoneId = ((Number) itemTypes.extractingPath("$[0].id").actual()).longValue();
         long bagId = id(post("/api/admin/item-types", """
-                {"name":"하급 저물대","category":"BAG","baseValue":10,"tradable":true,"bagGrade":"LOW"}"""));
+                {"name":"하급 저물대","category":"BAG","baseValue":10,"bagGrade":"LOW"}"""));
         long pillId = id(post("/api/admin/item-types", """
-                {"name":"회기단(연기 초)","category":"PILL","baseValue":3,"tradable":true}"""));
+                {"name":"회기단(연기 초)","category":"PILL","baseValue":3}"""));
 
         var saved = assertThat(put("/api/admin/world/starting-items", """
                 {"items":[{"itemTypeId":%d,"count":1},{"itemTypeId":%d,"count":30},{"itemTypeId":%d,"count":3}]}"""
@@ -216,9 +215,9 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
         long roomId = id(post("/api/admin/rooms", """
                 {"zoneId":%d,"name":"늑대 굴","description":"늑대 냄새가 짙다."}""".formatted(zoneId)));
         long hideId = id(post("/api/admin/item-types", """
-                {"name":"검은 늑대 가죽","category":"MATERIAL","baseValue":2,"tradable":true}"""));
+                {"name":"검은 늑대 가죽","category":"MATERIAL","baseValue":2}"""));
         long pillId = id(post("/api/admin/item-types", """
-                {"name":"청심단","category":"PILL","baseValue":3,"tradable":true}"""));
+                {"name":"청심단","category":"PILL","baseValue":3}"""));
 
         var created = assertThat(post("/api/admin/rooms/%d/floor-items".formatted(roomId), """
                 {"itemTypeId":%d,"count":3,"respawnMinutes":10}""".formatted(hideId))).hasStatus(HttpStatus.CREATED).bodyJson();
@@ -266,9 +265,9 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
     @Test
     void manageShop() {
         long pillId = id(post("/api/admin/item-types", """
-                {"name":"보원단","category":"PILL","baseValue":3,"tradable":true}"""));
+                {"name":"보원단","category":"PILL","baseValue":3}"""));
         long swordId = id(post("/api/admin/item-types", """
-                {"name":"청강검","category":"ARTIFACT","baseValue":50,"tradable":true}"""));
+                {"name":"청강검","category":"ARTIFACT","baseValue":50}"""));
         long npcId = id(post("/api/admin/npcs", """
                 {"name":"주씨","greeting":"어서 오시오.","defaultAnswer":"글쎄.","llmEnabled":false}"""));
 
@@ -290,7 +289,7 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson().extractingPath("$.detail").isEqualTo("단약방은 법기를 팔 수 없습니다.");
         assertThat(put("/api/admin/item-types/%d".formatted(pillId), """
-                {"name":"보원단","category":"PILL","baseValue":0,"tradable":true}"""))
+                {"name":"보원단","category":"PILL","baseValue":0}"""))
                 .hasStatus(HttpStatus.CONFLICT)
                 .bodyJson().extractingPath("$.detail").isEqualTo("기준가가 0이면 상점이 값을 정해야 합니다: 보원단 (주씨)");
         assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(pillId)))

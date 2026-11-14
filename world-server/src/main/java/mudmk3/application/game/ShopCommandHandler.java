@@ -271,7 +271,7 @@ class ShopCommandHandler {
     // ---- 팔기·값
 
     /**
-     * 실패 순서: 인자 없음 → 수량 오류 → 가지고 있지 않음 → 영석 → 퀘스트 → 귀속 → 사 주지 않는 종류 → 수 넘침
+     * 실패 순서: 인자 없음 → 수량 오류 → 가지고 있지 않음 → 영석 → 퀘스트 물건 → 사 주지 않는 종류 → 수 넘침
      * → 값이 1 미만 → 저물대 칸 → 받을 영석 칸(D42)
      */
     private void sell(OnlinePlayer player, String args, Reply reply) {
@@ -306,7 +306,7 @@ class ShopCommandHandler {
             reply.error(npcSays(npc, "값이 너무 적어 사 줄 수가 없소. 더 모아 오시오."));
             return;
         }
-        SaleResult result = inventoryEditor.sell(player.getCharacterId(), requireNonNull(itemType.getId()), false, count, payout);
+        SaleResult result = inventoryEditor.sell(player.getCharacterId(), requireNonNull(itemType.getId()), count, payout);
         switch (result) {
             case SOLD -> reply.item(Josa.withEulReul(things(itemType, count))
                     + " 팔았습니다. (하품 영석 +" + Numbers.count(payout) + ")");
@@ -349,9 +349,9 @@ class ShopCommandHandler {
         InventoryEntry entry = found.get();
         ItemType itemType = entry.getItemType();
         if (itemType.isSpiritStone()) return reply.fail(npcSays(npc, "그런 물건은 받지 않소."));
-        if (itemType.isQuest()) return reply.fail(npcSays(npc, "그건 내가 살 물건이 아니오."));
-        if (entry.isBound()) return reply.fail(npcSays(npc, "귀속된 물건은 사 줄 수 없소."));
         ItemCategory category = itemType.getCategory();
+        // 퀘스트 물건은 어느 상점도 사지 않는다(매입 비율 0). 문구만 따로다
+        if (category == ItemCategory.QUEST) return reply.fail(npcSays(npc, "그건 내가 살 물건이 아니오."));
         if (!shopKindOf(npc).buys(category)) {
             String hint = ShopKind.buyerOf(category)
                     .map(buyer -> " (" + Josa.withEunNeun(category.koreanName()) + " " + buyer.koreanName() + "에 팔 수 있습니다)")

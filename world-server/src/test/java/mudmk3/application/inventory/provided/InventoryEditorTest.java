@@ -62,8 +62,8 @@ record InventoryEditorTest(InventoryEditor inventoryEditor, InventoryFinder inve
         inventoryEditor.addUpTo(HAN, bag.getId(), 1);
         inventoryEditor.addUpTo(HAN, sword.getId(), 3);
 
-        assertThat(inventoryEditor.remove(HAN, bag.getId(), false, 1)).isEqualTo(RemoveCheck.BAG_IN_USE);
-        assertThat(inventoryEditor.remove(HAN, sword.getId(), false, 2)).isEqualTo(RemoveCheck.OK);
+        assertThat(inventoryEditor.remove(HAN, bag.getId(), 1)).isEqualTo(RemoveCheck.BAG_IN_USE);
+        assertThat(inventoryEditor.remove(HAN, sword.getId(), 2)).isEqualTo(RemoveCheck.OK);
         reload();
 
         assertThat(inventoryFinder.find(HAN).getEntries()).extracting(InventoryEntry::getCount).containsExactly(1, 1);
@@ -74,7 +74,7 @@ record InventoryEditorTest(InventoryEditor inventoryEditor, InventoryFinder inve
         ItemType pill = create("회춘단", ItemCategory.PILL);
         inventoryEditor.addUpTo(HAN, pill.getId(), 5);
 
-        assertThat(inventoryEditor.give(HAN, YEO, pill.getId(), false, 2)).isEqualTo(GiveResult.GIVEN);
+        assertThat(inventoryEditor.give(HAN, YEO, pill.getId(), 2)).isEqualTo(GiveResult.GIVEN);
         reload();
 
         assertThat(inventoryFinder.find(HAN).getEntries()).extracting(InventoryEntry::getCount).containsExactly(3);
@@ -88,7 +88,7 @@ record InventoryEditorTest(InventoryEditor inventoryEditor, InventoryFinder inve
         inventoryEditor.addUpTo(HAN, pill.getId(), 5);
         inventoryEditor.addUpTo(YEO, sword.getId(), 2);
 
-        assertThat(inventoryEditor.give(HAN, YEO, pill.getId(), false, 2)).isEqualTo(GiveResult.RECEIVER_NO_ROOM);
+        assertThat(inventoryEditor.give(HAN, YEO, pill.getId(), 2)).isEqualTo(GiveResult.RECEIVER_NO_ROOM);
         reload();
 
         assertThat(inventoryFinder.find(HAN).getEntries()).extracting(InventoryEntry::getCount).containsExactly(5);
@@ -102,7 +102,7 @@ record InventoryEditorTest(InventoryEditor inventoryEditor, InventoryFinder inve
         inventoryEditor.addUpTo(HAN, bag.getId(), 1);
         inventoryEditor.addUpTo(YEO, bag.getId(), 3);
 
-        assertThat(inventoryEditor.give(HAN, YEO, bag.getId(), false, 1)).isEqualTo(GiveResult.RECEIVER_BAG_LIMIT);
+        assertThat(inventoryEditor.give(HAN, YEO, bag.getId(), 1)).isEqualTo(GiveResult.RECEIVER_BAG_LIMIT);
         reload();
 
         assertThat(inventoryFinder.find(HAN).bagCount()).isEqualTo(1);
@@ -116,7 +116,7 @@ record InventoryEditorTest(InventoryEditor inventoryEditor, InventoryFinder inve
         inventoryEditor.addUpTo(HAN, bag.getId(), 1);
         inventoryEditor.addUpTo(HAN, sword.getId(), 3);
 
-        assertThat(inventoryEditor.give(HAN, YEO, bag.getId(), false, 1)).isEqualTo(GiveResult.GIVER_BAG_IN_USE);
+        assertThat(inventoryEditor.give(HAN, YEO, bag.getId(), 1)).isEqualTo(GiveResult.GIVER_BAG_IN_USE);
     }
 
     @Test
@@ -127,7 +127,7 @@ record InventoryEditorTest(InventoryEditor inventoryEditor, InventoryFinder inve
         inventoryEditor.addUpTo(HAN, sword.getId(), 3);
         inventoryEditor.addUpTo(YEO, bag.getId(), 3);
 
-        assertThat(inventoryEditor.give(HAN, YEO, bag.getId(), false, 1)).isEqualTo(GiveResult.GIVER_BAG_IN_USE);
+        assertThat(inventoryEditor.give(HAN, YEO, bag.getId(), 1)).isEqualTo(GiveResult.GIVER_BAG_IN_USE);
         reload();
 
         assertThat(inventoryFinder.find(HAN).bagCount()).isEqualTo(1);
@@ -140,7 +140,7 @@ record InventoryEditorTest(InventoryEditor inventoryEditor, InventoryFinder inve
         inventoryEditor.addUpTo(HAN, bag.getId(), 1);
         inventoryEditor.addUpTo(YEO, bag.getId(), 3);
 
-        assertThat(inventoryEditor.give(HAN, YEO, bag.getId(), false, 1)).isEqualTo(GiveResult.RECEIVER_BAG_LIMIT);
+        assertThat(inventoryEditor.give(HAN, YEO, bag.getId(), 1)).isEqualTo(GiveResult.RECEIVER_BAG_LIMIT);
     }
 
     @Test
@@ -181,7 +181,7 @@ record InventoryEditorTest(InventoryEditor inventoryEditor, InventoryFinder inve
         ItemType hide = create("늑대 가죽", ItemCategory.MATERIAL);
         inventoryEditor.addUpTo(HAN, hide.getId(), 10);
 
-        assertThat(inventoryEditor.sell(HAN, hide.getId(), false, 10, 8)).isEqualTo(SaleResult.SOLD);
+        assertThat(inventoryEditor.sell(HAN, hide.getId(), 10, 8)).isEqualTo(SaleResult.SOLD);
         reload();
 
         assertThat(inventoryFinder.find(HAN).getEntries()).extracting(entry -> entry.getItemType().getName(), InventoryEntry::getCount)
@@ -189,18 +189,19 @@ record InventoryEditorTest(InventoryEditor inventoryEditor, InventoryFinder inve
     }
 
     @Test
-    void bindAndUnbind() {
-        ItemType sword = create("비검", ItemCategory.ARTIFACT);
-        inventoryEditor.addUpTo(HAN, sword.getId(), 2);
-
-        inventoryEditor.bind(HAN, sword.getId());
+    void addAndGiveMergeIntoOneEntry() {
+        ItemType hide = create("늑대 가죽", ItemCategory.MATERIAL);
+        inventoryEditor.addUpTo(HAN, hide.getId(), 1);
+        inventoryEditor.addUpTo(YEO, hide.getId(), 1);
         reload();
-        assertThat(inventoryFinder.find(HAN).getEntries()).extracting(InventoryEntry::isBound).containsExactly(false, true);
 
-        inventoryEditor.unbind(HAN, sword.getId());
+        inventoryEditor.addUpTo(HAN, hide.getId(), 1);
+        inventoryEditor.give(YEO, HAN, hide.getId(), 1);
         reload();
-        assertThat(inventoryFinder.find(HAN).getEntries()).extracting(InventoryEntry::isBound, InventoryEntry::getCount)
-                .containsExactly(tuple(false, 2));
+
+        assertThat(inventoryFinder.find(HAN).getEntries()).extracting(entry -> entry.getItemType().getName(), InventoryEntry::getCount)
+                .containsExactly(tuple("늑대 가죽", 3));
+        assertThat(inventoryFinder.find(YEO).getEntries()).isEmpty();
     }
 
     private ItemType create(String name, ItemCategory category) {

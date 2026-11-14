@@ -135,16 +135,16 @@ describe("renderMessage", () => {
       totalSlots: 20,
       stones: [{ name: "하품 영석", count: 30 }],
       items: [
-        { name: "회춘단(연기 초)", count: 3, bound: false, quest: false },
-        { name: "비검", count: 1, bound: true, quest: false },
+        { name: "회춘단(연기 초)", count: 3 },
+        { name: "비검", count: 1 },
       ],
-      text: "[소지품 2/20칸]  하품 영석 30\n회춘단(연기 초) x3   비검 (귀속)",
+      text: "[소지품 2/20칸]  하품 영석 30\n회춘단(연기 초) x3   비검",
       tone: "item",
     });
 
     expect(lines).toEqual([
       { text: "[소지품 2/20칸]  하품 영석 30", style: "item" },
-      { text: "회춘단(연기 초) x3   비검 (귀속)", style: "item" },
+      { text: "회춘단(연기 초) x3   비검", style: "item" },
     ]);
   });
 
