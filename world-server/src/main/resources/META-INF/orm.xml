@@ -308,6 +308,103 @@
         </attributes>
     </entity>
 
+    <entity class="mudmk3.domain.technique.Technique">
+        <table name="technique">
+            <unique-constraint name="UK_TECHNIQUE_NAME">
+                <column-name>name</column-name>
+            </unique-constraint>
+        </table>
+        <attributes>
+            <basic name="name">
+                <column name="name" length="12" nullable="false"/>
+            </basic>
+            <basic name="description">
+                <column name="description" length="500" nullable="false"/>
+            </basic>
+            <basic name="startRealm">
+                <column name="start_realm" length="32" nullable="false" column-definition="varchar(32)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+            <!-- 신통은 정의 순서를 가진다. 신통 이름 유일(한 공법 안)은 도메인이 지킨다. 통째로 바꿀 때 flush 순서로 생기는
+                 일시 충돌을 피하려고 DB 유니크 제약은 두지 않는다(npc_topic 과 같은 까닭) -->
+            <one-to-many name="abilities" mapped-by="technique" orphan-removal="true">
+                <order-column name="position"/>
+                <cascade>
+                    <cascade-all/>
+                </cascade>
+            </one-to-many>
+            <!-- 비어 있으면 연체술 공법이다. 오행 순서는 도메인이 정렬한다 -->
+            <element-collection name="elements">
+                <column name="element" length="16" nullable="false" column-definition="varchar(16)"/>
+                <enumerated>STRING</enumerated>
+                <collection-table name="technique_element">
+                    <join-column name="technique_id"/>
+                </collection-table>
+            </element-collection>
+            <!-- 1성부터 차례로 -->
+            <element-collection name="stages">
+                <order-column name="position"/>
+                <collection-table name="technique_stage">
+                    <join-column name="technique_id"/>
+                </collection-table>
+            </element-collection>
+        </attributes>
+    </entity>
+
+    <entity class="mudmk3.domain.technique.Ability">
+        <table name="ability"/>
+        <attributes>
+            <basic name="name">
+                <column name="name" length="12" nullable="false"/>
+            </basic>
+            <basic name="learnStage">
+                <column name="learn_stage" nullable="false"/>
+            </basic>
+            <basic name="kind">
+                <column name="kind" length="32" nullable="false" column-definition="varchar(32)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="bodyRefining">
+                <column name="body_refining" nullable="false"/>
+            </basic>
+            <basic name="target">
+                <column name="target" length="16" nullable="false" column-definition="varchar(16)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="costStat">
+                <column name="cost_stat" length="16" nullable="false" column-definition="varchar(16)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="costAmount">
+                <column name="cost_amount" nullable="false" precision="8" scale="1"/>
+            </basic>
+            <basic name="costPerTick">
+                <column name="cost_per_tick" nullable="false"/>
+            </basic>
+            <basic name="castSeconds">
+                <column name="cast_seconds" nullable="false" precision="4" scale="1"/>
+            </basic>
+            <basic name="cooldownSeconds">
+                <column name="cooldown_seconds" nullable="false" precision="6" scale="1"/>
+            </basic>
+            <basic name="usableWhen">
+                <column name="usable_when" length="16" nullable="false" column-definition="varchar(16)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+            <many-to-one name="technique" fetch="LAZY" optional="false">
+                <join-column name="technique_id" nullable="false"/>
+            </many-to-one>
+            <!-- 비어 있으면 속성 없음(연체 신통이면 늘 비어 있다). 오행 순서는 도메인이 정렬한다 -->
+            <element-collection name="elements">
+                <column name="element" length="16" nullable="false" column-definition="varchar(16)"/>
+                <enumerated>STRING</enumerated>
+                <collection-table name="ability_element">
+                    <join-column name="ability_id"/>
+                </collection-table>
+            </element-collection>
+        </attributes>
+    </entity>
+
     <embeddable class="mudmk3.domain.character.CharacterName">
         <attributes>
             <basic name="value">
@@ -358,6 +455,38 @@
             </basic>
             <basic name="count">
                 <column name="count" nullable="false"/>
+            </basic>
+        </attributes>
+    </embeddable>
+
+    <embeddable class="mudmk3.domain.technique.TechniqueStage">
+        <attributes>
+            <basic name="insightRequired">
+                <column name="insight_required" nullable="false"/>
+            </basic>
+            <basic name="aptitudeRequired">
+                <column name="aptitude_required" nullable="false"/>
+            </basic>
+            <basic name="manaBonus">
+                <column name="mana_bonus" nullable="false"/>
+            </basic>
+            <basic name="senseBonus">
+                <column name="sense_bonus" nullable="false"/>
+            </basic>
+            <basic name="spiritBonus">
+                <column name="spirit_bonus" nullable="false"/>
+            </basic>
+            <basic name="essenceBonus">
+                <column name="essence_bonus" nullable="false"/>
+            </basic>
+            <basic name="bodyBonus">
+                <column name="body_bonus" nullable="false"/>
+            </basic>
+            <basic name="strengthBonus">
+                <column name="strength_bonus" nullable="false"/>
+            </basic>
+            <basic name="aptitudeGain">
+                <column name="aptitude_gain" nullable="false"/>
             </basic>
         </attributes>
     </embeddable>

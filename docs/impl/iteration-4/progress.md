@@ -7,6 +7,7 @@
 | 태스크 | 커밋 | 메모 |
 |---|---|---|
 | 1 경지·오행·영근 도메인과 캐릭터 저장 | fb63e93 (리뷰 ✅, Minor 3) | `Realm`·`Element`(shared), `SpiritRoot`(record, 엔트리 오행 순 정렬, `of(List)` 더함, 없는 오행 `aptitude` 0)·`SpiritRootEntry`, `player_character.realm`(nullable)·`character_spirit_root`(FK `character_id`, 순서 열 없음 — 도메인이 정렬), 시작 채우기(`@Order(0)`, 영석 심기 `@Order(10)`), `Josa` 으로/로, `CharacterFinder.find`, `CharacterCreator.create(…, SpiritRoot)`·`chooseSpiritRoot`. 경지 null 읽기 문구 `캐릭터의 경지가 비어 있습니다`(IllegalStateException). |
+| 2 공법·신통 도메인·영속·관리 서비스 | | `technique` 슬라이스(Technique·TechniqueStage·Ability·enum 넷(AbilityKind·AbilityTarget·CostStat·UsableWhen)·ReservedWords(104낱말, 대소문자 무시)), 표 다섯(`technique`·`technique_element`·`technique_stage`·`ability`·`ability_element`), `TechniqueFinder`·`TechniqueEditor`·`TechniqueView`(+`AbilityView`·`ScrollItem`, `learnerCount` 0·`scrollItems` 빈 목록), 검사 순서 D61·D62. 계획과 다른 점: 공법·신통 속성은 순서 열 없는 집합(`Set<Element>`, PK `(…_id, element)`)으로 저장하고 도메인이 오행 순으로 정렬(여러 bag 문제 회피), `DuplicateTechniqueNameException` 은 `domain/technique`(npc 관례), 소모 양·시간은 저장 모양과 같게 scale 1(`5.0`), 요청 필수 enum·`elements` 안 null 은 컴팩트 생성자 `IllegalArgumentException`(`<필드> 는 꼭 보내야 합니다`). |
 
 ## 상태
 
