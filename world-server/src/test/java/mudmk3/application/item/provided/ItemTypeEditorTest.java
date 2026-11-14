@@ -3,6 +3,7 @@ package mudmk3.application.item.provided;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.ConstraintViolationException;
 import mudmk3.ApplicationServiceTest;
+import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.domain.item.BagGrade;
 import mudmk3.domain.item.DuplicateItemTypeNameException;
 import mudmk3.domain.item.ItemCategory;
@@ -19,7 +20,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 @ApplicationServiceTest
-record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemTypeFinder, EntityManager entityManager) {
+record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemTypeFinder, InventoryEditor inventoryEditor,
+                          EntityManager entityManager) {
 
     @Test
     void spiritStonesSeeded() {
@@ -192,5 +194,42 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
         assertThat(found).containsOnlyKeys(pill.getId(), hide.getId());
         assertThat(found.get(hide.getId()).getName()).isEqualTo("늑대 가죽");
         assertThat(itemTypeFinder.findAllById(List.of())).isEmpty();
+    }
+
+    @Test
+    void deleteItemTypeInInventoryFail() {
+        ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        inventoryEditor.addUpTo(1L, itemType.getId(), 1);
+
+        assertThatThrownBy(() -> itemTypeEditor.delete(itemType.getId()))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 지울 수 없습니다: 회춘단");
+    }
+
+    @Test
+    void changeCategoryInInventoryFail() {
+        ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        ItemType bag = itemTypeEditor.create(createItemTypeSaveRequest("하급 저물대", ItemCategory.BAG, 10, BagGrade.LOW));
+        inventoryEditor.addUpTo(1L, itemType.getId(), 1);
+        inventoryEditor.addUpTo(1L, bag.getId(), 1);
+
+        assertThatThrownBy(() -> itemTypeEditor.update(itemType.getId(), createItemTypeSaveRequest("회춘단", ItemCategory.MATERIAL, 3)))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 종류·저물대 등급을 바꿀 수 없습니다: 회춘단");
+        assertThatThrownBy(() -> itemTypeEditor.update(bag.getId(),
+                createItemTypeSaveRequest("하급 저물대", ItemCategory.BAG, 10, BagGrade.HIGH)))
+                .isInstanceOf(ItemTypeInUseException.class);
+    }
+
+    @Test
+    void renameInInventory() {
+        ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        inventoryEditor.addUpTo(1L, itemType.getId(), 1);
+
+        itemTypeEditor.update(itemType.getId(), new ItemTypeSaveRequest("회춘단(연기 초)", "바뀐 묘사다.", ItemCategory.PILL, 5, false, null));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(itemTypeFinder.find(itemType.getId()).getName()).isEqualTo("회춘단(연기 초)");
     }
 }

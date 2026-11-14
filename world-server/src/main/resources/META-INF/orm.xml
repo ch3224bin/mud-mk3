@@ -200,6 +200,46 @@
         </attributes>
     </entity>
 
+    <entity class="mudmk3.domain.inventory.Inventory">
+        <table name="inventory">
+            <unique-constraint name="UK_INVENTORY_CHARACTER_ID">
+                <column-name>character_id</column-name>
+            </unique-constraint>
+        </table>
+        <attributes>
+            <!-- 캐릭터는 id로만 갖는다(FK 없음) -->
+            <basic name="characterId">
+                <column name="character_id" nullable="false"/>
+            </basic>
+            <one-to-many name="entries" mapped-by="inventory" orphan-removal="true">
+                <order-by>id</order-by>
+                <cascade>
+                    <cascade-all/>
+                </cascade>
+            </one-to-many>
+        </attributes>
+    </entity>
+
+    <!-- (inventory_id, item_type_id, bound) 묶음 유일은 도메인이 지킨다. 결제에서 하품을 다 내고 거스름 하품을 받을 때처럼
+         한 트랜잭션에서 같은 묶음을 비웠다 채울 때 생기는 일시 충돌을 피하려고 DB 유니크 제약은 두지 않는다 -->
+    <entity class="mudmk3.domain.inventory.InventoryEntry">
+        <table name="inventory_entry"/>
+        <attributes>
+            <basic name="bound">
+                <column name="bound" nullable="false"/>
+            </basic>
+            <basic name="count">
+                <column name="count" nullable="false"/>
+            </basic>
+            <many-to-one name="inventory" fetch="LAZY" optional="false">
+                <join-column name="inventory_id" nullable="false"/>
+            </many-to-one>
+            <many-to-one name="itemType" fetch="LAZY" optional="false">
+                <join-column name="item_type_id" nullable="false"/>
+            </many-to-one>
+        </attributes>
+    </entity>
+
     <embeddable class="mudmk3.domain.character.CharacterName">
         <attributes>
             <basic name="value">

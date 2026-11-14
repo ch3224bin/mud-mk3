@@ -72,10 +72,10 @@ public class ItemTypeModifyService implements ItemTypeEditor {
 
     /**
      * 소지품·바닥 배치·사라지지 않은 버린 물건·상점·시작 소지품 어디서든 쓰이는지. 리포지토리 count 들의 합으로 보며,
-     * 쓰는 슬라이스가 생기는 태스크가 count를 하나씩 더한다(지금은 쓰는 곳이 없다)
+     * 쓰는 슬라이스가 생기는 태스크가 count를 하나씩 더한다(지금은 소지품)
      */
     private boolean isInUse(Long itemTypeId) {
-        long uses = 0;
+        long uses = itemTypeRepository.countInInventories(itemTypeId);
         return uses > 0;
     }
 

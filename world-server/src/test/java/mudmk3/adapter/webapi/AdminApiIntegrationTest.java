@@ -1,5 +1,6 @@
 package mudmk3.adapter.webapi;
 
+import mudmk3.application.inventory.provided.InventoryEditor;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -21,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(properties = "spring.datasource.url=jdbc:h2:mem:admin-api;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE")
-record AdminApiIntegrationTest(MockMvcTester mvc) {
+record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEditor) {
 
     @Test
     void manageMap() {
@@ -161,6 +162,20 @@ record AdminApiIntegrationTest(MockMvcTester mvc) {
         assertThat(mvc.get().with(admin()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson().extractingPath("$.detail").isEqualTo("물건 종류를 찾을 수 없습니다. id: " + itemTypeId);
+    }
+
+    @Test
+    void deleteItemTypeInInventoryFail() {
+        long itemTypeId = id(post("/api/admin/item-types", """
+                {"name":"늑대 가죽","category":"MATERIAL","baseValue":2,"tradable":true}"""));
+        inventoryEditor.addUpTo(900L, itemTypeId, 3);
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
+                .hasStatus(HttpStatus.CONFLICT)
+                .bodyJson().extractingPath("$.detail").isEqualTo("쓰이는 물건은 지울 수 없습니다: 늑대 가죽");
+        assertThat(put("/api/admin/item-types/%d".formatted(itemTypeId), """
+                {"name":"늑대 가죽","category":"PILL","baseValue":2,"tradable":true}"""))
+                .hasStatus(HttpStatus.CONFLICT);
     }
 
     private MvcTestResult post(String uri, String json) {
