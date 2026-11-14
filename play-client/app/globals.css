@@ -12,6 +12,7 @@
   --movement: #8f9a8b;
   --speech: #e6d38a;
   --talk: #e8b48a;
+  --item: #9fd4a3;
   --error: #e0796f;
   --prompt: #8fb8e8;
   --echo: #6f786c;
@@ -164,6 +165,10 @@ button.small {
 
 .line-talk {
   color: var(--talk);
+}
+
+.line-item {
+  color: var(--item);
 }
 
 .line-error {

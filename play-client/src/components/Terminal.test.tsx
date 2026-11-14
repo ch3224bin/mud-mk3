@@ -46,6 +46,7 @@ const room: ServerMessage = {
   owner: null,
   exits: ["북"],
   occupants: [{ name: "한립", kind: "player" }],
+  items: [],
 };
 
 beforeEach(() => {
@@ -143,6 +144,27 @@ describe("Terminal", () => {
 
     expect(input).toHaveValue("대화 왕씨");
     expect(screen.getByText("왕씨")).toHaveClass("line-npc");
+  });
+
+  it("Tab 이름 후보에 room 의 바닥 물건도 들고, 물건 notice 는 후보를 바꾸지 않는다", async () => {
+    const user = userEvent.setup();
+    const { connection, input } = renderTerminal();
+    connection.receive({ ...room, items: [{ name: "늑대 가죽", count: 2 }] });
+
+    await user.type(input, "줍기 늑");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("줍기 늑대 가죽");
+    expect(screen.getByText("늑대 가죽 2개")).toHaveClass("line-item");
+
+    connection.receive({ type: "notice", text: "한립이 늑대 가죽 2개를 줍는다.", tone: "item", actor: "한립", event: "pick" });
+    await user.clear(input);
+    await user.type(input, "말하기 한");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("말하기 한립");
+    await user.clear(input);
+    await user.type(input, "보기 늑");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("보기 늑대 가죽");
   });
 
   it("talk 메시지가 오면 줄마다 talk 로 그린다", () => {

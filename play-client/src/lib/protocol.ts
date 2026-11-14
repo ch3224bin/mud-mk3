@@ -25,6 +25,9 @@ export type Occupant = { name: string; kind: "player" | "npc" };
 /** 방이 든 지역을 소유한 성(castle)·종문(sect) */
 export type RoomOwner = { kind: "castle" | "sect"; name: string };
 
+/** 방 바닥의 물건 한 묶음(3차 D40·D48) */
+export type FloorItem = { name: string; count: number };
+
 export type RoomMessage = {
   type: "room";
   zone: { id: number; name: string };
@@ -36,13 +39,33 @@ export type RoomMessage = {
   exits: string[];
   /** 나를 뺀 사람(들어온 순서) 다음 그 방의 NPC(만든 순서) */
   occupants: Occupant[];
+  /** 바닥 물건(D40 순서), 없으면 [] */
+  items: FloorItem[];
 };
 
-export type SystemMessage = { type: "system"; text: string; tone: "info" | "error" };
+export type SystemMessage = { type: "system"; text: string; tone: "info" | "error" | "item" };
 
-export type NoticeEvent = "arrive" | "leave" | "appear" | "disappear";
+/** 이동 이벤트(arrive·leave·appear·disappear)와 물건 이벤트(pick·drop·give, 3차 D47) */
+export type NoticeEvent = "arrive" | "leave" | "appear" | "disappear" | "pick" | "drop" | "give";
 
-export type NoticeMessage = { type: "notice"; text: string; tone: "movement"; actor: string; event: NoticeEvent };
+export type NoticeMessage = {
+  type: "notice";
+  text: string;
+  tone: "movement" | "item";
+  actor: string;
+  event: NoticeEvent;
+};
+
+/** 소지품(묻는 사람에게만, 3차 D48). stones 는 가진 등급만 하품부터, items 는 영석 밖 표시 순서, text 는 그린 줄들(\n) */
+export type InventoryMessage = {
+  type: "inventory";
+  usedSlots: number;
+  totalSlots: number;
+  stones: { name: string; count: number }[];
+  items: { name: string; count: number; bound: boolean; quest: boolean }[];
+  text: string;
+  tone: "item";
+};
 
 export type SayMessage = {
   type: "say";
@@ -66,6 +89,7 @@ export type ServerMessage =
   | NoticeMessage
   | SayMessage
   | TalkMessage
+  | InventoryMessage
   | ErrorMessage;
 
 /** 닫기 코드(D5·Task 7). */

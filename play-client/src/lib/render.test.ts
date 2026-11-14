@@ -11,6 +11,7 @@ function roomMessage(overrides: Partial<RoomMessage> = {}): RoomMessage {
     owner: null,
     exits: ["북", "남동"],
     occupants: [{ name: "한립", kind: "player" }],
+    items: [],
     ...overrides,
   };
 }
@@ -87,6 +88,63 @@ describe("renderMessage", () => {
       { text: "한립", style: "occupant" },
       { text: "왕씨", style: "npc" },
     ]);
+  });
+
+  it("room: 바닥 물건 줄은 NPC 다음, 2개 이상이면 'N개', style 은 item", () => {
+    const lines = renderMessage(
+      roomMessage({
+        zoneEntered: false,
+        occupants: [{ name: "왕씨", kind: "npc" }],
+        items: [
+          { name: "하품 영석", count: 3 },
+          { name: "비검", count: 1 },
+        ],
+      }),
+    );
+
+    expect(lines.slice(-3)).toEqual([
+      { text: "왕씨", style: "npc" },
+      { text: "하품 영석 3개", style: "item" },
+      { text: "비검", style: "item" },
+    ]);
+  });
+
+  it("inventory: text 를 줄마다 나누고 style 은 item", () => {
+    const lines = renderMessage({
+      type: "inventory",
+      usedSlots: 2,
+      totalSlots: 20,
+      stones: [{ name: "하품 영석", count: 30 }],
+      items: [
+        { name: "회춘단(연기 초)", count: 3, bound: false, quest: false },
+        { name: "비검", count: 1, bound: true, quest: false },
+      ],
+      text: "[소지품 2/20칸]  하품 영석 30\n회춘단(연기 초) x3   비검 (귀속)",
+      tone: "item",
+    });
+
+    expect(lines).toEqual([
+      { text: "[소지품 2/20칸]  하품 영석 30", style: "item" },
+      { text: "회춘단(연기 초) x3   비검 (귀속)", style: "item" },
+    ]);
+  });
+
+  it("system: tone item 은 style item", () => {
+    expect(renderMessage({ type: "system", text: "늑대 가죽 2개를 주웠습니다.", tone: "item" })).toEqual([
+      { text: "늑대 가죽 2개를 주웠습니다.", style: "item" },
+    ]);
+  });
+
+  it("notice: tone item 은 style item", () => {
+    const lines = renderMessage({
+      type: "notice",
+      text: "한백이 늑대 가죽 2개를 줍는다.",
+      tone: "item",
+      actor: "한백",
+      event: "pick",
+    });
+
+    expect(lines).toEqual([{ text: "한백이 늑대 가죽 2개를 줍는다.", style: "item" }]);
   });
 
   it("talk: text 를 줄마다 나누고 style 은 talk", () => {

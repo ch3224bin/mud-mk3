@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Completer } from "./complete";
+import { COMMANDS, Completer } from "./complete";
 
 describe("Completer", () => {
   it("첫 낱말은 명령어에서 앞부분이 맞는 것으로 채운다", () => {
@@ -12,6 +12,27 @@ describe("Completer", () => {
 
   it("대화 뒤 낱말은 이름(NPC 포함)에서 채운다", () => {
     expect(new Completer().complete("대화 왕", ["한립", "왕씨"])).toBe("대화 왕씨");
+  });
+
+  it("3차 물건 명령을 채운다", () => {
+    expect(new Completer().complete("줍", [])).toBe("줍기");
+    expect(new Completer().complete("귀", [])).toBe("귀속");
+    expect(new Completer().complete("소", [])).toBe("소지품");
+  });
+
+  it("COMMANDS 는 D51 순서", () => {
+    expect(COMMANDS).toEqual([
+      "보기", "말하기", "대화", "소지품", "줍기", "버리기", "주기", "목록", "사기", "팔기", "값", "귀속", "확인", "취소",
+      "누구", "도움말", "종료",
+      "동", "서", "남", "북", "북동", "북서", "남동", "남서", "위", "아래",
+    ]);
+  });
+
+  it("물건 이름은 이름 앞부분으로 맞춘다(이름 안 낱말 앞부분은 후보가 아니다)", () => {
+    const names = ["늑대 가죽"];
+
+    expect(new Completer().complete("줍기 가", names)).toBe("줍기 가");
+    expect(new Completer().complete("줍기 늑", names)).toBe("줍기 늑대 가죽");
   });
 
   it("거듭 부르면 후보를 COMMANDS 순서로 돈다", () => {
