@@ -1,6 +1,7 @@
 package mudmk3.adapter.webapi;
 
 import mudmk3.adapter.security.WebMvcSecurityTestConfiguration;
+import mudmk3.application.floor.provided.FloorPlacementFinder;
 import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.room.provided.ExitConflictException;
 import mudmk3.application.room.provided.ExitSaveRequest;
@@ -12,6 +13,7 @@ import mudmk3.application.world.provided.WorldSettingsFinder;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.room.Room;
 import mudmk3.domain.zone.Zone;
+import mudmk3.support.config.ClockConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -36,10 +38,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @WebMvcTest(RoomApi.class)
-@Import(WebMvcSecurityTestConfiguration.class)
-@MockitoBean(types = {RoomFinder.class, RoomEditor.class, WorldSettingsFinder.class, NpcFinder.class})
+@Import({WebMvcSecurityTestConfiguration.class, ClockConfig.class})
+@MockitoBean(types = {RoomFinder.class, RoomEditor.class, WorldSettingsFinder.class, NpcFinder.class, FloorPlacementFinder.class})
 record RoomApiWebMvcTest(MockMvcTester mvc, RoomFinder roomFinder, RoomEditor roomEditor,
-                         WorldSettingsFinder worldSettingsFinder, NpcFinder npcFinder) {
+                         WorldSettingsFinder worldSettingsFinder, NpcFinder npcFinder,
+                         FloorPlacementFinder floorPlacementFinder) {
 
     @Test
     void get() {
@@ -58,7 +61,7 @@ record RoomApiWebMvcTest(MockMvcTester mvc, RoomFinder roomFinder, RoomEditor ro
                    {"direction":"NORTH","directionName":"북","targetRoomId":11,"targetRoomName":"오솔길","targetZoneName":"청석숲"},
                    {"direction":"UP","directionName":"위","targetRoomId":12,"targetRoomName":"바람 언덕","targetZoneName":"황풍곡"}
                  ],
-                 "npcs":[]}""");
+                 "npcs":[],"floorItems":[]}""");
         json.extractingPath("$.exits[0].directionName").isEqualTo("북");
     }
 
@@ -72,6 +75,17 @@ record RoomApiWebMvcTest(MockMvcTester mvc, RoomFinder roomFinder, RoomEditor ro
         json.extractingPath("$.npcs[1].name").isEqualTo("이씨");
         json.isLenientlyEqualTo("""
                 {"npcs":[{"id":4,"name":"왕씨"},{"id":5,"name":"이씨"}]}""");
+    }
+
+    @Test
+    void getWithFloorItems() {
+        when(roomFinder.find(10L)).thenReturn(room(zone(1L, "청석숲"), 10L, "샘터"));
+        when(floorPlacementFinder.findAllInRoom(10L)).thenReturn(List.of(FloorItemApiWebMvcTest.placement(3L, 10L, 2, 10)));
+
+        var json = assertThat(mvc.get().with(admin()).uri("/api/admin/rooms/10")).hasStatusOk().bodyJson();
+        json.extractingPath("$.floorItems[0].itemName").isEqualTo("늑대 가죽");
+        json.isLenientlyEqualTo("""
+                {"floorItems":[{"id":3,"roomId":10,"itemTypeId":5,"count":2,"respawnMinutes":10,"remaining":2}]}""");
     }
 
     @Test

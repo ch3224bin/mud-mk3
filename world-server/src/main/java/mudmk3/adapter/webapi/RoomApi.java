@@ -2,8 +2,10 @@ package mudmk3.adapter.webapi;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import mudmk3.adapter.webapi.dto.FloorPlacementResponse;
 import mudmk3.adapter.webapi.dto.RoomDetailResponse;
 import mudmk3.adapter.webapi.dto.RoomNpcResponse;
+import mudmk3.application.floor.provided.FloorPlacementFinder;
 import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
@@ -24,6 +26,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
+import java.time.Clock;
+import java.time.Instant;
+
 /** 관리: 방과 출구 */
 @WebApiAdapter
 @RequestMapping("/api/admin/rooms")
@@ -34,6 +39,8 @@ public class RoomApi {
     private final RoomEditor roomEditor;
     private final WorldSettingsFinder worldSettingsFinder;
     private final NpcFinder npcFinder;
+    private final FloorPlacementFinder floorPlacementFinder;
+    private final Clock clock;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -71,7 +78,10 @@ public class RoomApi {
     }
 
     private RoomDetailResponse toResponse(Room room) {
+        Instant now = clock.instant();
         return RoomDetailResponse.of(room, worldSettingsFinder.isStartRoom(room.getId()),
-                npcFinder.findAllInRoom(room.getId()).stream().map(RoomNpcResponse::of).toList());
+                npcFinder.findAllInRoom(room.getId()).stream().map(RoomNpcResponse::of).toList(),
+                floorPlacementFinder.findAllInRoom(room.getId()).stream()
+                        .map(placement -> FloorPlacementResponse.of(placement, now)).toList());
     }
 }

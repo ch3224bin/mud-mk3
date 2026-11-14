@@ -209,6 +209,60 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
                 .hasStatus(HttpStatus.NO_CONTENT);
     }
 
+    @Test
+    void manageFloorItems() {
+        long zoneId = id(post("/api/admin/zones", """
+                {"name":"흑풍림"}"""));
+        long roomId = id(post("/api/admin/rooms", """
+                {"zoneId":%d,"name":"늑대 굴","description":"늑대 냄새가 짙다."}""".formatted(zoneId)));
+        long hideId = id(post("/api/admin/item-types", """
+                {"name":"검은 늑대 가죽","category":"MATERIAL","baseValue":2,"tradable":true}"""));
+        long pillId = id(post("/api/admin/item-types", """
+                {"name":"청심단","category":"PILL","baseValue":3,"tradable":true}"""));
+
+        var created = assertThat(post("/api/admin/rooms/%d/floor-items".formatted(roomId), """
+                {"itemTypeId":%d,"count":3,"respawnMinutes":10}""".formatted(hideId))).hasStatus(HttpStatus.CREATED).bodyJson();
+        created.extractingPath("$.itemName").isEqualTo("검은 늑대 가죽");
+        long floorItemId = id(post("/api/admin/rooms/%d/floor-items".formatted(roomId), """
+                {"itemTypeId":%d,"count":1,"respawnMinutes":null}""".formatted(hideId)));
+
+        // 트랜잭션 밖에서 응답을 만들어도 물건 이름을 낸다
+        var room = assertThat(mvc.get().with(admin()).uri("/api/admin/rooms/%d".formatted(roomId))).hasStatusOk().bodyJson();
+        room.extractingPath("$.floorItems[*].itemName").asArray().containsExactly("검은 늑대 가죽", "검은 늑대 가죽");
+        room.extractingPath("$.floorItems[1].respawnMinutes").isNull();
+        room.extractingPath("$.floorItems[1].remaining").isEqualTo(1);
+
+        var updated = assertThat(put("/api/admin/floor-items/%d".formatted(floorItemId), """
+                {"itemTypeId":%d,"count":5,"respawnMinutes":30}""".formatted(pillId))).hasStatusOk().bodyJson();
+        updated.extractingPath("$.itemName").isEqualTo("청심단");
+        updated.extractingPath("$.remaining").isEqualTo(5);
+        assertThat(post("/api/admin/rooms/%d/floor-items".formatted(roomId), """
+                {"itemTypeId":%d,"count":0}""".formatted(pillId))).hasStatus(HttpStatus.BAD_REQUEST);
+
+        // 바닥에 둔 물건 종류는 실제 DB에서도 지울 수 없다
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(pillId)))
+                .hasStatus(HttpStatus.CONFLICT)
+                .bodyJson().extractingPath("$.detail").isEqualTo("쓰이는 물건은 지울 수 없습니다: 청심단");
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/floor-items/%d".formatted(floorItemId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/floor-items/%d".formatted(floorItemId)))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson().extractingPath("$.detail").isEqualTo("바닥 물건을 찾을 수 없습니다. id: " + floorItemId);
+        assertThat(mvc.get().with(admin()).uri("/api/admin/rooms/%d".formatted(roomId))).hasStatusOk().bodyJson()
+                .extractingPath("$.floorItems[*].itemName").asArray().containsExactly("검은 늑대 가죽");
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(pillId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+
+        // 방을 지우면 남은 배치도 지워져 그 종류를 지울 수 있다. 같은 DB를 쓰는 다른 테스트를 흐리지 않게 지역도 지운다
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/rooms/%d".formatted(roomId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(hideId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/zones/%d".formatted(zoneId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+    }
+
     private MvcTestResult post(String uri, String json) {
         return mvc.post().with(admin()).with(clientHeader()).uri(uri).contentType(MediaType.APPLICATION_JSON).content(json).exchange();
     }

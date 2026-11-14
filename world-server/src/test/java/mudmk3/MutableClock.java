@@ -35,7 +35,7 @@ public class MutableClock extends Clock {
         now = now.plus(requireNonNull(duration));
     }
 
-    /** 시작 시각으로 되돌린다. 시계를 움직인 테스트는 끝에 부른다(컨텍스트가 테스트끼리 공유됨) */
+    /** 시작 시각으로 되돌린다. {@code @ApplicationServiceTest} 는 테스트마다 {@link MutableClockReset} 이 부른다 */
     public void reset() {
         now = START;
     }

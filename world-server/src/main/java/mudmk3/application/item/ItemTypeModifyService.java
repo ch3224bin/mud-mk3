@@ -16,12 +16,16 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Instant;
+
 @ValidatedApplicationService
 @RequiredArgsConstructor
 public class ItemTypeModifyService implements ItemTypeEditor {
 
     private final ItemTypeFinder itemTypeFinder;
     private final ItemTypeRepository itemTypeRepository;
+    private final Clock clock;
 
     @Override
     public ItemType create(ItemTypeSaveRequest request) {
@@ -42,7 +46,7 @@ public class ItemTypeModifyService implements ItemTypeEditor {
         }
         boolean slotRuleChanges = itemType.getCategory() != info.category()
                 || itemType.findBagGrade().orElse(null) != info.bagGrade();
-        if (slotRuleChanges && isInUse(itemTypeId)) {
+        if (slotRuleChanges && isInUse(itemTypeId, clock.instant())) {
             throw new ItemTypeInUseException("쓰이는 물건은 종류·저물대 등급을 바꿀 수 없습니다: " + itemType.getName());
         }
         itemType.update(info);
@@ -53,9 +57,11 @@ public class ItemTypeModifyService implements ItemTypeEditor {
     public void delete(Long itemTypeId) {
         ItemType itemType = itemTypeFinder.find(itemTypeId);
         ensureNotSpiritStone(itemType);
-        if (isInUse(itemTypeId)) {
+        Instant now = clock.instant();
+        if (isInUse(itemTypeId, now)) {
             throw new ItemTypeInUseException("쓰이는 물건은 지울 수 없습니다: " + itemType.getName());
         }
+        itemTypeRepository.deleteExpiredDroppedItems(itemTypeId, now);
         itemTypeRepository.delete(itemType);
     }
 
@@ -72,11 +78,13 @@ public class ItemTypeModifyService implements ItemTypeEditor {
 
     /**
      * 소지품·바닥 배치·사라지지 않은 버린 물건·상점·시작 소지품 어디서든 쓰이는지. 리포지토리 count 들의 합으로 보며,
-     * 쓰는 슬라이스가 생기는 태스크가 count를 하나씩 더한다(지금은 소지품·시작 소지품)
+     * 쓰는 슬라이스가 생기는 태스크가 count를 하나씩 더한다(지금은 소지품·시작 소지품·바닥 배치·버린 물건)
      */
-    private boolean isInUse(Long itemTypeId) {
+    private boolean isInUse(Long itemTypeId, Instant now) {
         long uses = itemTypeRepository.countInInventories(itemTypeId)
-                + itemTypeRepository.countInStartingItems(itemTypeId);
+                + itemTypeRepository.countInStartingItems(itemTypeId)
+                + itemTypeRepository.countInFloorPlacements(itemTypeId)
+                + itemTypeRepository.countInDroppedItems(itemTypeId, now);
         return uses > 0;
     }
 

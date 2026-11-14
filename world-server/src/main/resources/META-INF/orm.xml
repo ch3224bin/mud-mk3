@@ -247,6 +247,50 @@
         </attributes>
     </entity>
 
+    <entity class="mudmk3.domain.floor.FloorPlacement">
+        <table name="floor_placement"/>
+        <attributes>
+            <!-- 방을 지우면 서비스가 그 방의 배치를 함께 지우므로 FK를 두지 않는다(NPC와 같은 까닭) -->
+            <basic name="roomId">
+                <column name="room_id" nullable="false"/>
+            </basic>
+            <basic name="count">
+                <column name="count" nullable="false"/>
+            </basic>
+            <basic name="respawnMinutes">
+                <column name="respawn_minutes" nullable="true"/>
+            </basic>
+            <basic name="remaining">
+                <column name="remaining" nullable="false"/>
+            </basic>
+            <basic name="emptiedAt">
+                <column name="emptied_at" nullable="true"/>
+            </basic>
+            <many-to-one name="itemType" fetch="LAZY" optional="false">
+                <join-column name="item_type_id" nullable="false"/>
+            </many-to-one>
+        </attributes>
+    </entity>
+
+    <entity class="mudmk3.domain.floor.DroppedItem">
+        <table name="dropped_item"/>
+        <attributes>
+            <!-- 방을 지우면 서비스가 그 방의 버린 물건을 함께 지우므로 FK를 두지 않는다 -->
+            <basic name="roomId">
+                <column name="room_id" nullable="false"/>
+            </basic>
+            <basic name="count">
+                <column name="count" nullable="false"/>
+            </basic>
+            <basic name="expiresAt">
+                <column name="expires_at" nullable="false"/>
+            </basic>
+            <many-to-one name="itemType" fetch="LAZY" optional="false">
+                <join-column name="item_type_id" nullable="false"/>
+            </many-to-one>
+        </attributes>
+    </entity>
+
     <embeddable class="mudmk3.domain.character.CharacterName">
         <attributes>
             <basic name="value">

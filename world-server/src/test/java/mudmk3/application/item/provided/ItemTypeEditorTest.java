@@ -3,9 +3,14 @@ package mudmk3.application.item.provided;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.ConstraintViolationException;
 import mudmk3.ApplicationServiceTest;
+import mudmk3.MutableClock;
+import mudmk3.application.floor.provided.FloorPlacementEditor;
+import mudmk3.application.floor.provided.RoomFloor;
 import mudmk3.application.inventory.provided.InventoryEditor;
+import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.StartingItemRequest;
 import mudmk3.application.world.provided.WorldSettingsEditor;
+import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.domain.item.BagGrade;
 import mudmk3.domain.item.DuplicateItemTypeNameException;
 import mudmk3.domain.item.ItemCategory;
@@ -13,17 +18,23 @@ import mudmk3.domain.item.ItemType;
 import mudmk3.domain.item.SpiritStoneGrade;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+import static mudmk3.domain.floor.FloorFixture.createFloorPlacementSaveRequest;
 import static mudmk3.domain.item.ItemTypeFixture.createItemTypeSaveRequest;
+import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
+import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 @ApplicationServiceTest
 record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemTypeFinder, InventoryEditor inventoryEditor,
-                          WorldSettingsEditor worldSettingsEditor, EntityManager entityManager) {
+                          WorldSettingsEditor worldSettingsEditor, FloorPlacementEditor floorPlacementEditor,
+                          RoomFloor roomFloor, ZoneEditor zoneEditor, RoomEditor roomEditor, MutableClock clock,
+                          EntityManager entityManager) {
 
     @Test
     void spiritStonesSeeded() {
@@ -257,5 +268,43 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
         entityManager.clear();
 
         assertThat(itemTypeFinder.find(itemType.getId()).getName()).isEqualTo("회춘단(연기 초)");
+    }
+
+    @Test
+    void deleteItemTypeOnFloorFail() {
+        ItemType placed = itemTypeEditor.create(createItemTypeSaveRequest("늑대 가죽", ItemCategory.MATERIAL, 2));
+        ItemType dropped = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        Long zoneId = zoneEditor.create(createZoneSaveRequest("청석숲")).getId();
+        Long roomId = roomEditor.create(createRoomSaveRequest(zoneId, "샘터")).getId();
+        floorPlacementEditor.create(roomId, createFloorPlacementSaveRequest(placed.getId(), 1, null));
+        // 다 주워 남은 수가 0이어도 배치는 쓰임으로 센다
+        roomFloor.take(roomId, placed.getId(), 1);
+        roomFloor.drop(roomId, dropped.getId(), 1);
+        clock.advance(Duration.ofMinutes(4).plusSeconds(59));
+
+        assertThatThrownBy(() -> itemTypeEditor.delete(placed.getId()))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 지울 수 없습니다: 늑대 가죽");
+        assertThatThrownBy(() -> itemTypeEditor.delete(dropped.getId()))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 지울 수 없습니다: 회춘단");
+        assertThatThrownBy(() -> itemTypeEditor.update(dropped.getId(), createItemTypeSaveRequest("회춘단", ItemCategory.MATERIAL, 3)))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 종류·저물대 등급을 바꿀 수 없습니다: 회춘단");
+    }
+
+    @Test
+    void deleteItemTypeWithOnlyExpiredDropsSucceeds() {
+        ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        roomFloor.drop(3L, itemType.getId(), 2);
+        entityManager.flush();
+        clock.advance(Duration.ofMinutes(5));
+
+        itemTypeEditor.delete(itemType.getId());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(itemTypeFinder.findAllById(List.of(itemType.getId()))).isEmpty();
+        assertThat(roomFloor.look(3L)).isEmpty();
     }
 }
