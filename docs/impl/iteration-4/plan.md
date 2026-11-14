@@ -41,7 +41,7 @@
 - 툴 호출 파라미터(JSON)의 한글은 리터럴 UTF-8로 쓰고 `\uXXXX` 이스케이프를 쓰지 않는다.
 - 계획 문구의 `{이름}`·`{n}` 은 채워 넣는 자리, `{이름은}` 처럼 조사가 붙은 자리는 `Josa` 로 고른 조사를 붙인다는 뜻이다.
 - world-server 코딩 규칙(`.claude/rules/*.md`), 루트 패키지 `mudmk3`. 아래 world-server 경로는 `world-server/src/{main,test}/java/mudmk3/` 기준이다. open-in-view가 꺼져 있으므로 REST 응답에 쓰는 지연 연관은 서비스가 트랜잭션 안에서 값 record로 바꿔 돌려주거나 `@EntityGraph` 로 읽는다(3차 관례).
-- **새 enum 열은 모두 orm.xml 에 `column-definition="varchar(N)"` 을 준다**(3차 `item_type.category`·`bag_grade` 와 같음). 이렇게 하면 Hibernate 가 enum CHECK 제약을 만들지 않는다(3차 H2 DDL `bag_grade varchar(16)` 에 CHECK 없음을 확인함). 그래서 기존 `pgdata` 의 `bag_grade` 에 `BRACELET_*` 를 넣을 수 있고, 4차 표(`realm`, `element`, `kind`, `target`, `cost_stat`, `usable_when`, `start_realm`)도 나중에 값을 더할 때 막히지 않는다. Task 14 Step 3 에서 pgdata 로 저물탁 저장(단계 34)이 되는지가 이것의 확인이다.
+- **새 enum 열은 모두 orm.xml 에 `column-definition="varchar(N)"` 을 준다**(3차 `item_type.category`·`bag_grade` 와 같음). 이렇게 하면 H2 에서는 Hibernate 가 enum CHECK 를 만들지 않는다(3차 H2 DDL 로 확인). **PostgreSQL 에서는 틀렸다(Task 14):** 열마다 `<table>_<column>_check` 가 생겨 3차 `item_type_bag_grade_check` 가 `BRACELET_*` 저장을 막았고, `LegacySchemaCleaner` 가 뜰 때 지운다. 4차 새 열에도 CHECK 가 있어 나중에 값을 더하면 같은 정리가 필요하다 → [admin-tool.md 관리 툴 변경의 반영](../../spec/system/admin-tool.md#관리-툴-변경의-반영). Task 14 Step 3 에서 pgdata 로 저물탁 저장(단계 34)이 되는지가 이것의 확인이다.
 - Next.js 앱 규칙은 1~3차와 같다(정적 export, `"use client"`, 상대 경로 import, 쿼리스트링 id). 저장 전 클라이언트 검사는 하지 않고 서버 `detail` 을 보인다.
 - 자동 테스트는 Google 자격 증명·네트워크 없이 돈다. 시간에 걸린 테스트는 `MutableClock` 을 쓴다.
 

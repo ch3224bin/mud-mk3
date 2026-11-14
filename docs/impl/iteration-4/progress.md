@@ -19,12 +19,20 @@
 | 11 admin-console — 캐릭터 목록·상세·경지 지정 | 1479bd0, c25b3d0 (리뷰 ✅, 고침 1회: 자질 버림) | `/characters/`·`/character/`, `CharacterRealmForm`, 공통 바 `캐릭터`. 계획과 다른 점·(제안): 목록 표·상세는 테스트하려고 `CharacterTable`·`CharacterDetail` 컴포넌트로 뺌(스탯 표는 `CharacterRealmForm` 안, 저장 뒤 받은 상세로 다시 그림), 영근 자질은 룰북·`상태` 처럼 소수점 버림(`52`), 숫자가 아닌 id 는 id 없음과 같이 `캐릭터를 찾을 수 없습니다.`, 스탯 표 행 `기혈 최대치`~`영력 최대치`·`육신`·`근력`, 성공 문구는 `role=status`. Task 10 Minor: 신통 소모 양·시전·대기 `step="any"`, 공법 삭제 중 버튼 막음, 신통 행 이름 `aria-label` `신통 이름`. |
 | 12 play-client — `status`·`growth`, 자동완성 | cd7025d (리뷰 ✅, Minor 2) | `status`·`growth` 스타일(색 D74 `--status: #c8d3f5`·`--growth: #f0c674`), COMMANDS 4차(D76 순서), 소지품 이름 후보(`nameCandidates(roomNames, inventoryNames)` — 방 이름 다음 마지막 `inventory.items[].name`, `Set` 으로 중복 제거·앞 것 유지, 다시 연결하면 비움). `StatusMessage`·`Gauge` 타입, `SystemMessage.tone` 에 `growth`. 기존 캐릭터 `session(creating)` 은 1차와 같은 화면이라 고칠 것 없음. |
 | 13 문서 — 스펙 `(제안)` 반영과 README | 1d9e707, 73235fc (리뷰, 고침 1회: README 칸 수) | 스펙에 옮긴 것: D57(경지 코드·`으로/로`은 이미 있음)·D59(`@Order(0)`·`@Order(10)`)·D61/D62(검사 순서·예약어 104개)·D63(`Realm`·`Element` shared, `PresenceFinder`)·D65(입문 알림 없음)·D66(이름 확인 단계 없어짐, 빈 영근 입력)·D67(시간·속성 문체)·D68(상점 없는 방에서도 먼저)·D70(넘은 소지품 판정·결과 이름)·D74(색)와 소모 양 상한 0.1~10,000, `elementNames`, 신통 불리언 필수, 줍기·주기 비대칭, `공법`·`신통` 인자 → Unknown, `대기 0초`, 소지품 후보 비움, 관리 자질 버림, 1차 생성 절 4차 안내. `ReadResult.Learned` 에 `elements` 를 더한 것(D65 서명과 다름, 자질 줄에 필요)은 구현 세부라 스펙에 옮기지 않음. `npc.md` 잡화점 `저물대·저물탁`(룰북 `game-structure.md` 는 이미 `저물대·저물탁` 이라 고치지 않음). 문구는 `GameService.HELP`·`CultivationTexts` 와 대조해 일치. README 4차 시나리오·명령·수동 확인·스키마 줄. 스모크 절은 Task 14. |
-| 14 통합 확인 — 스모크 1~3차 고침·4차 시나리오 | (리드가 채움) | 스모크 1~3차 고침(`createCharacter(client, name, roots = "목 화")` 영근 단계, 단계 22 앞 C 연기 1층 지정·growth, 단계 16 `저물대·저물탁`·`하급 저물대`, 단계 24 도움말 D76 전체 문구)·단계 26~35. compose 빌드 한 번 + world-server만 한 번 더(`up -d --build world-server`, 아래 버그). 기존 `pgdata` 에서 기존 캐릭터 11명 `QI_1` 로 채워짐(영근 없음 11명 — 다음 접속 때 고름), 기동 로그 스키마 오류 없음. **버그 고침:** 3차 PostgreSQL 이 만든 `item_type_bag_grade_check`(LOW·MIDDLE·HIGH 만)가 남아 저물탁(`BRACELET_LOW`) 저장이 409(`DataIntegrityViolationException`) — `column-definition` 은 PostgreSQL 에서 Hibernate enum CHECK 를 막지 못함(H2 만 확인했었음). `LegacySchemaCleaner` 가 뜰 때 이 CHECK 를 지움(`dropsStaleBagGradeCheck` 테스트). 4차 새 열(`realm`·`element`·`kind`·`target`·`cost_stat`·`usable_when`·`start_realm`)에도 PostgreSQL CHECK 가 생겨 있음 — 지금 값은 모두 들어가지만 나중에 enum 값을 더하면 같은 정리가 필요. 결과 `SMOKE OK`(단계 1~35), 세 모듈 검증 통과(world-server 971 tests, admin-console 117, play-client 85). 되돌림: 시작 방 id 1(태초 객잔)·시작 소지품 `[]`(관리 API·psql 확인). 정리: `down`(볼륨 남김)·image/builder prune·빌드 산출물 삭제, dangling 이미지 0. 디스크 `df -h .` 빌드 전 54Gi → 빌드 뒤 52Gi → 정리 뒤 53Gi 남음, `docker system df` 이미지 2.382GB·빌드 캐시 62.21MB → 2.445GB·993.1MB → 2.383GB·62.5MB. 남은 수동 확인: README `### 수동 확인` 4차 항목(화면·색·자동완성). |
+| 14 통합 확인 — 스모크 1~3차 고침·4차 시나리오 | 9a10608 (리뷰 ✅, Minor 5; 스모크에서 PG CHECK 버그 찾아 고침) | 스모크 1~3차 고침(`createCharacter(client, name, roots = "목 화")` 영근 단계, 단계 22 앞 C 연기 1층 지정·growth, 단계 16 `저물대·저물탁`·`하급 저물대`, 단계 24 도움말 D76 전체 문구)·단계 26~35. compose 빌드 한 번 + world-server만 한 번 더(`up -d --build world-server`, 아래 버그). 기존 `pgdata` 에서 기존 캐릭터 11명 `QI_1` 로 채워짐(영근 없음 11명 — 다음 접속 때 고름), 기동 로그 스키마 오류 없음. **버그 고침:** 3차 PostgreSQL 이 만든 `item_type_bag_grade_check`(LOW·MIDDLE·HIGH 만)가 남아 저물탁(`BRACELET_LOW`) 저장이 409(`DataIntegrityViolationException`) — `column-definition` 은 PostgreSQL 에서 Hibernate enum CHECK 를 막지 못함(H2 만 확인했었음). `LegacySchemaCleaner` 가 뜰 때 이 CHECK 를 지움(`dropsStaleBagGradeCheck` 테스트). 4차 새 열(`realm`·`element`·`kind`·`target`·`cost_stat`·`usable_when`·`start_realm`)에도 PostgreSQL CHECK 가 생겨 있음 — 지금 값은 모두 들어가지만 나중에 enum 값을 더하면 같은 정리가 필요. 결과 `SMOKE OK`(단계 1~35), 세 모듈 검증 통과(world-server 971 tests, admin-console 117, play-client 85). 되돌림: 시작 방 id 1(태초 객잔)·시작 소지품 `[]`(관리 API·psql 확인). 정리: `down`(볼륨 남김)·image/builder prune·빌드 산출물 삭제, dangling 이미지 0. 디스크 `df -h .` 빌드 전 54Gi → 빌드 뒤 52Gi → 정리 뒤 53Gi 남음, `docker system df` 이미지 2.382GB·빌드 캐시 62.21MB → 2.445GB·993.1MB → 2.383GB·62.5MB. 남은 수동 확인: README `### 수동 확인` 4차 항목(화면·색·자동완성). |
+| 15 최종 전체 리뷰와 고침 | 이 커밋 | 최종 전체 리뷰(opus, 73360b1..9a10608): ready, Critical 0 · Important 1 · Minor 11. "지금 고칠 것" 을 한 번에 고침: I1 — `admin-tool.md` 관리 툴 변경의 반영에 4차 저물탁 CHECK(`item_type_bag_grade_check`) 정리와 **enum 값을 더할 때** 규칙(PostgreSQL 은 `column-definition` 과 상관없이 enum 열마다 `<table>_<column>_check`, 이름으로 지우는 정리를 `LegacySchemaCleaner` 에 더함, Flyway 를 들이면 마이그레이션으로) `(제안)`, `plan.md` Global Constraints 의 틀린 문장(H2 에서만 맞음) 정정. Minor 1 README 4차 `pgdata` 줄에 CHECK 정리 한 문장. Minor 2 `platform.md` 관리 지정 반영 절에 관리 지정·게임 이동 행 전체 UPDATE 경합 받아들임 `(제안)`(코드는 그대로). Minor 3 쓰이지 않는 `TechniqueRepository.countScrollItems` 지움(부르는 곳·테스트 없음). Minor 4 스모크 빈 줄 둘 → 하나. Minor 5 이 progress. 나머지 Minor 6~11 은 `## 다음 할 일` 에. world-server `./gradlew build` 971 tests 통과, `node --check scripts/smoke-test.mjs` 통과(스모크 동작 바뀌지 않아 Docker 다시 빌드 안 함). |
 
 ## 상태
 
-- **4차 이터레이션 구현 완료**(2026-11-15, Task 14 스모크 통과). 남은 것: Task 15 최종 리뷰.
-- 계획 작성(2026-11-14). 계획 리뷰 반영(2026-11-14): 필수 enum null 400 문구를 스펙대로, L1 상점 준비는 알림 없는 `setRealm`, 스모크 단계 16 저물대 이름, enum 열 `column-definition`, Task 8 익히기 준비, 관리 화면 안내 문구, 모델. 구현 전.
+- **4차 이터레이션 완료** (2026-11-15). 최종 전체 리뷰(opus) ready — Critical 0 · Important 1 · Minor 11, "지금 고칠 것" 을 고침(Task 15). 남은 것: 창호 브라우저 확인과 `(제안)` 검토(아래 다음 할 일).
+- 검증 (Task 14, Task 15 뒤 world-server 다시):
+  - world-server `./gradlew build` — BUILD SUCCESSFUL, 테스트 971개 통과, SpotBugs·ArchUnit 포함(Task 15 고침 뒤에도 971).
+  - admin-console `npm test` 117개 통과, play-client `npm test` 85개 통과(Task 14, 그 뒤 두 모듈 변경 없음).
+  - compose: 빌드 한 번 + world-server 만 한 번 더(`up -d --build world-server`, 스모크에서 찾은 PostgreSQL CHECK 버그 고침) → `node scripts/smoke-test.mjs` 단계 1~35 `SMOKE OK`, 기존 `pgdata` 에서 올림, 기동 로그 스키마 오류 없음.
+  - 기존 캐릭터 11명은 `QI_1` 로 채워졌고 영근이 없어 다음 접속 때 영근을 고른다(L5).
+  - 되돌림: 시작 방 id 1(태초 객잔), 시작 소지품 `[]`. `pgdata` 볼륨은 남김.
+- 디스크 (Task 14): `df -h .` 남은 공간 빌드 전 54Gi → 빌드 뒤 52Gi → 정리 뒤 53Gi. dangling 이미지 0.
+- (계획 때) 계획 작성(2026-11-14). 계획 리뷰 반영(2026-11-14): 필수 enum null 400 문구를 스펙대로, L1 상점 준비는 알림 없는 `setRealm`, 스모크 단계 16 저물대 이름, enum 열 `column-definition`, Task 8 익히기 준비, 관리 화면 안내 문구, 모델.
 - 태스크와 권장 모델: 1 경지·오행·영근 도메인과 캐릭터 저장(opus) · 2 공법·신통 도메인·영속·관리 서비스(opus) · 3 공법·경지 관리 REST와 옥간·서책의 담긴 공법(opus) · 4 저물탁(opus) · 5 수련 슬라이스 — 익힌 공법·스탯·읽기·경지 지정(opus) · 6 캐릭터 관리 REST(opus) · 7 게임 — 생성 영근 단계(opus) · 8 게임 — 상태·공법·신통(opus) · 9 게임 — 읽기·범인 상점 막힘·경지 알림·도움말(opus) · 10 admin-console 공법·아이템(opus) · 11 admin-console 캐릭터(opus) · 12 play-client(opus) · 13 문서 — 스펙 (제안)·README(sonnet) · 14 통합 스모크·compose 한 번(opus) · 15 최종 리뷰(opus). 구현 태스크는 모두 opus, sonnet 은 문서 옮기기(13)만(창호 모델 규칙).
 
 ## 리드 판정 (Ruling)
@@ -37,6 +45,33 @@
 - L4 현재 수치(기혈 등)는 저장하지 않고 4차엔 늘 최대치. 5차(전투)에서 현재 수치 열을 더한다. — 4차에 깎이는 길이 없음.
 - L5 기존 캐릭터는 연기 1층으로 채우고, 영근이 없으면 다음 접속 때 세계에 들어가기 전에 고른다(생성 영근 단계를 다시 씀). — 영근은 플레이어가 고르는 룰북 규칙을 지킴, 관리 툴로 바꾸지 않음. 기존 캐릭터는 개발 데이터뿐.
 
+구현 중 리드 판정 (2026-11-14~15):
+
+- 계획 사전 충돌 검사(태스크 사이 파일·인터페이스 겹침)를 따로 돌리지 않고 opus 계획 리뷰로 갈음. — 계획 리뷰가 태스크 경계·인터페이스를 함께 봄. 틀리면: 태스크 사이 충돌을 구현 중에 찾아 고쳐야 함(이번엔 생기지 않음).
+- 신통 소모 양은 0.1~10,000(Task 2 고침 1회). — 룰북에 상한이 없어 저장 모양(scale 1)과 화면에 맞는 범위로 정함. 틀리면: 상한 상수와 문구·테스트 하나만 바꾸면 됨.
+- `ReadResult.Learned` 에 `elements`(공법 속성, 오행 순)를 더함 — 계획 D65 시그니처를 벗어남. — 읽기 성공의 스탯 줄 `목영근 자질 +1` 을 속성마다 적으려면 필요. 틀리면: 핸들러가 공법을 다시 읽도록 바꾸는 작은 고침.
+- 관리 툴 캐릭터 영근 자질은 룰북·게임 `상태` 처럼 소수점 버림으로 보임(Task 11 고침 1회). — 게임과 관리 화면의 숫자를 맞춤. 틀리면: 관리 화면에서 실제 값(소수)을 볼 수 없음, 표시 함수 하나만 바꾸면 됨.
+- Task 13 문서 고침(README 칸 수)은 리드가 리뷰어 문구와 맞춰 확인하고 재리뷰를 생략. — 고친 것이 리뷰어가 준 문구 그대로인 한 줄. 틀리면: 문서 한 줄이 어긋나 최종 리뷰에서 다시 잡음.
+
 ## 다음 할 일
 
-- 리드: 계획 검토 뒤 Task 1부터 차례로 진행.
+- 창호:
+  - 브라우저 수동 확인: README `### 수동 확인` 의 4차 체크리스트(생성 영근 단계, `상태`·`공법`·`신통` 화면과 `status`·`growth` 색, `읽기`, 경지 지정 알림, 저물탁 칸, 4차 명령 자동완성·소지품 이름 Tab). 화면·색·자동완성은 아직 사람이 보지 않음.
+  - 4차 범위 해석 확인: 범위(공법·신통 배우기 + 임의 경지 상승)는 고나가 창호 원문을 해석한 것이고 창호 확인 전.
+  - `(제안)` 검토: docs/spec/system 의 4차 `(제안)` 전부와 리드 판정 L1~L5.
+  - 새 캐릭터는 범인이라 상점(`목록`·`사기`·`팔기`)이 막힘(L1) — 이대로 갈지 확인.
+- 남은 문제:
+  - PostgreSQL enum CHECK: 다음에 이미 있는 enum 열에 값을 더할 때(결단 이후 경지, 신통 종류 등) 그 열의 `<table>_<column>_check` 를 이름으로 지우는 정리를 `LegacySchemaCleaner` 에 더하고 기존 pgdata 로 저장을 확인해야 함(admin-tool.md 규칙). 장차 Flyway 도입 검토.
+  - 관리 툴 경지 지정과 게임 이동의 행 전체 UPDATE 경합(드묾, 받아들임 — platform.md). 고친다면 `designate`/`moveTo` 를 열 하나만 쓰는 JPQL `update` 로.
+  - 5차(전투)에서 현재 수치(기혈 등) 열을 더함(L4).
+  - 서재와 조건이 안 맞는 옥간의 읽기 확인(L2) — 5차 이후.
+  - 청우촌 밖 이동 막힘과 튜토리얼은 미룸.
+- 다음 이터레이션으로 미룬 Minor(최종 리뷰 Minor 6~11, 머지 막지 않음):
+  - `ScrollItem` 이 `technique/required` 에 있어 webapi 어댑터가 required 를 import(`TechniqueDetailResponse`) → `technique/provided` 로 옮기기.
+  - `CharacterTechniqueRepository.existsByCharacterIdAndTechniqueId` 는 테스트만 씀 → 지우거나 이미 익힘 검사에 쓰기.
+  - 테스트 빈틈: 기존 캐릭터 영근 확인 때 시작 방 없음·저장된 방 없어짐(`GameConnectorTest`), 다시 연결하면 소지품 후보가 비는 것(`Terminal.test.tsx`), `dropsStaleBagGradeCheck` 가 clean 전 `BRACELET_LOW` 넣기가 막히는지.
+  - 중복 로직: 경지 읽기·`braceletOpen`(`ItemCommandHandler`·`ShopCommandHandler`·`BaseGameTest.give`), 영근·자질 버림(`StatusMessage.of`·`CultivationTexts.status`).
+  - `보기 <옥간>` 이 `TechniqueFinder.view` 로 익힌 수·담긴 물건까지 셈, `TechniqueQueryService.viewAll` 공법마다 쿼리 둘.
+  - 작은 것: `BaseGameTest.designateRealm` javadoc("커밋하는 테스트에서 쓰지 말 것"), `AdminApiIntegrationTest.manageCharacters` 위치 기반 단언·지우지 않는 캐릭터 주석, index.md `**구현:**` 줄 위치, `CharacterRealmForm` 이중 상태.
+  - 이전 태스크 선택 항목: T1-M2 null 검사 순서, T2-M2 이중 정규화 주석, T2-M3 공법 entity graph 곱, T4-M1 넘은 소지품 줍기·주기 비대칭(스펙 `(제안)` 기록), T9-M4 연체술 자질 증가 무시, T10-M3 `저물대 등급` 라벨(스펙 `(제안)` 기록).
+- 다음 순서: 5차(기본 전투).

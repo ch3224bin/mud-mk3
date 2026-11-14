@@ -30,10 +30,6 @@ public interface TechniqueRepository extends Repository<Technique, Long> {
 
     void delete(Technique technique);
 
-    /** 이 공법이 담긴 아이템 종류 수 */
-    @Query("select count(i) from ItemType i where i.technique.id = :techniqueId")
-    long countScrollItems(Long techniqueId);
-
     /** 이 공법이 담긴 아이템 종류(이름순) */
     @Query("select new mudmk3.application.technique.required.ScrollItem(i.id, i.name) from ItemType i "
             + "where i.technique.id = :techniqueId order by i.name")

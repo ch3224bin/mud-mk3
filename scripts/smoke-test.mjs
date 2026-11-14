@@ -766,7 +766,6 @@ async function run() {
     const help4 = await e.waitFor((m) => m.type === "system" && m.text.startsWith("명령:"), "4차 도움말", mark);
     if (!help4.text.includes("상태(ㅅ) · 공법 · 신통 · 읽기 <물건>")) fail(`도움말에 4차 명령이 없음: ${help4.text}`);
 
-
     console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName}·${merchantName}, 공법 ${springName}·${greenName})`);
   } finally {
     clients.forEach((c) => c.close());

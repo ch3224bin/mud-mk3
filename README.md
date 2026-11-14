@@ -159,7 +159,7 @@ docker compose up --build
 10. `상태` → 연기 7층. `읽기 청목결 옥간` → `청목결 1성에 이르렀습니다!` 와 `새 신통을 깨쳤습니다: 청목전`. `공법` · `신통`(`[장춘공 1성]`·`[청목결 1성]` 머리 아래 신통 줄).
 11. `줍기 저물탁` → `소지품` 에서 `하급 저물탁 (축기 초기 필요)` 줄이 보이고 칸은 그대로 `/22칸`(기본 2칸 + 시작 소지품의 하급 저물대 20칸). 관리 툴에서 경지를 `축기 초기` 로 지정하면 알림이 오고 `소지품` 칸이 `/122칸` 으로 열린다(저물탁 100칸). 시작 소지품을 비워 두었다면 `/2칸` → `/102칸` 이다.
 
-이미 3차까지 띄워 쓰던 `pgdata` 에서 그대로 올려도 된다. `ddl-auto=update` 가 새 테이블(`technique`·`technique_element`·`technique_stage`·`ability`·`ability_element`·`character_spirit_root`·`character_technique`)과 `player_character.realm`·`item_type.technique_id` 열을 더한다. 4차 전 캐릭터는 world-server가 뜰 때 연기 1층으로 채워지고, 다음 접속 때 영근을 한 번 고른다(고르기 전까지 세계에 들어가지 못한다).
+이미 3차까지 띄워 쓰던 `pgdata` 에서 그대로 올려도 된다. `ddl-auto=update` 가 새 테이블(`technique`·`technique_element`·`technique_stage`·`ability`·`ability_element`·`character_spirit_root`·`character_technique`)과 `player_character.realm`·`item_type.technique_id` 열을 더한다. 4차 전 캐릭터는 world-server가 뜰 때 연기 1층으로 채워지고, 다음 접속 때 영근을 한 번 고른다(고르기 전까지 세계에 들어가지 못한다). 3차 PostgreSQL 이 만든 저물대 등급 CHECK(`item_type_bag_grade_check`)는 world-server가 뜰 때 지운다(저물탁 등급 저장을 막기 때문).
 
 ## 되는 명령
 
