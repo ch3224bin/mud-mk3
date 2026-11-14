@@ -129,10 +129,54 @@
         </attributes>
     </entity>
 
+    <entity class="mudmk3.domain.npc.Npc">
+        <table name="npc">
+            <unique-constraint name="UK_NPC_NAME">
+                <column-name>name</column-name>
+            </unique-constraint>
+        </table>
+        <attributes>
+            <basic name="name">
+                <column name="name" length="12" nullable="false"/>
+            </basic>
+            <basic name="greeting">
+                <column name="greeting" length="500" nullable="false"/>
+            </basic>
+            <basic name="defaultAnswer">
+                <column name="default_answer" length="500" nullable="false"/>
+            </basic>
+            <basic name="llmEnabled">
+                <column name="llm_enabled" nullable="false"/>
+            </basic>
+            <!-- 방을 지우면 배치만 풀므로 FK를 두지 않는다 -->
+            <basic name="roomId">
+                <column name="room_id" nullable="true"/>
+            </basic>
+            <!-- 낱말 유일은 도메인이 지킨다. 목록을 통째로 바꿀 때 위치 갱신 순서로 생기는 일시 충돌을 피하려고 DB 유니크 제약은 두지 않는다 -->
+            <element-collection name="topics">
+                <order-column name="position"/>
+                <collection-table name="npc_topic">
+                    <join-column name="npc_id"/>
+                </collection-table>
+            </element-collection>
+        </attributes>
+    </entity>
+
     <embeddable class="mudmk3.domain.character.CharacterName">
         <attributes>
             <basic name="value">
                 <column name="name" length="6" nullable="false"/>
+            </basic>
+        </attributes>
+    </embeddable>
+
+    <embeddable class="mudmk3.domain.npc.NpcTopic">
+        <attributes>
+            <basic name="word">
+                <column name="word" length="20" nullable="false"/>
+            </basic>
+            <basic name="answer">
+                <column name="answer" length="1000" nullable="false"/>
             </basic>
         </attributes>
     </embeddable>
