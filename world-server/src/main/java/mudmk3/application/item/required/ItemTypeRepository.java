@@ -31,4 +31,8 @@ public interface ItemTypeRepository extends Repository<ItemType, Long> {
     /** 그 종류가 든 소지품 묶음 수(수가 0인 묶음은 도메인이 빼므로 남지 않는다) */
     @Query("select count(e) from InventoryEntry e where e.itemType.id = :itemTypeId")
     long countInInventories(Long itemTypeId);
+
+    /** 그 종류가 든 시작 소지품 줄 수 */
+    @Query("select count(w) from WorldSettings w join w.startingItems s where s.itemTypeId = :itemTypeId")
+    long countInStartingItems(Long itemTypeId);
 }

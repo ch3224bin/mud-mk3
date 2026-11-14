@@ -178,6 +178,37 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
                 .hasStatus(HttpStatus.CONFLICT);
     }
 
+    @Test
+    void manageStartingItems() {
+        var itemTypes = assertThat(mvc.get().with(admin()).uri("/api/admin/item-types")).hasStatusOk().bodyJson();
+        long lowStoneId = ((Number) itemTypes.extractingPath("$[0].id").actual()).longValue();
+        long bagId = id(post("/api/admin/item-types", """
+                {"name":"하급 저물대","category":"BAG","baseValue":10,"tradable":true,"bagGrade":"LOW"}"""));
+        long pillId = id(post("/api/admin/item-types", """
+                {"name":"회기단(연기 초)","category":"PILL","baseValue":3,"tradable":true}"""));
+
+        var saved = assertThat(put("/api/admin/world/starting-items", """
+                {"items":[{"itemTypeId":%d,"count":1},{"itemTypeId":%d,"count":30},{"itemTypeId":%d,"count":3}]}"""
+                .formatted(bagId, lowStoneId, pillId))).hasStatusOk().bodyJson();
+        saved.extractingPath("$[*].itemName").asArray().containsExactly("하급 저물대", "하품 영석", "회기단(연기 초)");
+
+        var found = assertThat(mvc.get().with(admin()).uri("/api/admin/world/starting-items")).hasStatusOk().bodyJson();
+        found.extractingPath("$[*].itemName").asArray().containsExactly("하급 저물대", "하품 영석", "회기단(연기 초)");
+        found.extractingPath("$[*].count").asArray().containsExactly(1, 30, 3);
+
+        assertThat(put("/api/admin/world/starting-items", """
+                {"items":[{"itemTypeId":%d,"count":3},{"itemTypeId":%d,"count":2}]}""".formatted(pillId, pillId)))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson().extractingPath("$.detail").isEqualTo("같은 물건이 두 번 있습니다: 회기단(연기 초)");
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(pillId)))
+                .hasStatus(HttpStatus.CONFLICT);
+
+        assertThat(put("/api/admin/world/starting-items", """
+                {"items":[]}""")).hasStatusOk().bodyJson().isStrictlyEqualTo("[]");
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(pillId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+    }
+
     private MvcTestResult post(String uri, String json) {
         return mvc.post().with(admin()).with(clientHeader()).uri(uri).contentType(MediaType.APPLICATION_JSON).content(json).exchange();
     }

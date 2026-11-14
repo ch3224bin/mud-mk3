@@ -8,6 +8,9 @@ import mudmk3.domain.inventory.SaleResult;
 /** 게임 명령으로 캐릭터 소지품을 바꾼다. 검사가 실패하면 아무것도 바꾸지 않는다 */
 public interface InventoryEditor {
 
+    /** 새 캐릭터의 소지품을 만들어 시작 소지품을 그 순서대로 넣고 저장한다. 이미 소지품이 있으면 {@code IllegalStateException} */
+    void createWithStartingItems(Long characterId);
+
     /** 귀속 안 된 물건을 들어가는 만큼만(최대 {@code count}, 1 이상) 넣고 넣은 수를 돌려준다 */
     int addUpTo(Long characterId, Long itemTypeId, int count);
 

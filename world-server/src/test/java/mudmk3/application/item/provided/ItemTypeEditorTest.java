@@ -4,6 +4,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.validation.ConstraintViolationException;
 import mudmk3.ApplicationServiceTest;
 import mudmk3.application.inventory.provided.InventoryEditor;
+import mudmk3.application.world.provided.StartingItemRequest;
+import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.domain.item.BagGrade;
 import mudmk3.domain.item.DuplicateItemTypeNameException;
 import mudmk3.domain.item.ItemCategory;
@@ -21,7 +23,7 @@ import static org.assertj.core.api.Assertions.tuple;
 
 @ApplicationServiceTest
 record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemTypeFinder, InventoryEditor inventoryEditor,
-                          EntityManager entityManager) {
+                          WorldSettingsEditor worldSettingsEditor, EntityManager entityManager) {
 
     @Test
     void spiritStonesSeeded() {
@@ -219,6 +221,30 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
         assertThatThrownBy(() -> itemTypeEditor.update(bag.getId(),
                 createItemTypeSaveRequest("하급 저물대", ItemCategory.BAG, 10, BagGrade.HIGH)))
                 .isInstanceOf(ItemTypeInUseException.class);
+    }
+
+    @Test
+    void deleteItemTypeInStartingItemsFail() {
+        ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        worldSettingsEditor.replaceStartingItems(List.of(new StartingItemRequest(itemType.getId(), 3)));
+
+        assertThatThrownBy(() -> itemTypeEditor.delete(itemType.getId()))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 지울 수 없습니다: 회춘단");
+        assertThatThrownBy(() -> itemTypeEditor.update(itemType.getId(), createItemTypeSaveRequest("회춘단", ItemCategory.MATERIAL, 3)))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 종류·저물대 등급을 바꿀 수 없습니다: 회춘단");
+    }
+
+    @Test
+    void deleteItemTypeRemovedFromStartingItems() {
+        ItemType itemType = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        worldSettingsEditor.replaceStartingItems(List.of(new StartingItemRequest(itemType.getId(), 3)));
+        worldSettingsEditor.replaceStartingItems(List.of());
+
+        itemTypeEditor.delete(itemType.getId());
+
+        assertThat(itemTypeFinder.findAllById(List.of(itemType.getId()))).isEmpty();
     }
 
     @Test

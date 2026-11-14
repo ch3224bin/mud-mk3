@@ -6,7 +6,9 @@ import mudmk3.domain.item.ItemType;
 import mudmk3.domain.item.ItemTypeFixture;
 import org.junit.jupiter.api.Test;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.SequencedMap;
 
 import static mudmk3.domain.inventory.InventoryFixture.createInventory;
 import static mudmk3.domain.inventory.InventoryFixture.stone;
@@ -48,6 +50,34 @@ class InventoryTest {
         assertThat(inventory.capacity()).isEqualTo(22);
         assertThat(inventory.usedSlots()).isZero();
         assertThat(inventory.bagCount()).isEqualTo(1);
+    }
+
+    @Test
+    void addAllAtOnce() {
+        Inventory inventory = createInventory();
+        SequencedMap<ItemType, Integer> items = new LinkedHashMap<>();
+        items.put(pill, 3);
+        items.put(sword, 1);
+        items.put(lowStone, 30);
+        items.put(bag, 1);
+
+        inventory.addAll(items);
+
+        assertThat(inventory.usedSlots()).isEqualTo(3);
+        assertThat(inventory.capacity()).isEqualTo(22);
+        assertThat(inventory.getEntries()).extracting(InventoryEntry::getItemType, InventoryEntry::getCount, InventoryEntry::isBound)
+                .containsExactly(tuple(lowStone, 30, false), tuple(pill, 3, false), tuple(sword, 1, false), tuple(bag, 1, false));
+    }
+
+    @Test
+    void addAllNoRoomFail() {
+        Inventory inventory = createInventory();
+        SequencedMap<ItemType, Integer> items = new LinkedHashMap<>();
+        items.put(pill, 3);
+        items.put(sword, 2);
+
+        assertThatThrownBy(() -> inventory.addAll(items)).isInstanceOf(IllegalStateException.class);
+        assertThat(inventory.getEntries()).isEmpty();
     }
 
     @Test

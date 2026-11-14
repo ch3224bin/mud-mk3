@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SequencedMap;
 
 import static java.util.Objects.requireNonNull;
 import static org.springframework.util.Assert.state;
@@ -119,6 +120,21 @@ public class Inventory extends AbstractEntity {
         state(!bound || !itemType.isSpiritStone(), "영석은 귀속할 수 없습니다.");
         Changes changes = new Changes().add(itemType, bound, count);
         state(checkAdd(changes) == AddCheck.OK, () -> "소지품에 넣을 수 없습니다: " + itemType.getName());
+        apply(changes);
+    }
+
+    /**
+     * 귀속 안 된 물건 여럿을 그 순서대로 한 번에 넣는다(시작 소지품). 다 넣은 뒤의 칸으로 한 번만 검사하므로
+     * 저물대가 뒤에 있어도 된다. 다 들어가지 않으면 {@code IllegalStateException} 이고 아무것도 넣지 않는다
+     */
+    public void addAll(SequencedMap<ItemType, Integer> items) {
+        requireNonNull(items);
+        Changes changes = new Changes();
+        items.forEach((itemType, count) -> {
+            requirePositive(requireNonNull(count));
+            changes.add(itemType, false, count);
+        });
+        state(checkAdd(changes) == AddCheck.OK, "소지품에 다 넣을 수 없습니다.");
         apply(changes);
     }
 

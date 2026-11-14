@@ -91,6 +91,13 @@
             <many-to-one name="startRoom" fetch="LAZY">
                 <join-column name="start_room_id" nullable="true"/>
             </many-to-one>
+            <!-- 물건 종류는 id로만 갖는다(FK 없음, 쓰이는 종류는 지우지 못하게 서비스가 막는다). 같은 물건 두 줄 금지는 도메인이 지킨다 -->
+            <element-collection name="startingItems">
+                <order-column name="position"/>
+                <collection-table name="world_starting_item">
+                    <join-column name="world_settings_id"/>
+                </collection-table>
+            </element-collection>
         </attributes>
     </entity>
 
@@ -255,6 +262,17 @@
             </basic>
             <basic name="answer">
                 <column name="answer" length="1000" nullable="false"/>
+            </basic>
+        </attributes>
+    </embeddable>
+
+    <embeddable class="mudmk3.domain.world.StartingItem">
+        <attributes>
+            <basic name="itemTypeId">
+                <column name="item_type_id" nullable="false"/>
+            </basic>
+            <basic name="count">
+                <column name="count" nullable="false"/>
             </basic>
         </attributes>
     </embeddable>

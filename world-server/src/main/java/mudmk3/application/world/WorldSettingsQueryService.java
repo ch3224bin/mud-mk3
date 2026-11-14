@@ -5,9 +5,11 @@ import mudmk3.application.room.provided.RoomFinder;
 import mudmk3.application.world.provided.WorldSettingsFinder;
 import mudmk3.application.world.required.WorldSettingsRepository;
 import mudmk3.domain.room.Room;
+import mudmk3.domain.world.StartingItem;
 import mudmk3.domain.world.WorldSettings;
 import mudmk3.support.stereotype.ApplicationService;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -32,5 +34,13 @@ public class WorldSettingsQueryService implements WorldSettingsFinder {
                 .flatMap(WorldSettings::findStartRoom)
                 .map(room -> roomId.equals(room.getId()))
                 .orElse(false);
+    }
+
+    @Override
+    public List<StartingItem> findStartingItems() {
+        // 요소 컬렉션은 LAZY라 트랜잭션 안에서 복사해 돌려준다(REST 응답은 트랜잭션 밖에서 만든다)
+        return worldSettingsRepository.findFirstByOrderByIdAsc()
+                .map(settings -> List.copyOf(settings.getStartingItems()))
+                .orElse(List.of());
     }
 }

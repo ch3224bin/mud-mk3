@@ -7,6 +7,7 @@ import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
 import mudmk3.application.character.provided.WorldNotReadyException;
 import mudmk3.application.character.required.CharacterRepository;
+import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.world.provided.WorldSettingsFinder;
 import mudmk3.domain.character.CharacterAlreadyExistsException;
 import mudmk3.domain.character.CharacterCreateInfo;
@@ -28,6 +29,7 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover 
     private final CharacterRepository characterRepository;
     private final AccountFinder accountFinder;
     private final WorldSettingsFinder worldSettingsFinder;
+    private final InventoryEditor inventoryEditor;
 
     @Override
     public PlayerCharacter create(Long accountId, String name) {
@@ -42,8 +44,11 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover 
         Room startRoom = worldSettingsFinder.findStartRoom()
                 .orElseThrow(() -> new WorldNotReadyException(
                         "아직 세계가 열리지 않았습니다. 관리자가 시작 방을 정해야 합니다."));
-        return characterRepository.save(PlayerCharacter.create(
+        PlayerCharacter character = characterRepository.save(PlayerCharacter.create(
                 new CharacterCreateInfo(accountId, characterName, requireNonNull(startRoom.getId()))));
+        // 같은 트랜잭션에서 시작 소지품을 준다(바꾼 시작 소지품은 그 뒤 만드는 캐릭터부터 받는다)
+        inventoryEditor.createWithStartingItems(requireNonNull(character.getId()));
+        return character;
     }
 
     @Override
