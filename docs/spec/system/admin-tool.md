@@ -283,17 +283,20 @@ admin-console은 정적 export이고, 경로는 쿼리스트링으로 id를 받�
 - 종류: `ATTACK` 공격 · `AREA_ATTACK` 범위 공격 · `DEFENSE` 방어 · `EVASION` 회피 · `HEALING` 치료 · `ESCAPE` 둔술 · `DETECTION` 탐지 · `STEALTH` 은신 · `CONCEALMENT` 렴기 · `BUFF` 보조(룰북 종류 그대로). (제안)
 - 속성: 오행 0~5개, 또는 연체(`bodyRefining=true`, 이때 오행은 비어야 함). 룰북의 종류 '연체술 공격'(철권)은 `ATTACK` + `bodyRefining=true` 로 정의한다. (제안)
 - 대상: `SELF` 자신 · `SINGLE` 한 대상 · `ALL_ENEMIES` 방의 모든 적(룰북). (제안)
-- 소모: 스탯(`NONE` 없음 · `MANA` 법력 · `SENSE` 의식 · `ESSENCE` 정혈), 양(0 초과, 소수 첫째 자리까지, 없음이면 0), 틱마다 여부. 연체술 공법의 신통은 법력을 소모할 수 없다(룰북 [스탯 분류](../game-rule/stats.md#스탯-분류)). 은신처럼 '회복량의 1.5배' 같은 식으로 정하는 소모는 4차에 없다(신통 쓰기가 생길 때). (제안)
+- 소모: 스탯(`NONE` 없음 · `MANA` 법력 · `SENSE` 의식 · `ESSENCE` 정혈), 양(0 초과 10,000 이하, 소수 첫째 자리까지, 없음이면 0), 틱마다 여부. 연체술 공법의 신통은 법력을 소모할 수 없다(룰북 [스탯 분류](../game-rule/stats.md#스탯-분류)). 은신처럼 '회복량의 1.5배' 같은 식으로 정하는 소모는 4차에 없다(신통 쓰기가 생길 때). (제안)
 - 시전 시간 0~60초, 재사용 대기시간 0.1~3,600초(소수 첫째 자리까지. 룰북: 모든 신통에 있다). (제안)
 - 쓸 수 있는 때: `COMBAT_ONLY` 전투 중만 · `ANYTIME` 전투 밖에도(룰북). (제안)
 - **4차에 없는 항목:** 단계별 값(기본 위력·신통 계수·둔술 배율·은신/렴기 계수·지속 시간). 신통 쓰기·전투가 생길 때 더한다. (제안)
 - 한 공법의 신통은 1~30개. (제안)
+- **검사 순서와 예약어(구현 기준):** 공법은 이름(앞뒤 공백을 자른 뒤 공백 없음·1~12자) → 묘사 500자 → 같은 속성 두 번 → 단계 수 → 단계마다 1성부터(1성 필요 깨달음 → 2성 이후 범위 → 나눔 → 연체술의 자질 조건·증가 → 오행공법의 육신·근력 → 그 밖의 범위, 범위 칸 순서 `자질 조건`·`법력`·`의식`·`영력`·`정혈`·`육신`·`근력`·`영근 자질`) → 신통 수 → 신통마다 → 1성 신통 있음 순으로 보고 처음 걸린 것만 알린다. 신통은 이름 규칙 → 한 공법 안 중복 → 예약어 → 배우는 단계 → 같은 속성 두 번 → 연체 신통에 오행 → 연체술 공법의 법력 소모 → 소수 둘째 자리 → `NONE` 인데 양 ≠ 0 → 소모가 있는데 양 ≤ 0 → 소모 양 > 10,000 → 시전 시간 → 재사용 대기시간 순이다. 이름 중복(409)은 도메인 규칙(400)보다 먼저 본다. 예약어는 룰북 명령어의 첫 낱말(명령·줄임말·방위, 4차에 없는 명령 포함) 104개이고 영문은 대소문자를 무시한다. 신통 이름 DB 유니크 제약은 두지 않는다(공법을 통째로 바꿀 때 순서 충돌을 피하려는 것, 3차 `npc_topic` 과 같다). (제안)
+- 소모 양 상한: 소모 양은 0.1~10,000이다(`numeric(8,1)` 에 들어가고 현실의 소모는 이보다 작다). 룰북에 아직 없음. (제안)
 
 ### 옥간·서책의 담긴 공법
 
 - 종류가 `SCROLL`(옥간·서책)인 아이템 종류에 `담긴 공법`(공법 하나 또는 없음)을 더한다. 다른 종류에 두면 400이다. 한 공법을 여러 아이템 종류(옥간·서책 따로)에 담을 수 있다. 제작법을 담는 것은 제작이 생길 때 더한다. (제안)
 - 담긴 공법은 언제든 바꿀 수 있다. 이미 누가 가진 그 옥간도 다음 `읽기` 부터 바뀐 공법을 담는다. 담긴 공법이 있는 아이템 종류의 종류를 바꾸려면 먼저 담긴 공법을 빼야 한다(400). 3차의 '쓰이는 물건의 종류 바꾸기 409' 는 그대로다. (제안)
 - 공법이 담긴 아이템 종류가 있으면 그 공법을 지울 수 없다(409). 공법 쪽에서 세어 `technique → item` 의존을 만들지 않는다(2차 `FactionRepository.countZones` 관례). (제안)
+- 아이템 종류를 저장할 때 검사 순서는 없는 공법(400) → 이름 중복(409) → 쓰이는 종류의 종류 바꾸기(409) → 도메인 규칙(공법은 옥간·서책에만, 400)이다. 담긴 물건이 있어 공법을 지울 수 없을 때 409 문구가 부르는 이름은 이름순 첫째다(`장춘공 서책` 이 `장춘공 옥간` 보다 먼저). (제안)
 
 ### 저물탁
 
@@ -322,6 +325,7 @@ admin-console은 정적 export이고, 경로는 쿼리스트링으로 id를 받�
 - `/item/`: 종류가 `옥간·서책` 일 때만 `담긴 공법`(선택, 첫 항목 `없음` + 공법 이름순). 등급 선택은 종류가 `저물대·저물탁` 일 때 보이고 항목이 `하급 저물대 (20칸)` · `중급 저물대 (40칸)` · `상급 저물대 (80칸)` · `하급 저물탁 (100칸)` · `중급 저물탁 (200칸)` · `상급 저물탁 (400칸)` 이다. `/items/` 목록에 `담긴 공법` 열(없으면 `-`). (제안)
 - `/characters/` 캐릭터 목록(이름·경지·영근(`목·화 진영근`, 없으면 `미정`)·익힌 공법 수·접속(`접속 중` 또는 `-`)), 이름 링크 → `/character/?id=`. (제안)
 - `/character/?id=3`: 이름, 영근(읽기 전용 `목·화 진영근 (목 50, 화 50)`, 없으면 `아직 정하지 않음`), `경지`(선택) + `경지 지정` 버튼(확인 없이 바로 저장, 성공 `경지를 지정했습니다.`), 안내 `수위·돌파 없이 경지를 바로 바꿉니다. 스탯은 새 경지 값이 되고 바로 다 찹니다.`, 스탯 표(기혈·법력·의식·정혈·영력 최대치, 육신·근력, 저장 후 다시 그림), 익힌 공법 표(이름 링크 → `/technique/?id=`, `1/9성`, 없으면 `없음`). 다른 값은 고칠 수 없다. (제안)
+- 구현 세부 (제안): `단계 수` 는 숫자 입력이 아니라 1~12 선택이다(입력 중간 값 때문에 행이 사라지지 않게). 새 공법은 9성·신통 없음으로 열린다. `신통 추가` 는 30개에서 비활성이다. 단계 수를 신통의 `배우는 단계` 아래로 줄이면 그 행은 값을 그대로 두고 저장 때 서버 400을 보인다. 숫자 칸의 빈 값은 0으로 보낸다. `담긴 공법` 선택은 클라이언트에서도 이름순이고 현재 공법이 목록에 없으면 `techniqueName` 으로 보인다. 등급 선택의 라벨은 3차 그대로 `저물대 등급` 이다. 신통의 `연체` 와 오행 체크는 서로 지우지 않고 서버가 걸러 낸다. 캐릭터 상세의 스탯 표 행은 `기혈 최대치`·`법력 최대치`·`의식 최대치`·`정혈 최대치`·`영력 최대치`·`육신`·`근력` 이고, 숫자가 아닌 id나 없는 id는 `캐릭터를 찾을 수 없습니다.` 를 보인다.
 
 ## 4차 REST API
 
@@ -342,12 +346,12 @@ admin-console은 정적 export이고, 경로는 쿼리스트링으로 id를 받�
 
 - 요청·응답 모양 (제안):
   - `RealmResponse {code, name}` — `code` 는 경지 enum 이름(`MORTAL`, `QI_1` … `QI_13`, `FOUNDATION_EARLY` · `FOUNDATION_MIDDLE` · `FOUNDATION_LATE` · `FOUNDATION_PEAK`), `name` 은 `범인`·`연기 1층`·`축기 초기` 같은 화면 이름.
-  - `TechniqueSaveRequest {name, description, elements: string[], startRealm, stages: [{insightRequired, aptitudeRequired, manaBonus, senseBonus, spiritBonus, essenceBonus, bodyBonus, strengthBonus, aptitudeGain}], abilities: [{name, learnStage, kind, elements: string[], bodyRefining, target, costStat, costAmount, costPerTick, castSeconds, cooldownSeconds, usableWhen}]}` — `stages[0]` 이 1성이고 길이가 단계 수다. 숫자 칸이 빠지면 0, `elements` 가 빠지면 빈 목록이다.
+  - `TechniqueSaveRequest {name, description, elements: string[], startRealm, stages: [{insightRequired, aptitudeRequired, manaBonus, senseBonus, spiritBonus, essenceBonus, bodyBonus, strengthBonus, aptitudeGain}], abilities: [{name, learnStage, kind, elements: string[], bodyRefining, target, costStat, costAmount, costPerTick, castSeconds, cooldownSeconds, usableWhen}]}` — `stages[0]` 이 1성이고 길이가 단계 수다. 숫자 칸이 빠지면 0, `elements` 가 빠지면 빈 목록이다. 신통의 `bodyRefining`·`costPerTick` 은 꼭 보낸다(빠지면 공통 400 `요청 본문을 읽을 수 없습니다`, '빠지면 0' 은 숫자 칸에만 적용).
   - `TechniqueSummaryResponse {id, name, elements, elementNames, lineName, startRealm, startRealmName, stageCount, abilityCount, learnerCount}` — `elementNames` 는 `목`·`화·토`(없으면 null), `lineName` 은 `오행`·`연체술`.
-  - `TechniqueDetailResponse` = 저장 칸 전부 + `id, lineName, startRealmName, learnerCount, scrollItems: [{id, name}]`. 신통에 `kindName`, `targetName` 을 더한다.
+  - `TechniqueDetailResponse` = 저장 칸 전부 + `id, elementNames, lineName, startRealmName, learnerCount, scrollItems: [{id, name}]`(`elementNames` 는 요약과 같은 모양, 룰북에 아직 없음). 신통에 `kindName`, `targetName` 을 더한다.
   - `ItemTypeResponse` 에 `techniqueId, techniqueName`(없으면 null)을 더한다. `bagGradeName` 은 `하급 저물대`·`하급 저물탁` 처럼 저물대·저물탁을 붙인 이름이 된다.
   - `CharacterSummaryResponse {id, name, realm, realmName, spiritRootName, techniqueCount, online}` — `spiritRootName` 은 `목·화 진영근`(정하지 않았으면 null), `online` 은 지금 접속해 세계에 있는지(메모리 presence).
-  - `CharacterDetailResponse {id, name, realm, realmName, spiritRoot: {name, roots: [{element, elementName, aptitude}]} | null, stats: {qiBlood, mana, sense, essence, spirit, body, strength}, techniques: [{id, name, stage, stageCount}]}` — `aptitude` 는 처음 자질 + 공법 증가(소수), `stats` 는 최대치(정수), `techniques` 는 익힌 순서.
+  - `CharacterDetailResponse {id, name, realm, realmName, spiritRoot: {name, roots: [{element, elementName, aptitude}]} | null, stats: {qiBlood, mana, sense, essence, spirit, body, strength}, techniques: [{id, name, stage, stageCount}]}` — `aptitude` 는 처음 자질 + 공법 증가(소수). 관리 화면은 룰북·`상태` 처럼 소수점을 버려 보인다(`52`), `stats` 는 최대치(정수), `techniques` 는 익힌 순서.
 - 예외 문구 (제안):
 
 | 경우 | 상태 | `detail` |
@@ -375,6 +379,7 @@ admin-console은 정적 export이고, 경로는 쿼리스트링으로 id를 받�
 | 단계 수를 익힌 단계 아래로 | 409 | `이 공법을 더 높은 단계까지 익힌 캐릭터가 있어 단계 수를 줄일 수 없습니다.` |
 | 익힌 캐릭터가 있는 공법 삭제 | 409 | `익힌 캐릭터가 있는 공법은 지울 수 없습니다: 장춘공` |
 | 담긴 물건이 있는 공법 삭제 | 409 | `이 공법이 담긴 물건이 있어 지울 수 없습니다: 장춘공 옥간` |
+| 소모 양 범위 | 400 | `소모 양은 0.1~10,000으로 정하십시오: 화탄술` |
 | 옥간·서책이 아닌 종류에 담긴 공법 / 담긴 공법이 있는데 종류 바꾸기 | 400 | `공법은 옥간·서책에만 담을 수 있습니다.` |
 | 시작 소지품 저물탁 2개 이상 | 400 | `저물탁은 하나까지만 찰 수 있습니다.` |
 | 없는 캐릭터 | 400 | `캐릭터를 찾을 수 없습니다. id: 9` |
