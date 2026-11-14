@@ -23,8 +23,10 @@ import static java.util.Objects.requireNonNull;
  *   <li>{@code inventory_entry.bound}(귀속): 같은 (inventory_id, item_type_id) 행을 수를 더해 가장 작은 id 한 행으로 합친 뒤,
  *       그 열이 든 유니크 제약과 열을 지운다</li>
  *   <li>{@code item_type.tradable}(거래 가능): 열을 지운다</li>
+ *   <li>{@code item_type_bag_grade_check}: 3차 PostgreSQL 에서 Hibernate 가 만든 저물대 등급 CHECK(LOW·MIDDLE·HIGH 만).
+ *       {@code ddl-auto: update} 는 CHECK 를 고치지 않아 4차 저물탁 등급({@code BRACELET_*}) 저장을 막으므로 지운다</li>
  * </ul>
- * 옛 열이 없으면 아무것도 하지 않으므로 몇 번 돌려도 같다. 영석 심기({@code ApplicationReadyEvent})보다 먼저 돈다
+ * 옛 열·제약이 없으면 아무것도 하지 않으므로 몇 번 돌려도 같다. 영석 심기({@code ApplicationReadyEvent})보다 먼저 돈다
  */
 @Slf4j
 @Adapter
@@ -35,6 +37,16 @@ public class LegacySchemaCleaner implements SmartInitializingSingleton {
     private static final String BOUND = "bound";
     private static final String ITEM_TYPE = "item_type";
     private static final String TRADABLE = "tradable";
+    private static final String BAG_GRADE_CHECK = "item_type_bag_grade_check";
+
+    private static final String CHECK_CONSTRAINTS_NAMED = """
+            SELECT constraint_name
+              FROM information_schema.table_constraints
+             WHERE constraint_type = 'CHECK'
+               AND LOWER(table_schema) = LOWER(?)
+               AND LOWER(table_name) = ?
+               AND LOWER(constraint_name) = ?
+            """;
 
     private static final String MERGE_COUNTS = """
             UPDATE inventory_entry e
@@ -71,7 +83,7 @@ public class LegacySchemaCleaner implements SmartInitializingSingleton {
         clean();
     }
 
-    /** 옛 열을 지운다. 지울 것이 없으면 아무것도 하지 않는다 */
+    /** 옛 열·제약을 지운다. 지울 것이 없으면 아무것도 하지 않는다 */
     public void clean() {
         transactionTemplate.executeWithoutResult(_ -> {
             if (hasColumn(INVENTORY_ENTRY, BOUND)) {
@@ -86,6 +98,10 @@ public class LegacySchemaCleaner implements SmartInitializingSingleton {
             if (hasColumn(ITEM_TYPE, TRADABLE)) {
                 jdbcTemplate.execute("ALTER TABLE " + ITEM_TYPE + " DROP COLUMN " + TRADABLE);
                 log.info("옛 거래 가능 열을 지웠습니다.");
+            }
+            for (String constraint : checkConstraintsNamed(ITEM_TYPE, BAG_GRADE_CHECK)) {
+                jdbcTemplate.execute("ALTER TABLE " + ITEM_TYPE + " DROP CONSTRAINT " + quote(constraint));
+                log.info("옛 저물대 등급 CHECK 제약을 지웠습니다.");
             }
         });
     }
@@ -109,6 +125,11 @@ public class LegacySchemaCleaner implements SmartInitializingSingleton {
     private List<String> uniqueConstraintsWith(String table, String column) {
         String schema = requireNonNull(jdbcTemplate.execute((ConnectionCallback<String>) connection -> connection.getSchema()));
         return jdbcTemplate.queryForList(UNIQUE_CONSTRAINTS_WITH_COLUMN, String.class, schema, table, column);
+    }
+
+    private List<String> checkConstraintsNamed(String table, String constraint) {
+        String schema = requireNonNull(jdbcTemplate.execute((ConnectionCallback<String>) connection -> connection.getSchema()));
+        return jdbcTemplate.queryForList(CHECK_CONSTRAINTS_NAMED, String.class, schema, table, constraint);
     }
 
     private static String quote(String identifier) {

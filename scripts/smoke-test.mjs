@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// compose 로 띄운 세 서비스(world-server)에 대고 1차·2차·3차 시나리오를 자동으로 확인한다.
+// compose 로 띄운 세 서비스(world-server)에 대고 1~4차 시나리오를 자동으로 확인한다.
 // 사용: node scripts/smoke-test.mjs [baseUrl=http://localhost:8080]
 // 전제: world-server 가 SPRING_PROFILES_ACTIVE=local, MUD_DEV_LOGIN_ENABLED=true 로 떠 있고
 //       MUD_ADMIN_EMAILS 에 관리자 이메일(기본 smoke-admin@example.com, 바꾸려면 SMOKE_ADMIN_EMAIL)이 들어 있다.
 // Node 26 내장 fetch·WebSocket 만 쓴다(의존성 없음). 실패하면 무엇이 기대와 달랐는지 출력하고 종료 코드 1.
 // 실행마다 지역·플레이어 이메일·캐릭터 이름·성·종문·NPC·아이템 종류 이름에 실행 번호를 섞는다. 만든 데이터는 지우지 않는다.
 // 시작 소지품은 3차 단계에서 바꾸고 끝에(실패해도) 처음 값으로 되돌린다. 시작 방은 그 실행의 광장으로 남는다.
+// 4차: 새 캐릭터는 범인이라 상점 단계 전에 관리 API로 C를 연기 1층으로 지정한다. 공법·옥간·저물탁 이름에도 실행 번호를 섞는다.
 
 const baseUrl = (process.argv[2] ?? "http://localhost:8080").replace(/\/$/, "");
 const wsUrl = baseUrl.replace(/^http/, "ws") + "/ws/game";
@@ -26,12 +27,19 @@ const nameA = "갑사" + randomHangul() + randomHangul();
 const nameB = "을사" + randomHangul() + randomHangul();
 const nameC = "병사" + randomHangul() + randomHangul();
 const nameD = "정사" + randomHangul() + randomHangul();
+const nameE = "무사" + randomHangul() + randomHangul();
 // 3차 아이템 종류·상점 NPC. 숫자로 끝나는 이름은 조사 규칙상 받침 없음(회춘단123456는·를·와·가)
 const bagName = `하급 저물대${runNo}`;
 const pillName = `회춘단${runNo}`;
 const hideName = `늑대 가죽${runNo}`;
 const swordName = `비검${runNo}`;
 const merchantName = `상인${runNo}`;
+// 4차 공법·옥간·저물탁(공법·신통 이름은 띄어쓰기 없이 12자까지)
+const springName = `장춘공${runNo}`;
+const greenName = `청목결${runNo}`;
+const springScrollName = `${springName} 옥간`;
+const greenScrollName = `${greenName} 옥간`;
+const braceletName = `하급 저물탁${runNo}`;
 
 class SmokeFailure extends Error {}
 
@@ -153,15 +161,27 @@ class GameClient {
   }
 }
 
+// command.md 4차 도움말(D76)
+const HELP_4 = "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말]"
+  + " · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건>"
+  + " · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량]"
+  + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건>"
+  + " · 확인 · 취소 · 누구 · 도움말 · 종료";
+
 const isRoom = (roomName) => (m) => m.type === "room" && m.room?.name === roomName;
 const isNotice = (event, actor) => (m) => m.type === "notice" && m.event === event && m.actor === actor;
 
-async function createCharacter(client, name) {
+const ROOT_PROMPT = "영근을 고르십시오.";
+
+/** 이름 → 영근 → 확인. 4차부터 이름 확인 단계 없이 영근을 고른다 */
+async function createCharacter(client, name, roots = "목 화") {
   await client.opened;
   await client.waitFor((m) => m.type === "session" && m.state === "creating", "session(creating)");
   await client.waitFor((m) => m.type === "prompt" && m.text.startsWith("이름을 정하십시오"), "이름 prompt");
   let mark = client.send(name);
-  await client.waitFor((m) => m.type === "prompt" && m.text.startsWith(`이름 ${name}`), "이름 확인 prompt", mark);
+  await client.waitFor((m) => m.type === "prompt" && m.text.startsWith(ROOT_PROMPT), "영근 prompt", mark);
+  mark = client.send(roots);
+  await client.waitFor((m) => m.type === "prompt" && m.text.startsWith("목·화 진영근 — 목 50, 화 50"), "영근 확인 prompt", mark);
   mark = client.send("확인");
   await client.waitFor((m) => m.type === "session" && m.state === "playing" && m.characterName === name,
     `session(playing, ${name})`, mark);
@@ -171,7 +191,7 @@ async function createCharacter(client, name) {
 // ---- 시나리오 ----
 
 async function run() {
-  console.log(`스모크 테스트 ${baseUrl} (실행 번호 ${runId}, 관리자 ${adminEmail}, 캐릭터 ${nameA}·${nameB}·${nameC}·${nameD})`);
+  console.log(`스모크 테스트 ${baseUrl} (실행 번호 ${runId}, 관리자 ${adminEmail}, 캐릭터 ${nameA}·${nameB}·${nameC}·${nameD}·${nameE})`);
   const clients = [];
   let admin = null;
   let originalStartingItems = null;
@@ -377,7 +397,7 @@ async function run() {
       api(admin, "POST", "/api/admin/item-types",
         { name, description, category, baseValue, bagGrade }, { expect: 201 });
     const bag = await itemType(bagName, "BAG", 30, { bagGrade: "LOW" });
-    if (bag.categoryName !== "저물대" || bag.bagGradeName !== "하급" || bag.bagSlots !== 20) {
+    if (bag.categoryName !== "저물대·저물탁" || bag.bagGradeName !== "하급 저물대" || bag.bagSlots !== 20) {
       fail(`저물대 응답이 다름: ${JSON.stringify(bag)}`);
     }
     const pill = await itemType(pillName, "PILL", 3);
@@ -469,6 +489,13 @@ async function run() {
       }
       return msg;
     };
+    /** 보낸 명령 뒤 처음 오는 system 메시지의 tone 만 확인하고 돌려준다 */
+    const expectSystemTone = async (client, input, tone) => {
+      const m = client.send(input);
+      const msg = await client.waitFor((x) => x.type === "system", `${client.label} ${input} system`, m);
+      if (msg.tone !== tone) fail(`${client.label} ${input} tone 이 ${tone} 이 아님: ${JSON.stringify(msg)}`);
+      return msg;
+    };
 
     step(`21. C 보기·줍기·버리기·물건 보기 — D가 pick·drop 알림을 받음`);
     const floorLook = async () => {
@@ -487,7 +514,23 @@ async function run() {
     if (!items.some((i) => i.name === hideName && i.count === 2)) fail(`광장 바닥 ${hideName} 이 2(배치 1 + 버린 1)가 아님: ${JSON.stringify(items)}`);
     await expectSystem(c, `보기 ${hideName}`, `${hideName} — 거칠고 질긴 늑대의 가죽이다.`, "item");
 
-    step(`22. C 목록·사기·팔기·값 — 영석 30 → 24 → 25, 재료는 단약방이 사지 않음`);
+    step(`22. 관리자가 C를 연기 1층으로 지정(growth 알림) → C 목록·사기·팔기·값 — 영석 30 → 24 → 25, 재료는 단약방이 사지 않음`);
+    const characterNamed = async (name) => {
+      const found = (await api(admin, "GET", "/api/admin/characters")).find((ch) => ch.name === name);
+      if (!found) fail(`캐릭터 목록에 ${name} 이 없음`);
+      return found;
+    };
+    /** 관리자가 경지를 지정하고 그 캐릭터가 받은 growth 알림 문구를 확인한다 */
+    const designate = async (client, name, realm, expectedText) => {
+      const character = await characterNamed(name);
+      const m = client.mark();
+      const detail = await api(admin, "PUT", `/api/admin/characters/${character.id}/realm`, { realm });
+      if (detail.realm !== realm) fail(`${name} 경지 지정 응답이 ${realm} 이 아님: ${JSON.stringify(detail)}`);
+      const notice = await client.waitFor((x) => x.type === "system" && x.tone === "growth", `${client.label} 경지 알림`, m);
+      if (notice.text !== expectedText) fail(`${client.label} 경지 알림이 다름. 기대 ${JSON.stringify(expectedText)}, 실제 ${JSON.stringify(notice.text)}`);
+      return detail;
+    };
+    await designate(c, nameC, "QI_1", "경지가 연기 1층으로 바뀌었습니다. (육신 +5, 근력 +2, 영력 +5, 의식 +10, 정혈 +10)");
     mark = c.send("목록");
     const shopList = await c.waitFor((m) => m.type === "system", "목록", mark);
     if (!shopList.text.includes(`[${merchantName} 단약방]`) || !shopList.text.includes(`  1. ${pillName}  3`)
@@ -518,9 +561,7 @@ async function run() {
     await expectSystem(c, `주기 없는사람 ${pillName}`, "여기에 없는사람은 없습니다.", "error");
     mark = c.send("도움말");
     const help3 = await c.waitFor((m) => m.type === "system" && m.text.startsWith("명령:"), "3차 도움말", mark);
-    if (!help3.text.includes("주기 <대상> <물건> [수량]") || help3.text.includes("귀속")) {
-      fail(`도움말에 주기가 없거나 귀속이 남아 있음: ${help3.text}`);
-    }
+    if (help3.text !== HELP_4) fail(`도움말이 4차 문구와 다름: ${JSON.stringify(help3.text)}`);
 
     step("25. 관리자 — 시작 소지품을 처음 값으로 되돌림");
     const restored = await api(admin, "PUT", "/api/admin/world/starting-items", { items: originalStartingItems });
@@ -528,9 +569,205 @@ async function run() {
     if (JSON.stringify(restoredItems) !== JSON.stringify(originalStartingItems)) {
       fail(`시작 소지품이 처음 값으로 돌아가지 않음: ${JSON.stringify(restored)}`);
     }
+    // 시작 소지품이 비어 있으면(정리 뒤 기본값) E는 기본 2칸이다(단계 34)
+    const startingItemsEmpty = originalStartingItems.length === 0;
     originalStartingItems = null;
 
-    console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName}·${merchantName})`);
+    // ---- 4차 ----
+    step(`26. 관리자 — 공법 ${springName}(범인부터 9성)·${greenName}(연기 7층부터 8성), 명령어 이름 신통 400, 경지 목록 18`);
+    const stage = (insightRequired, values = {}) => ({
+      insightRequired, aptitudeRequired: 0, manaBonus: 0, senseBonus: 0, spiritBonus: 0, essenceBonus: 0,
+      bodyBonus: 0, strengthBonus: 0, aptitudeGain: 0, ...values,
+    });
+    const ability = (name, learnStage, kind, elements, target, costAmount, cooldownSeconds, usableWhen) => ({
+      name, learnStage, kind, elements, bodyRefining: false, target, costStat: "MANA", costAmount,
+      costPerTick: false, castSeconds: 0, cooldownSeconds, usableWhen,
+    });
+    // technique.md 장춘공 단계 표(법력·의식·영력·목영근 자질)
+    const springStages = [
+      stage(0),
+      stage(120, { manaBonus: 2, senseBonus: 1, aptitudeGain: 1 }),
+      stage(190, { manaBonus: 2, aptitudeGain: 1 }),
+      stage(280, { manaBonus: 2, senseBonus: 1, aptitudeGain: 1 }),
+      stage(400, { manaBonus: 2, spiritBonus: 1, aptitudeGain: 1 }),
+      stage(560, { manaBonus: 2, senseBonus: 1, aptitudeGain: 1 }),
+      stage(800, { manaBonus: 2, aptitudeGain: 1 }),
+      stage(1100, { manaBonus: 2, senseBonus: 1, aptitudeGain: 1 }),
+      stage(1540, { manaBonus: 2, spiritBonus: 1, aptitudeGain: 1 }),
+    ];
+    const springRequest = {
+      name: springName, description: "범인도 익힐 수 있는 목 속성 입문 공법이다.", elements: ["WOOD"], startRealm: "MORTAL",
+      stages: springStages,
+      abilities: [
+        ability("화탄술", 1, "ATTACK", ["FIRE"], "SINGLE", 5, 3, "COMBAT_ONLY"),
+        ability("어풍결", 3, "ESCAPE", ["WOOD"], "SELF", 10, 10, "ANYTIME"),
+      ],
+    };
+    const spring = await api(admin, "POST", "/api/admin/techniques", springRequest, { expect: 201 });
+    if (spring.stages.length !== 9 || spring.startRealmName !== "범인" || spring.abilities.length !== 2) {
+      fail(`${springName} 응답이 다름: ${JSON.stringify(spring)}`);
+    }
+    // technique-list.md 오행 연기 후반 공법 표(법력·의식·영력·자질 조건)
+    const greenStages = [
+      stage(0, { aptitudeRequired: 15 }),
+      stage(1800, { aptitudeRequired: 15, manaBonus: 3, senseBonus: 1 }),
+      stage(2600, { aptitudeRequired: 15, manaBonus: 3 }),
+      stage(3500, { aptitudeRequired: 15, manaBonus: 3, senseBonus: 1 }),
+      stage(4800, { aptitudeRequired: 20, manaBonus: 3 }),
+      stage(6500, { aptitudeRequired: 20, manaBonus: 3, senseBonus: 1 }),
+      stage(8700, { aptitudeRequired: 20, manaBonus: 3 }),
+      stage(12000, { aptitudeRequired: 20, manaBonus: 3, senseBonus: 1, spiritBonus: 1 }),
+    ];
+    const green = await api(admin, "POST", "/api/admin/techniques", {
+      name: greenName, description: "연기 후반의 목 속성 공법이다.", elements: ["WOOD"], startRealm: "QI_7",
+      stages: greenStages,
+      abilities: [
+        ability("청목전", 1, "ATTACK", ["WOOD"], "SINGLE", 12, 3, "COMBAT_ONLY"),
+        ability("목령갑", 4, "DEFENSE", ["WOOD"], "SELF", 18, 15, "ANYTIME"),
+      ],
+    }, { expect: 201 });
+    if (green.stages.length !== 8 || green.startRealmName !== "연기 7층") fail(`${greenName} 응답이 다름: ${JSON.stringify(green)}`);
+    const reserved = await api(admin, "POST", "/api/admin/techniques", {
+      ...springRequest, name: `막힘${runNo}`,
+      abilities: [ability("상태", 1, "ATTACK", ["FIRE"], "SINGLE", 5, 3, "COMBAT_ONLY")],
+    }, { expect: 400 });
+    if (reserved.detail !== "명령어와 같은 이름은 쓸 수 없습니다: 상태") fail(`명령어 이름 신통 detail 이 다름: ${reserved.detail}`);
+    const realms = await api(admin, "GET", "/api/admin/realms");
+    if (realms.length !== 18) fail(`경지 목록 길이가 18 이 아님: ${realms.length}`);
+
+    step(`27. 관리자 — 옥간 ${springScrollName}·${greenScrollName}, 단약에 공법 400, 옥간 있는 공법 삭제 409, 광장 바닥에 둠`);
+    const scrollType = (name, baseValue, techniqueId) => api(admin, "POST", "/api/admin/item-types",
+      { name, description: "", category: "SCROLL", baseValue, bagGrade: null, techniqueId }, { expect: 201 });
+    const springScroll = await scrollType(springScrollName, 100, spring.id);
+    const greenScroll = await scrollType(greenScrollName, 500, green.id);
+    if (springScroll.techniqueName !== springName || greenScroll.techniqueName !== greenName) {
+      fail(`옥간 techniqueName 이 다름: ${springScroll.techniqueName}, ${greenScroll.techniqueName}`);
+    }
+    const pillWithTechnique = await api(admin, "POST", "/api/admin/item-types",
+      { name: `공법단${runNo}`, description: "", category: "PILL", baseValue: 1, bagGrade: null, techniqueId: spring.id },
+      { expect: 400 });
+    if (pillWithTechnique.detail !== "공법은 옥간·서책에만 담을 수 있습니다.") fail(`단약 공법 detail 이 다름: ${pillWithTechnique.detail}`);
+    await api(admin, "DELETE", `/api/admin/techniques/${spring.id}`, undefined, { expect: 409 });
+    await api(admin, "POST", `/api/admin/rooms/${square.id}/floor-items`,
+      { itemTypeId: springScroll.id, count: 2, respawnMinutes: null }, { expect: 201 });
+    await api(admin, "POST", `/api/admin/rooms/${square.id}/floor-items`,
+      { itemTypeId: greenScroll.id, count: 1, respawnMinutes: null }, { expect: 201 });
+
+    step(`28. E(${nameE}) 생성 — 겹친 영근 거절, 목 화 확인 prompt 네 줄`);
+    const playerE = await devLogin(`smoke-e-${runId}@example.com`);
+    const e = connect("E", playerE.cookie);
+    await e.opened;
+    await e.waitFor((m) => m.type === "session" && m.state === "creating", "session(creating)");
+    await e.waitFor((m) => m.type === "prompt" && m.text.startsWith("이름을 정하십시오"), "이름 prompt");
+    mark = e.send(nameE);
+    await e.waitFor((m) => m.type === "prompt" && m.text.startsWith(ROOT_PROMPT), "영근 prompt", mark);
+    mark = e.send("목 목");
+    const badRoot = await e.waitFor((m) => m.type === "system" && m.tone === "error", "겹친 영근 error", mark);
+    if (badRoot.text !== "오행(금 목 수 화 토) 가운데 1~5개를 겹치지 않게 띄어 쓰십시오.") fail(`겹친 영근 문구가 다름: ${badRoot.text}`);
+    await e.waitFor((m) => m.type === "prompt" && m.text.startsWith(ROOT_PROMPT), "다시 영근 prompt", mark);
+    mark = e.send("목 화");
+    const rootConfirm = await e.waitFor((m) => m.type === "prompt" && m.text.startsWith("목·화"), "영근 확인 prompt", mark);
+    const expectedConfirm = ["목·화 진영근 — 목 50, 화 50", "────────",
+      `이름 ${nameE} · 영근 목·화 진영근 (목 50, 화 50)`, "이대로 만들려면 '확인', 고치려면 '뒤로'."].join("\n");
+    if (rootConfirm.text !== expectedConfirm) fail(`영근 확인 prompt 가 다름: ${JSON.stringify(rootConfirm.text)}`);
+    mark = e.send("확인");
+    await e.waitFor((m) => m.type === "session" && m.state === "playing" && m.characterName === nameE, "session(playing)", mark);
+    await e.waitFor(isRoom("광장"), "E 광장 room", mark);
+
+    step("29. E 상태 — 범인(기혈 10, 수위 없음), 범인은 목록 막힘");
+    const statusOf = async (client) => {
+      const m = client.send("상태");
+      return client.waitFor((msg) => msg.type === "status", `${client.label} 상태`, m);
+    };
+    const gauge = (g) => JSON.stringify({ current: g?.current, max: g?.max });
+    const expectGauge = (label, g, value) => {
+      if (gauge(g) !== JSON.stringify({ current: value, max: value })) fail(`${label} 이 {${value},${value}} 가 아님: ${JSON.stringify(g)}`);
+    };
+    const expectCultivation = (status, required) => {
+      if (JSON.stringify(status.cultivation) !== JSON.stringify({ current: 0, required })) {
+        fail(`수위가 {0,${required}} 가 아님: ${JSON.stringify(status.cultivation)}`);
+      }
+    };
+    let status = await statusOf(e);
+    if (status.realm?.code !== "MORTAL" || status.cultivation !== null) fail(`E 범인 상태가 다름: ${JSON.stringify(status)}`);
+    expectGauge("E 기혈", status.stats?.qiBlood, 10);
+    if (status.text.split("\n")[0] !== `${nameE} · 범인 · 목·화 진영근 (목 50, 화 50)`) fail(`E 상태 첫 줄이 다름: ${status.text}`);
+    await expectSystem(e, "목록", "아직 범인의 몸이라 할 수 없습니다.", "error");
+
+    step(`30. E 줍기 옥간, 보기 ${springScrollName} 담긴 공법, 읽기 → 연기 1층·화탄술, 다시 읽기 거절`);
+    await expectSystem(e, `줍기 ${springScrollName} 2`, `${springScrollName} 2개를 주웠습니다.`, "item");
+    mark = e.send(`줍기 ${greenScrollName}`);
+    await e.waitFor((m) => m.type === "system" && m.tone === "item", `줍기 ${greenScrollName}`, mark);
+    mark = e.send(`보기 ${springScrollName}`);
+    const scrollLook = await e.waitFor((m) => m.type === "system", `보기 ${springScrollName}`, mark);
+    if (scrollLook.text.split("\n")[1] !== `담긴 공법: ${springName} (목 · 오행 · 9성 · 범인부터)`) {
+      fail(`옥간 보기 둘째 줄이 다름: ${JSON.stringify(scrollLook.text)}`);
+    }
+    await expectSystem(e, `읽기 ${springScrollName}`,
+      `옥간을 이마에 대자 구결이 머릿속으로 흘러든다. ${springName} 1성에 이르렀습니다!\n단전에 따뜻한 기운이 맺힌다. 연기 1층이 되었습니다. 새 신통: 화탄술`,
+      "growth");
+    status = await statusOf(e);
+    expectGauge("E 기혈", status.stats?.qiBlood, 60);
+    expectGauge("E 법력", status.stats?.mana, 25);
+    expectCultivation(status, 190);
+    await expectSystem(e, `읽기 ${springScrollName}`, `이미 깨친 내용입니다. (${springName} 1/9성)`, "error");
+
+    step(`31. E 읽기 ${greenScrollName} → 연기 7층 필요, 옥간은 소지품에 남음`);
+    await expectSystem(e, `읽기 ${greenScrollName}`, "지금은 이 공법을 익힐 수 없습니다. (연기 7층 필요)", "error");
+    let eInventory = await inventoryOf(e);
+    if (!eInventory.items.some((i) => i.name === greenScrollName)) fail(`E 소지품에 ${greenScrollName} 이 없음: ${JSON.stringify(eInventory.items)}`);
+
+    step("32. 관리자 — 캐릭터 목록의 E, 연기 7층 지정 → E growth 알림·스탯");
+    const eSummary = await characterNamed(nameE);
+    if (eSummary.realm !== "QI_1" || eSummary.spiritRootName !== "목·화 진영근" || eSummary.techniqueCount !== 1 || eSummary.online !== true) {
+      fail(`캐릭터 목록의 E 가 다름: ${JSON.stringify(eSummary)}`);
+    }
+    const qi7 = await designate(e, nameE, "QI_7", "경지가 연기 7층으로 바뀌었습니다. (육신 +6, 근력 +3, 영력 +6, 의식 +12, 정혈 +12)");
+    if (qi7.stats?.qiBlood !== 120) fail(`연기 7층 지정 응답 stats.qiBlood 가 120 이 아님: ${JSON.stringify(qi7.stats)}`);
+    status = await statusOf(e);
+    expectGauge("E 기혈", status.stats?.qiBlood, 120);
+    expectGauge("E 법력", status.stats?.mana, 55);
+    expectCultivation(status, 1700);
+
+    step(`33. E 읽기 ${greenScrollName} → 청목전, 공법·신통 출력`);
+    const greenRead = await expectSystemTone(e, `읽기 ${greenScrollName}`, "growth");
+    if (greenRead.text.split("\n")[1] !== "새 신통을 깨쳤습니다: 청목전") fail(`${greenName} 읽기 둘째 줄이 다름: ${JSON.stringify(greenRead.text)}`);
+    await expectSystem(e, "공법", [
+      `${springName}  1/9성 · 목 · 오행  다음 2성: 목 깨달음 120 (지금 0)`,
+      `${greenName}  1/8성 · 목 · 오행  다음 2성: 목 깨달음 1,800 (지금 0)`,
+    ].join("\n"), "info");
+    await expectSystem(e, "신통", [
+      `[${springName} 1성]`, "  화탄술  공격·화  법력 5  대기 3초",
+      `[${greenName} 1성]`, "  청목전  공격·목  법력 12  대기 3초",
+    ].join("\n"), "info");
+
+    step(`34. 관리자 — ${braceletName}(저물탁) 광장 바닥, E 줍기 → (축기 초기 필요), 칸 그대로`);
+    const slotsBefore = eInventory.totalSlots;
+    const bracelet = await api(admin, "POST", "/api/admin/item-types",
+      { name: braceletName, description: "", category: "BAG", baseValue: 5000, bagGrade: "BRACELET_LOW", techniqueId: null },
+      { expect: 201 });
+    if (bracelet.bagGradeName !== "하급 저물탁" || bracelet.bagSlots !== 100) fail(`저물탁 응답이 다름: ${JSON.stringify(bracelet)}`);
+    await api(admin, "POST", `/api/admin/rooms/${square.id}/floor-items`,
+      { itemTypeId: bracelet.id, count: 1, respawnMinutes: null }, { expect: 201 });
+    await expectSystemTone(e, `줍기 ${braceletName}`, "item");
+    eInventory = await inventoryOf(e);
+    if (!eInventory.text.includes(`${braceletName} (축기 초기 필요)`) || eInventory.totalSlots !== slotsBefore) {
+      fail(`저물탁을 주운 E 소지품이 다름(칸 ${slotsBefore} 그대로여야 함): ${JSON.stringify(eInventory)}`);
+    }
+    if (startingItemsEmpty && eInventory.totalSlots !== 2) fail(`시작 소지품이 빈데 E 칸이 2 가 아님: ${eInventory.totalSlots}`);
+
+    step("35. 관리자 — E 축기 초기 지정 → growth 알림, 저물탁 칸 열림, 도움말 4차 명령");
+    await designate(e, nameE, "FOUNDATION_EARLY", "경지가 축기 초기로 바뀌었습니다. (육신 +24, 근력 +12, 영력 +23, 의식 +56, 정혈 +56)");
+    eInventory = await inventoryOf(e);
+    if (eInventory.totalSlots !== slotsBefore + 100 || eInventory.text.includes("(축기 초기 필요)")) {
+      fail(`축기 초기 E 소지품이 다름(칸 ${slotsBefore + 100}): ${JSON.stringify(eInventory)}`);
+    }
+    mark = e.send("도움말");
+    const help4 = await e.waitFor((m) => m.type === "system" && m.text.startsWith("명령:"), "4차 도움말", mark);
+    if (!help4.text.includes("상태(ㅅ) · 공법 · 신통 · 읽기 <물건>")) fail(`도움말에 4차 명령이 없음: ${help4.text}`);
+
+
+    console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName}·${merchantName}, 공법 ${springName}·${greenName})`);
   } finally {
     clients.forEach((c) => c.close());
     if (admin && originalStartingItems) {

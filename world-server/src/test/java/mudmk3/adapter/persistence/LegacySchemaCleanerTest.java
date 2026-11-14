@@ -21,6 +21,7 @@ record LegacySchemaCleanerTest(LegacySchemaCleaner legacySchemaCleaner, JdbcTemp
 
     private static final long OLD_CHARACTER = 9901L;
     private static final long OTHER_CHARACTER = 9902L;
+    private static final String BRACELET_NAME = "옛 DB 저물탁";
 
     @AfterEach
     void tearDown() {
@@ -30,6 +31,8 @@ record LegacySchemaCleanerTest(LegacySchemaCleaner legacySchemaCleaner, JdbcTemp
         jdbcTemplate.execute("ALTER TABLE inventory_entry DROP CONSTRAINT IF EXISTS uk_inventory_entry_inventory_id_item_type_id_bound");
         jdbcTemplate.execute("ALTER TABLE inventory_entry DROP COLUMN IF EXISTS bound");
         jdbcTemplate.execute("ALTER TABLE item_type DROP COLUMN IF EXISTS tradable");
+        jdbcTemplate.execute("ALTER TABLE item_type DROP CONSTRAINT IF EXISTS item_type_bag_grade_check");
+        jdbcTemplate.update("DELETE FROM item_type WHERE name = ?", BRACELET_NAME);
     }
 
     @Test
@@ -76,6 +79,24 @@ record LegacySchemaCleanerTest(LegacySchemaCleaner legacySchemaCleaner, JdbcTemp
 
         assertThat(entries(inventory)).extracting(row -> row.get("id"), row -> row.get("count"))
                 .containsExactly(tuple(entry, 5));
+    }
+
+    /** 3차 PostgreSQL 이 만든 저물대 등급 CHECK(LOW·MIDDLE·HIGH 만)는 저물탁 등급 저장을 막으므로 지운다 */
+    @Test
+    void dropsStaleBagGradeCheck() {
+        jdbcTemplate.execute("ALTER TABLE item_type ADD CONSTRAINT item_type_bag_grade_check "
+                + "CHECK (bag_grade IN ('LOW', 'MIDDLE', 'HIGH'))");
+
+        legacySchemaCleaner.clean();
+
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM information_schema.table_constraints "
+                + "WHERE LOWER(constraint_name) = 'item_type_bag_grade_check'", Long.class)).isZero();
+        jdbcTemplate.update("INSERT INTO item_type (name, description, category, base_value, bag_grade) VALUES (?, '', 'BAG', 5000, 'BRACELET_LOW')",
+                BRACELET_NAME);
+        assertThat(jdbcTemplate.queryForObject("SELECT bag_grade FROM item_type WHERE name = ?", String.class, BRACELET_NAME))
+                .isEqualTo("BRACELET_LOW");
+
+        legacySchemaCleaner.clean();
     }
 
     private long stoneId(String grade) {
