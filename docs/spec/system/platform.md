@@ -123,8 +123,8 @@
 | type | 필드 | 뜻 |
 |---|---|---|
 | `room` | 2차 필드 + `items`: `[{name, count}]`(바닥 물건, 없으면 `[]`). JSON 필드 순서 `zone, zoneEntered, room, owner, exits, occupants, items` | 방 보기 |
-| `inventory` | `usedSlots`, `totalSlots`, `stones`: `[{name, count}]`(가진 등급만, 하품부터), `items`: `[{name, count, bound, quest}]`(영석 밖, 표시 순서), `text`(그린 줄들, `\n`), `tone`: `"item"` | 소지품(묻는 사람에게만) |
-| `system` | `tone` 에 `"item"` 을 더함 | 물건 명령의 결과(줍기·버리기·물건 보기·목록·사기·팔기·값·주기·받기·귀속·확인 질문). 거절은 그대로 `error`, `그만두었습니다.` 는 `info` |
+| `inventory` | `usedSlots`, `totalSlots`, `stones`: `[{name, count}]`(가진 등급만, 하품부터), `items`: `[{name, count}]`(영석 밖, 표시 순서), `text`(그린 줄들, `\n`), `tone`: `"item"` | 소지품(묻는 사람에게만) |
+| `system` | `tone` 에 `"item"` 을 더함 | 물건 명령의 결과(줍기·버리기·물건 보기·목록·사기·팔기·값·주기·받기·확인 질문). 거절은 그대로 `error`, `그만두었습니다.` 는 `info` |
 | `notice` | `tone`: `"movement"` \| `"item"`, `event` 에 `"pick"` \| `"drop"` \| `"give"` 를 더함 | 같은 방 사람이 줍거나 버리거나 주고받음 |
 
 - `room.items` 는 대상 목록의 맨 끝(룰북 방 보기 — 떨어진 물건)이다. 같은 종류는 한 줄로 묶는다. → [월드 구조: 3차 데이터 모델](world-structure.md#3차-데이터-모델) (제안)
@@ -133,12 +133,12 @@
 
 ### 3차 월드 상태와 저장
 
-3차에 캐릭터의 소지품(물건·영석·귀속 여부)과 방 바닥 물건이 상태로 생긴다. 창호가 정했다(2026-11-14). 저장·시간·동시성은 구현에서 아래와 같이 정했다. 아래 전체가 (제안)이다.
+3차에 캐릭터의 소지품(물건·영석)과 방 바닥 물건이 상태로 생긴다. 창호가 정했다(2026-11-14). 저장·시간·동시성은 구현에서 아래와 같이 정했다. 아래 전체가 (제안)이다.
 
 - **소지품 `Inventory`**(슬라이스 `inventory`, 캐릭터마다 하나, `character_id` 유일):
-  - 칸 = 기본 2칸 + 가진 저물대 칸의 합. 저물대는 3개까지 가질 수 있고 칸을 차지하지 않는다. 그 밖의 물건은 `(종류, 귀속)` 묶음마다 `올림(수 ÷ 겹침)` 칸이다(룰북의 '덜 찬 칸부터 채운다' 와 같은 결과). → [룰북: 저물대 · 저물탁](../game-rule/item.md#저물대--저물탁)
+  - 칸 = 기본 2칸 + 가진 저물대 칸의 합. 저물대는 3개까지 가질 수 있고 칸을 차지하지 않는다. 그 밖의 물건은 `(종류)` 묶음마다 `올림(수 ÷ 겹침)` 칸이다(룰북의 '덜 찬 칸부터 채운다' 와 같은 결과). → [룰북: 저물대 · 저물탁](../game-rule/item.md#저물대--저물탁)
   - 칸이 모자랄 때(룰북): 줍기는 들어가는 만큼만, 사기·받기는 다 들어가지 않으면 하지 않는다. 저물대를 버리거나 팔거나 줘서 칸 합이 쓰는 칸보다 작아지면 하지 않는다. 저물대가 이미 3개면 더 얻지 못한다.
-  - 같은 종류라도 귀속된 것과 안 된 것은 다른 묶음이다. 묶음 유일은 도메인이 지키고 DB 유니크 제약은 두지 않는다(결제에서 하품을 다 내고 거스름 하품을 받는 것처럼 한 트랜잭션에서 같은 묶음을 비웠다 채울 때 일시 충돌을 피한다 — 2차 `npc_topic` 과 같은 까닭). 도메인은 바꿀 내용을 묶음별 증감으로 모아 한 번에 계산해 적용하고, 실패하면 아무것도 바꾸지 않는다.
+  - 소지품 묶음은 (캐릭터, 종류)마다 하나다(귀속 구분이 없어졌다). 묶음 유일은 도메인이 지키고 DB 유니크 제약은 두지 않는다(결제에서 하품을 다 내고 거스름 하품을 받는 것처럼 한 트랜잭션에서 같은 묶음을 비웠다 채울 때 일시 충돌을 피한다 — 2차 `npc_topic` 과 같은 까닭). 도메인은 바꿀 내용을 묶음별 증감으로 모아 한 번에 계산해 적용하고, 실패하면 아무것도 바꾸지 않는다.
   - 표시 순서(소지품 목록·이름 찾기): 영석(하품 → 극품) 다음 나머지를 얻은 순서(묶음이 처음 생긴 순서)다.
   - 테이블: `inventory`(UK `UK_INVENTORY_CHARACTER_ID`), `inventory_entry`(FK `inventory_id`·`item_type_id`). 2차 이전에 만든 캐릭터는 처음 볼 때 빈 소지품으로 시작한다.
 - **저장 시점: 소지품이 바뀌는 명령의 트랜잭션에서 바로 DB에 쓴다**(1차 '캐릭터 위치는 이동할 때마다' 와 같은 방식). 메모리에 두지 않는다. 물건이 오가는 것은 두 쪽이 함께 바뀌어야 하는 중요한 시점이기 때문이다. 그래서 접속을 끊을 때 따로 저장할 것이 없다. (제안)
@@ -166,7 +166,7 @@ mud-mk3 저장소 아래 모듈 3개로 나뉜다. 모듈 이름은 역할이 �
 - 슬라이스 의존은 `room → zone`, `world → room`, `character → world`, `character → account`, `game → character, room, world` 이고 순환은 없다. `character → account` 는 캐릭터를 만들 때 계정이 있는지 확인하려는 의존이다. (제안)
 - 2차에 슬라이스 `faction`(성·종문), `npc` 를 더했다. 의존은 `zone → faction`, `room → zone`, `world → room`, `npc → room`, `character → world, account, npc`, `game → character, room, world, npc` 이고 순환은 없다. `character → npc` 는 캐릭터 이름이 NPC 이름과 겹치는지 보려는 의존이다. 성·종문의 소유 지역 수는 `faction` 쪽에서 세어 `faction → zone` 의존을 만들지 않는다. (제안)
 - 3차에 슬라이스 `item`(아이템 종류·영석·결제 계산), `inventory`(소지품), `floor`(방 바닥 물건)를 더했다(각각 domain·application). 의존은 `inventory → item, world`, `floor → item, room`, `npc → item, room`, `world → item, room`, `character → inventory`(+2차), `game → inventory, floor, item, npc`(+2차)이고 순환은 없다. `item` 은 아무 슬라이스도 쓰지 않는다. 쓰이는 아이템 종류인지는 `ItemTypeRepository` 의 JPQL로 센다(2차 `FactionRepository.countZones` 관례). (제안)
-- 3차 테이블(`ddl-auto=update`, 마이그레이션 도구 없음): `item_type`(UK `UK_ITEM_TYPE_NAME`, `UK_ITEM_TYPE_SPIRIT_STONE_GRADE`), `inventory`, `inventory_entry`, `floor_placement`(FK `item_type_id`, `room_id` FK 없음), `dropped_item`(같음), `npc.shop_kind` 열, `npc_shop_item`(`position` 순서 열, `item_type_id` FK 없음), `world_starting_item`(`position` 순서 열, `item_type_id` FK 없음). enum 열(`item_type.category`·`bag_grade`·`spirit_stone_grade`, `npc.shop_kind`)은 1·2차 관례대로 문자열(`STRING`, `varchar(N)`)로 저장한다. 바닥 시각 열은 `timestamp with time zone` 이다. (제안)
+- 3차 테이블(`ddl-auto=update`, 마이그레이션 도구 없음): `item_type`(UK `UK_ITEM_TYPE_NAME`, `UK_ITEM_TYPE_SPIRIT_STONE_GRADE`), `inventory`, `inventory_entry`, `floor_placement`(FK `item_type_id`, `room_id` FK 없음), `dropped_item`(같음), `npc.shop_kind` 열, `npc_shop_item`(`position` 순서 열, `item_type_id` FK 없음), `world_starting_item`(`position` 순서 열, `item_type_id` FK 없음). enum 열(`item_type.category`·`bag_grade`·`spirit_stone_grade`, `npc.shop_kind`)은 1·2차 관례대로 문자열(`STRING`, `varchar(N)`)로 저장한다. 바닥 시각 열은 `timestamp with time zone` 이다. `귀속`·`거래 가능` 삭제(창호, 2026-11-14)로 엔티티에서 옛 열을 뺐다. 이미 만들어진 DB의 옛 열 정리 방식은 [관리 툴: 관리 툴 변경의 반영](admin-tool.md#관리-툴-변경의-반영)에 한 곳에만 적는다. (제안)
 - 이 구조와 메모리 저장소 구현 위치는 [코딩 규칙: 아키텍처](../../../.claude/rules/architecture.md)를 따른다.
 
 ## 플레이 화면 (play-client)
