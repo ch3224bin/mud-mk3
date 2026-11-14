@@ -69,7 +69,7 @@ record ZoneApiWebMvcTest(MockMvcTester mvc, ZoneFinder zoneFinder, ZoneEditor zo
                 .bodyJson()
                 .isStrictlyEqualTo("""
                         {"id":1,"name":"청석숲","description":"푸른 돌이 흩어진 숲이다.","roomCount":0}""");
-        verify(zoneEditor).create(new ZoneSaveRequest("청석숲", "푸른 돌이 흩어진 숲이다."));
+        verify(zoneEditor).create(new ZoneSaveRequest("청석숲", "푸른 돌이 흩어진 숲이다.", null));
     }
 
     @Test

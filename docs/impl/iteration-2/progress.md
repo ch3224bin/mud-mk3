@@ -6,6 +6,7 @@
 
 | 태스크 | 커밋 | 메모 |
 |---|---|---|
+| 1. 성·종문 도메인·영속과 지역 소유 — 관리 서비스까지 | | `faction` 슬라이스(도메인·orm.xml·리포지토리·FactionFinder/Editor), `Zone.owner`·`ZoneSaveRequest.ownerId`. `ZoneSaveInfo` 는 바꾸지 않음(소유는 `create/update` 의 따로 받는 인자) |
 
 ## 상태
 

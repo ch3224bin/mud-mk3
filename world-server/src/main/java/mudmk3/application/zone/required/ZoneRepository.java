@@ -1,6 +1,7 @@
 package mudmk3.application.zone.required;
 
 import mudmk3.domain.zone.Zone;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
@@ -12,8 +13,12 @@ public interface ZoneRepository extends Repository<Zone, Long> {
 
     Zone save(Zone zone);
 
+    /** 소유 성·종문을 함께 읽는다(트랜잭션 밖에서도 읽을 수 있게) */
+    @EntityGraph(attributePaths = "owner")
     Optional<Zone> findById(Long id);
 
+    /** 소유 성·종문을 함께 읽는다 */
+    @EntityGraph(attributePaths = "owner")
     List<Zone> findAllByOrderByNameAsc();
 
     boolean existsByName(String name);

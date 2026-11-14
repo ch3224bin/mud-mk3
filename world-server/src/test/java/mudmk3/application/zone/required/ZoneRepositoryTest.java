@@ -1,6 +1,9 @@
 package mudmk3.application.zone.required;
 
 import jakarta.persistence.EntityManager;
+import mudmk3.application.faction.required.FactionRepository;
+import mudmk3.domain.faction.Faction;
+import mudmk3.domain.faction.FactionFixture;
 import mudmk3.domain.zone.Zone;
 import mudmk3.domain.zone.ZoneFixture;
 import org.junit.jupiter.api.Test;
@@ -11,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
-record ZoneRepositoryTest(ZoneRepository zoneRepository, EntityManager entityManager) {
+record ZoneRepositoryTest(ZoneRepository zoneRepository, FactionRepository factionRepository, EntityManager entityManager) {
 
     @Test
     void save() {
@@ -65,5 +68,16 @@ record ZoneRepositoryTest(ZoneRepository zoneRepository, EntityManager entityMan
         entityManager.flush();
 
         assertThat(zoneRepository.findById(zone.getId())).isEmpty();
+    }
+
+    @Test
+    void ownerPersisted() {
+        Faction owner = factionRepository.save(FactionFixture.createFaction());
+        Zone zone = zoneRepository.save(Zone.create(ZoneFixture.createZoneSaveInfo("청석숲"), owner));
+        entityManager.flush();
+        entityManager.clear();
+
+        Zone found = zoneRepository.findById(zone.getId()).orElseThrow();
+        assertThat(found.findOwner()).map(Faction::getName).contains("청석성");
     }
 }

@@ -3,22 +3,27 @@ package mudmk3.application.zone.provided;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.ConstraintViolationException;
 import mudmk3.ApplicationServiceTest;
+import mudmk3.application.faction.provided.FactionEditor;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.room.provided.RoomSaveRequest;
+import mudmk3.domain.faction.Faction;
+import mudmk3.domain.faction.FactionKind;
 import mudmk3.domain.zone.DuplicateZoneNameException;
 import mudmk3.domain.zone.Zone;
 import org.junit.jupiter.api.Test;
 
+import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ApplicationServiceTest
-record ZoneEditorTest(ZoneEditor zoneEditor, ZoneFinder zoneFinder, RoomEditor roomEditor, EntityManager entityManager) {
+record ZoneEditorTest(ZoneEditor zoneEditor, ZoneFinder zoneFinder, RoomEditor roomEditor, FactionEditor factionEditor,
+                      EntityManager entityManager) {
 
     @Test
     void create() {
-        Zone zone = zoneEditor.create(new ZoneSaveRequest(" 청석숲 ", "푸른 돌이 흩어진 숲이다."));
+        Zone zone = zoneEditor.create(new ZoneSaveRequest(" 청석숲 ", "푸른 돌이 흩어진 숲이다.", null));
         entityManager.flush();
         entityManager.clear();
 
@@ -31,12 +36,12 @@ record ZoneEditorTest(ZoneEditor zoneEditor, ZoneFinder zoneFinder, RoomEditor r
     void createNameSizeCheckedAfterStrip() {
         String thirty = "가".repeat(30);
 
-        Zone zone = zoneEditor.create(new ZoneSaveRequest("  " + thirty + "  ", null));
+        Zone zone = zoneEditor.create(new ZoneSaveRequest("  " + thirty + "  ", null, null));
 
         assertThat(zone.getName()).isEqualTo(thirty);
-        assertThatThrownBy(() -> zoneEditor.create(new ZoneSaveRequest("나".repeat(31), null)))
+        assertThatThrownBy(() -> zoneEditor.create(new ZoneSaveRequest("나".repeat(31), null, null)))
                 .isInstanceOf(ConstraintViolationException.class);
-        assertThatThrownBy(() -> zoneEditor.create(new ZoneSaveRequest("   ", null)))
+        assertThatThrownBy(() -> zoneEditor.create(new ZoneSaveRequest("   ", null, null)))
                 .isInstanceOf(ConstraintViolationException.class);
     }
 
@@ -53,8 +58,8 @@ record ZoneEditorTest(ZoneEditor zoneEditor, ZoneFinder zoneFinder, RoomEditor r
     void update() {
         Zone zone = zoneEditor.create(createZoneSaveRequest("청석숲"));
 
-        zoneEditor.update(zone.getId(), new ZoneSaveRequest("청석숲", "바뀐 묘사다."));
-        zoneEditor.update(zone.getId(), new ZoneSaveRequest("황풍곡", "바람이 거센 골짜기다."));
+        zoneEditor.update(zone.getId(), new ZoneSaveRequest("청석숲", "바뀐 묘사다.", null));
+        zoneEditor.update(zone.getId(), new ZoneSaveRequest("황풍곡", "바람이 거센 골짜기다.", null));
         entityManager.flush();
         entityManager.clear();
 
@@ -114,5 +119,36 @@ record ZoneEditorTest(ZoneEditor zoneEditor, ZoneFinder zoneFinder, RoomEditor r
 
         assertThatThrownBy(() -> zoneFinder.find(zone.getId()))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void createWithOwner() {
+        Faction owner = factionEditor.create(createFactionSaveRequest(FactionKind.CASTLE, "청석성"));
+
+        Zone zone = zoneEditor.create(new ZoneSaveRequest("청석숲", null, owner.getId()));
+        entityManager.flush();
+        entityManager.clear();
+
+        Zone found = zoneFinder.find(zone.getId());
+        assertThat(found.findOwner()).map(Faction::getName).contains("청석성");
+    }
+
+    @Test
+    void updateOwnerToNone() {
+        Faction owner = factionEditor.create(createFactionSaveRequest(FactionKind.CASTLE, "청석성"));
+        Zone zone = zoneEditor.create(new ZoneSaveRequest("청석숲", null, owner.getId()));
+
+        zoneEditor.update(zone.getId(), new ZoneSaveRequest("청석숲", null, null));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(zoneFinder.find(zone.getId()).findOwner()).isEmpty();
+    }
+
+    @Test
+    void unknownOwnerFail() {
+        assertThatThrownBy(() -> zoneEditor.create(new ZoneSaveRequest("청석숲", null, 999L)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("성·종문을 찾을 수 없습니다. id: 999");
     }
 }

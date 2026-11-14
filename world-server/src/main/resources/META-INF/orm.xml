@@ -18,6 +18,29 @@
             <basic name="description">
                 <column name="description" length="500" nullable="false"/>
             </basic>
+            <many-to-one name="owner" fetch="LAZY">
+                <join-column name="owner_id" nullable="true"/>
+            </many-to-one>
+        </attributes>
+    </entity>
+
+    <entity class="mudmk3.domain.faction.Faction">
+        <table name="faction">
+            <unique-constraint name="UK_FACTION_NAME">
+                <column-name>name</column-name>
+            </unique-constraint>
+        </table>
+        <attributes>
+            <basic name="kind">
+                <column name="kind" length="16" nullable="false" column-definition="varchar(16)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="name">
+                <column name="name" length="30" nullable="false"/>
+            </basic>
+            <basic name="description">
+                <column name="description" length="500" nullable="false"/>
+            </basic>
         </attributes>
     </entity>
 
