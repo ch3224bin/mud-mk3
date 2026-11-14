@@ -1,13 +1,19 @@
 package mudmk3.adapter.websocket;
 
 import mudmk3.application.character.provided.CharacterCreator;
+import mudmk3.application.floor.provided.FloorPlacementEditor;
+import mudmk3.application.floor.provided.FloorPlacementSaveRequest;
 import mudmk3.application.game.provided.GameConnector;
 import mudmk3.application.game.required.PresenceRepository;
+import mudmk3.application.item.provided.ItemTypeEditor;
+import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
+import mudmk3.domain.item.ItemCategory;
+import mudmk3.domain.item.ItemType;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.room.Room;
 import mudmk3.domain.zone.Zone;
@@ -51,6 +57,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Objects.requireNonNull;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
@@ -77,12 +84,15 @@ class GameWebSocketIntegrationTest {
 
     private static final String ALLOWED_ORIGIN = "http://localhost:3000";
     private static final long TIMEOUT_SECONDS = 10;
+    private static final String ITEM_TYPE_TABLE = "item_type";
 
     private final int port;
     private final ZoneEditor zoneEditor;
     private final RoomEditor roomEditor;
     private final WorldSettingsEditor worldSettingsEditor;
     private final NpcEditor npcEditor;
+    private final ItemTypeEditor itemTypeEditor;
+    private final FloorPlacementEditor floorPlacementEditor;
     private final CharacterCreator characterCreator;
     private final PresenceRepository presenceRepository;
     private final GameConnector gameConnector;
@@ -98,6 +108,8 @@ class GameWebSocketIntegrationTest {
             RoomEditor roomEditor,
             WorldSettingsEditor worldSettingsEditor,
             NpcEditor npcEditor,
+            ItemTypeEditor itemTypeEditor,
+            FloorPlacementEditor floorPlacementEditor,
             CharacterCreator characterCreator,
             PresenceRepository presenceRepository,
             GameConnector gameConnector,
@@ -109,6 +121,8 @@ class GameWebSocketIntegrationTest {
         this.roomEditor = roomEditor;
         this.worldSettingsEditor = worldSettingsEditor;
         this.npcEditor = npcEditor;
+        this.itemTypeEditor = itemTypeEditor;
+        this.floorPlacementEditor = floorPlacementEditor;
         this.characterCreator = characterCreator;
         this.presenceRepository = presenceRepository;
         this.gameConnector = gameConnector;
@@ -142,10 +156,14 @@ class GameWebSocketIntegrationTest {
             if (System.nanoTime() > deadline) fail("접속한 사람이 남았다: " + presenceRepository.findAll());
             Thread.sleep(20);
         }
+        // 서버가 뜰 때 한 번 심은 영석 종류는 남기고(다음 테스트도 쓴다) 나머지 아이템 종류만 지운다
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
         jdbcTemplate.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'", String.class)
+                .stream()
+                .filter(table -> !table.equalsIgnoreCase(ITEM_TYPE_TABLE))
                 .forEach(table -> jdbcTemplate.execute("TRUNCATE TABLE " + table + " RESTART IDENTITY"));
+        jdbcTemplate.execute("DELETE FROM item_type WHERE spirit_stone_grade IS NULL");
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
     }
 
@@ -260,6 +278,34 @@ class GameWebSocketIntegrationTest {
 
         assertThat(client.next()).isEqualTo(json("""
                 {"type":"talk","npc":"왕씨","word":"단약","text":"왕씨: \\"단약은 귀한 물건이오.\\"","tone":"talk"}"""));
+    }
+
+    @Test
+    void pickAndInventory() throws Exception {
+        ItemType hide = itemTypeEditor.create(
+                new ItemTypeSaveRequest("늑대 가죽", "거칠고 질긴 늑대의 가죽이다.", ItemCategory.MATERIAL, 2, true, null));
+        floorPlacementEditor.create(requireNonNull(entranceId), new FloorPlacementSaveRequest(hide.getId(), 3, null));
+        Client a = enter("hanbai@example.com", "한백");
+        Client b = enter("hanli@example.com", "한립");
+        assertThat(b.lastRoom().get("items")).isEqualTo(json("""
+                [{"name":"늑대 가죽","count":3}]"""));
+        assertThat(a.next().get("event").asString()).isEqualTo("appear");
+
+        a.command("줍기 가죽 2");
+        assertThat(a.next()).isEqualTo(json("""
+                {"type":"system","text":"늑대 가죽 2개를 주웠습니다.","tone":"item"}"""));
+        assertThat(b.next()).isEqualTo(json("""
+                {"type":"notice","text":"한백이 늑대 가죽 2개를 줍는다.","tone":"item","actor":"한백","event":"pick"}"""));
+
+        a.command("소지품");
+        assertThat(a.next()).isEqualTo(json("""
+                {"type":"inventory","usedSlots":1,"totalSlots":2,"stones":[],
+                 "items":[{"name":"늑대 가죽","count":2,"bound":false,"quest":false}],
+                 "text":"[소지품 1/2칸]\\n늑대 가죽 x2","tone":"item"}"""));
+
+        b.command("보기");
+        assertThat(b.next().get("items")).isEqualTo(json("""
+                [{"name":"늑대 가죽","count":1}]"""));
     }
 
     @Test

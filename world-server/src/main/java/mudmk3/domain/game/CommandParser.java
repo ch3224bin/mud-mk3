@@ -31,6 +31,9 @@ public final class CommandParser {
             case "보기", "ㅂ" -> new Command.Look(rest.isEmpty() ? null : rest);
             case "말하기" -> new Command.Say(rest);
             case "대화" -> parseTalk(rest);
+            case "소지품", "ㅈ" -> rest.isEmpty() ? new Command.Inventory() : new Command.Unknown(word);
+            case "줍기" -> new Command.Pick(ItemArguments.parse(rest));
+            case "버리기" -> new Command.Drop(ItemArguments.parse(rest));
             case "누구" -> rest.isEmpty() ? new Command.Who() : new Command.Unknown(word);
             case "도움말" -> rest.isEmpty() ? new Command.Help() : new Command.Unknown(word);
             case "종료" -> rest.isEmpty() ? new Command.Quit() : new Command.Unknown(word);

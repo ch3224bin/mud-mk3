@@ -2,28 +2,39 @@ package mudmk3.application.game.provided;
 
 import jakarta.persistence.EntityManager;
 import mudmk3.ApplicationServiceTest;
+import mudmk3.MutableClock;
 import mudmk3.application.account.provided.AccountLogin;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
 import mudmk3.application.faction.provided.FactionEditor;
+import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.game.RecordingGameMessageSender;
 import mudmk3.application.game.required.GameCloseReason;
 import mudmk3.application.game.required.GameMessage;
+import mudmk3.application.game.required.GameMessage.InventoryMessage;
+import mudmk3.application.game.required.GameMessage.InventoryMessage.ItemView;
+import mudmk3.application.game.required.GameMessage.InventoryMessage.StoneView;
 import mudmk3.application.game.required.GameMessage.NoticeMessage;
 import mudmk3.application.game.required.GameMessage.PromptMessage;
 import mudmk3.application.game.required.GameMessage.RoomMessage;
+import mudmk3.application.game.required.GameMessage.RoomMessage.FloorItemView;
 import mudmk3.application.game.required.GameMessage.RoomMessage.OccupantView;
 import mudmk3.application.game.required.GameMessage.RoomMessage.OwnerView;
 import mudmk3.application.game.required.GameMessage.SayMessage;
 import mudmk3.application.game.required.GameMessage.SessionMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
 import mudmk3.application.game.required.GameMessage.TalkMessage;
+import mudmk3.application.inventory.provided.InventoryEditor;
+import mudmk3.application.inventory.provided.InventoryFinder;
+import mudmk3.application.item.provided.ItemTypeEditor;
+import mudmk3.application.item.provided.ItemTypeFinder;
 import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.npc.provided.NpcSaveRequest;
 import mudmk3.application.npc.provided.NpcTopicRequest;
 import mudmk3.application.room.provided.RoomEditor;
+import mudmk3.application.world.provided.StartingItemRequest;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.application.zone.provided.ZoneSaveRequest;
@@ -31,6 +42,7 @@ import mudmk3.domain.faction.Faction;
 import mudmk3.domain.faction.FactionKind;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 
 import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
@@ -61,10 +73,17 @@ class GameConnectorTest extends BaseGameTest {
             FactionEditor factionEditor,
             NpcEditor npcEditor,
             NpcFinder npcFinder,
+            ItemTypeEditor itemTypeEditor,
+            ItemTypeFinder itemTypeFinder,
+            FloorPlacementEditor floorPlacementEditor,
+            InventoryFinder inventoryFinder,
+            InventoryEditor inventoryEditor,
+            MutableClock clock,
             EntityManager entityManager
     ) {
         super(gameConnector, sender, accountLogin, characterCreator, characterFinder, characterMover,
-                zoneEditor, roomEditor, worldSettingsEditor, factionEditor, npcEditor, entityManager);
+                zoneEditor, roomEditor, worldSettingsEditor, factionEditor, npcEditor,
+                itemTypeEditor, itemTypeFinder, floorPlacementEditor, inventoryFinder, inventoryEditor, clock, entityManager);
         this.npcFinder = npcFinder;
     }
 
@@ -123,6 +142,7 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(room.zoneEntered()).isTrue();
         assertThat(room.exits()).containsExactly("북");
         assertThat(room.occupants()).isEmpty();
+        assertThat(room.items()).isEmpty();
         assertThat(characterFinder.findByAccountId(accountId)).isPresent();
     }
 
@@ -222,6 +242,7 @@ class GameConnectorTest extends BaseGameTest {
     void lookWithArgument() {
         prepareMap();
         enter("a", "한백");
+        enter("b", "한립");
         sender.clear();
 
         gameConnector.handle("a", "보기 한립");
@@ -825,5 +846,363 @@ class GameConnectorTest extends BaseGameTest {
         sender.clear();
         gameConnector.handle("a", "대화 장씨");
         assertThat(sender.messagesTo("a")).containsExactly(new SystemMessage(NO_SUCH_NPC, "error"));
+    }
+
+    // ---- 물건 (3차)
+
+    @Test
+    void inventoryShowsStartingItems() {
+        prepareMap();
+        Items items = prepareItems();
+        prepareStartingItems(new StartingItemRequest(items.bag(), 1), new StartingItemRequest(items.lowStone(), 30),
+                new StartingItemRequest(items.pill(), 3), new StartingItemRequest(items.energyPill(), 3));
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "소지품");
+
+        InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
+        assertThat(inventory.text()).isEqualTo(
+                "[소지품 3/22칸]  하품 영석 30\n하급 저물대   회춘단(연기 초) x3   회기단(연기 초) x3");
+        assertThat(inventory.usedSlots()).isEqualTo(3);
+        assertThat(inventory.totalSlots()).isEqualTo(22);
+        assertThat(inventory.tone()).isEqualTo("item");
+        assertThat(inventory.stones()).containsExactly(new StoneView("하품 영석", 30));
+        assertThat(inventory.items()).containsExactly(new ItemView("하급 저물대", 1, false, false),
+                new ItemView("회춘단(연기 초)", 3, false, false), new ItemView("회기단(연기 초)", 3, false, false));
+
+        sender.clear();
+        gameConnector.handle("a", "ㅈ");
+        assertThat(sender.lastTo("a", InventoryMessage.class)).isEqualTo(inventory);
+    }
+
+    @Test
+    void inventoryMarksBoundAndQuestAndWraps() {
+        prepareMap();
+        Items items = prepareItems();
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, items.bag(), 1);
+        give(hanbaek, items.sword(), 2);
+        inventoryEditor.bind(characterIdOf(hanbaek), items.sword());
+        give(hanbaek, items.quest(), 1);
+        give(hanbaek, items.hide(), 1);
+        sender.clear();
+
+        gameConnector.handle("a", "소지품");
+
+        InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
+        assertThat(inventory.text()).isEqualTo(
+                "[소지품 4/22칸]\n하급 저물대   비검   비검 (귀속)\n왕씨의 약초 꾸러미 (퀘스트)   늑대 가죽");
+        assertThat(inventory.items()).contains(new ItemView("비검", 1, true, false),
+                new ItemView("왕씨의 약초 꾸러미", 1, false, true));
+    }
+
+    @Test
+    void emptyInventory() {
+        prepareMap();
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "소지품");
+
+        InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
+        assertThat(inventory.text()).isEqualTo("[소지품 0/2칸]\n가진 물건이 없습니다.");
+        assertThat(inventory.usedSlots()).isZero();
+        assertThat(inventory.totalSlots()).isEqualTo(2);
+        assertThat(inventory.stones()).isEmpty();
+        assertThat(inventory.items()).isEmpty();
+    }
+
+    @Test
+    void oldCharacterGetsEmptyInventory() {
+        prepareMap();
+        Long accountId = prepareAccount("hanbaek@example.com");
+        Long characterId = characterCreator.create(accountId, "한백").getId();
+        entityManager.flush();
+        entityManager.createNativeQuery("DELETE FROM inventory WHERE character_id = ?1")
+                .setParameter(1, characterId).executeUpdate();
+        entityManager.clear();
+        connect("a", accountId);
+        sender.clear();
+
+        gameConnector.handle("a", "소지품");
+
+        assertThat(sender.lastTo("a", InventoryMessage.class).text()).isEqualTo("[소지품 0/2칸]\n가진 물건이 없습니다.");
+    }
+
+    @Test
+    void inventoryWithArgumentFail() {
+        prepareMap();
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "소지품 x");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.error(UNKNOWN));
+    }
+
+    @Test
+    void roomShowsFloorItems() {
+        GameMap map = prepareMap();
+        prepareNpcs(map);
+        Items items = prepareItems();
+        place(map.entranceId(), items.hide(), 3, null);
+
+        enter("a", "한백");
+
+        RoomMessage room = sender.lastTo("a", RoomMessage.class);
+        assertThat(room.occupants()).containsExactly(new OccupantView("왕씨", "npc"));
+        assertThat(room.items()).containsExactly(new FloorItemView("늑대 가죽", 3));
+    }
+
+    @Test
+    void pickSome() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        place(map.entranceId(), items.hide(), 3, null);
+        enter("a", "한백");
+        enter("b", "한립");
+        sender.clear();
+
+        gameConnector.handle("a", "줍기 가죽 2");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("늑대 가죽 2개를 주웠습니다."));
+        assertThat(sender.messagesTo("b")).containsExactly(
+                new NoticeMessage("한백이 늑대 가죽 2개를 줍는다.", "item", "한백", "pick"));
+        gameConnector.handle("a", "보기");
+        assertThat(sender.lastTo("a", RoomMessage.class).items()).containsExactly(new FloorItemView("늑대 가죽", 1));
+        gameConnector.handle("a", "소지품");
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("늑대 가죽", 2, false, false));
+    }
+
+    @Test
+    void pickAll() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        place(map.entranceId(), items.hide(), 3, null);
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "줍기 늑대 가죽 전부");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("늑대 가죽 3개를 주웠습니다."));
+        gameConnector.handle("a", "보기");
+        assertThat(sender.lastTo("a", RoomMessage.class).items()).isEmpty();
+        gameConnector.handle("a", "소지품");
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("늑대 가죽", 3, false, false));
+    }
+
+    @Test
+    void pickPartial() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        place(map.entranceId(), items.sword(), 3, null);
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, items.lowStone(), 1);
+        sender.clear();
+
+        gameConnector.handle("a", "줍기 비검 3");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                SystemMessage.item("저물대에 자리가 없어 비검 3개 중 1개만 주웠습니다."));
+        gameConnector.handle("a", "보기");
+        assertThat(sender.lastTo("a", RoomMessage.class).items()).containsExactly(new FloorItemView("비검", 2));
+    }
+
+    @Test
+    void pickFails() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        place(map.entranceId(), items.hide(), 3, null);
+        place(map.entranceId(), items.bag(), 1, null);
+        Long hanbaek = enter("a", "한백");
+        enter("b", "한립");
+
+        assertError("a", "줍기", "무엇을 주우시겠습니까? (예: 줍기 늑대 가죽)");
+        assertError("a", "줍기 곰", "이곳에 '곰'은 없습니다.");
+        assertError("a", "줍기 2.가죽", "이곳에 '2.가죽'은 없습니다.");
+        assertError("a", "줍기 가죽 5", "늑대 가죽은 3개뿐입니다.");
+        assertError("a", "줍기 가죽 0", "수량은 1 이상의 수로 적으십시오.");
+        assertError("a", "줍기 가죽 1234567890", "수량은 1 이상의 수로 적으십시오.");
+
+        give(hanbaek, items.sword(), 2);
+        assertError("a", "줍기 가죽", "저물대에 자리가 없습니다.");
+
+        give(hanbaek, items.bag(), 3);
+        assertError("a", "줍기 저물대", "저물대는 세 개까지만 찰 수 있습니다.");
+        assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    @Test
+    void dropAndPickBack() {
+        prepareMap();
+        Items items = prepareItems();
+        Long hanbaek = enter("a", "한백");
+        enter("b", "한립");
+        give(hanbaek, items.fang(), 2);
+        sender.clear();
+
+        gameConnector.handle("a", "버리기 이빨 1");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("늑대 이빨 1개를 버렸습니다."));
+        assertThat(sender.messagesTo("b")).containsExactly(
+                new NoticeMessage("한백이 늑대 이빨 1개를 버린다.", "item", "한백", "drop"));
+
+        gameConnector.handle("a", "버리기 이빨");
+        gameConnector.handle("b", "보기");
+        assertThat(sender.lastTo("b", RoomMessage.class).items()).containsExactly(new FloorItemView("늑대 이빨", 2));
+
+        sender.clear();
+        gameConnector.handle("a", "줍기 이빨 전부");
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("늑대 이빨 2개를 주웠습니다."));
+        gameConnector.handle("a", "소지품");
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("늑대 이빨", 2, false, false));
+    }
+
+    @Test
+    void dropStones() {
+        prepareMap();
+        Items items = prepareItems();
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, items.lowStone(), 30);
+        sender.clear();
+
+        gameConnector.handle("a", "버리기 하품 10");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("하품 영석 10개를 버렸습니다."));
+        gameConnector.handle("a", "소지품");
+        assertThat(sender.lastTo("a", InventoryMessage.class).stones()).containsExactly(new StoneView("하품 영석", 20));
+        gameConnector.handle("a", "보기");
+        assertThat(sender.lastTo("a", RoomMessage.class).items()).containsExactly(new FloorItemView("하품 영석", 10));
+    }
+
+    @Test
+    void dropFails() {
+        prepareMap();
+        Items items = prepareItems();
+        Long hanbaek = enter("a", "한백");
+        enter("b", "한립");
+        give(hanbaek, items.bag(), 1);
+        give(hanbaek, items.fang(), 2);
+        give(hanbaek, items.quest(), 1);
+        give(hanbaek, items.sword(), 1);
+        inventoryEditor.bind(characterIdOf(hanbaek), items.sword());
+
+        assertError("a", "버리기", "무엇을 버리시겠습니까? (예: 버리기 늑대 가죽)");
+        assertError("a", "버리기 곰", "그런 물건은 가지고 있지 않습니다.");
+        assertError("a", "버리기 이빨 0", "수량은 1 이상의 수로 적으십시오.");
+        assertError("a", "버리기 이빨 3", "늑대 이빨은 2개뿐입니다.");
+        assertError("a", "버리기 꾸러미", "퀘스트 물건은 버릴 수 없습니다.");
+        assertError("a", "버리기 비검", "귀속된 물건은 버릴 수 없습니다.");
+        assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    @Test
+    void dropPrefersUnboundEntry() {
+        prepareMap();
+        Items items = prepareItems();
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, items.sword(), 2);
+        inventoryEditor.bind(characterIdOf(hanbaek), items.sword());
+        sender.clear();
+
+        gameConnector.handle("a", "버리기 비검");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("비검 1개를 버렸습니다."));
+        gameConnector.handle("a", "소지품");
+        assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("비검", 1, true, false));
+    }
+
+    @Test
+    void dropBagInUseFail() {
+        prepareMap();
+        Items items = prepareItems();
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, items.bag(), 1);
+        give(hanbaek, items.hide(), 99 * 21);
+        sender.clear();
+
+        assertError("a", "버리기 저물대", "저물대에 든 물건을 먼저 비우십시오.");
+
+        gameConnector.handle("a", "소지품");
+        InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
+        assertThat(inventory.usedSlots()).isEqualTo(21);
+        assertThat(inventory.totalSlots()).isEqualTo(22);
+        gameConnector.handle("a", "보기");
+        assertThat(sender.lastTo("a", RoomMessage.class).items()).isEmpty();
+    }
+
+    @Test
+    void droppedItemDisappearsAfterFiveMinutes() {
+        prepareMap();
+        Items items = prepareItems();
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, items.fang(), 1);
+        gameConnector.handle("a", "버리기 이빨");
+
+        clock.advance(Duration.ofMinutes(5));
+
+        gameConnector.handle("a", "보기");
+        assertThat(sender.lastTo("a", RoomMessage.class).items()).isEmpty();
+        assertError("a", "줍기 이빨", "이곳에 '이빨'은 없습니다.");
+    }
+
+    @Test
+    void placementRespawns() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        place(map.entranceId(), items.hide(), 2, 10);
+        enter("a", "한백");
+        gameConnector.handle("a", "줍기 가죽 전부");
+        gameConnector.handle("a", "보기");
+        assertThat(sender.lastTo("a", RoomMessage.class).items()).isEmpty();
+
+        clock.advance(Duration.ofMinutes(10));
+
+        gameConnector.handle("a", "보기");
+        assertThat(sender.lastTo("a", RoomMessage.class).items()).containsExactly(new FloorItemView("늑대 가죽", 2));
+    }
+
+    @Test
+    void lookAtItem() {
+        GameMap map = prepareMap();
+        prepareNpcs(map);
+        Items items = prepareItems();
+        place(map.entranceId(), items.hide(), 3, null);
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, items.sword(), 1);
+        give(hanbaek, items.fang(), 1);
+        sender.clear();
+
+        assertOnly("a", "보기 가죽", SystemMessage.item("늑대 가죽 — 거칠고 질긴 늑대의 가죽이다."));
+        assertOnly("a", "보기 비검", SystemMessage.item("비검 — 푸른 빛이 도는 작은 비검이다."));
+        assertOnly("a", "보기 이빨", SystemMessage.item("늑대 이빨"));
+        assertOnly("a", "보기 왕씨", SystemMessage.info("아직 자세히 볼 수 없습니다."));
+        assertOnly("a", "보기 곰", SystemMessage.error("그런 것은 보이지 않습니다."));
+    }
+
+    @Test
+    void lookPrefersRoomTargets() {
+        GameMap map = prepareMap();
+        prepareNpcs(map);
+        Items items = prepareItems();
+        place(map.entranceId(), items.hide(), 1, null);
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, items.quest(), 1);
+        give(hanbaek, items.fang(), 1);
+        sender.clear();
+
+        assertOnly("a", "보기 왕씨", SystemMessage.info("아직 자세히 볼 수 없습니다."));
+        assertOnly("a", "보기 늑대", SystemMessage.item("늑대 가죽 — 거칠고 질긴 늑대의 가죽이다."));
+    }
+
+    private void assertError(String sessionId, String command, String text) {
+        assertOnly(sessionId, command, SystemMessage.error(text));
+    }
+
+    private void assertOnly(String sessionId, String command, GameMessage expected) {
+        sender.clear();
+        gameConnector.handle(sessionId, command);
+        assertThat(sender.messagesTo(sessionId)).containsExactly(expected);
     }
 }

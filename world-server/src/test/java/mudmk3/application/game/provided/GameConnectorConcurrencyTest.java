@@ -6,14 +6,22 @@ import mudmk3.application.account.provided.AccountLoginRequest;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.floor.provided.FloorPlacementEditor;
+import mudmk3.application.floor.provided.FloorPlacementSaveRequest;
 import mudmk3.application.game.RecordingGameMessageSender;
+import mudmk3.application.game.required.GameMessage.InventoryMessage;
+import mudmk3.application.game.required.GameMessage.InventoryMessage.ItemView;
 import mudmk3.application.game.required.GameMessage.NoticeMessage;
 import mudmk3.application.game.required.GameMessage.RoomMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
+import mudmk3.application.item.provided.ItemTypeEditor;
+import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
+import mudmk3.domain.item.ItemCategory;
+import mudmk3.domain.item.ItemType;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.room.Room;
 import mudmk3.domain.zone.Zone;
@@ -58,6 +66,8 @@ class GameConnectorConcurrencyTest {
     private final ZoneEditor zoneEditor;
     private final RoomEditor roomEditor;
     private final WorldSettingsEditor worldSettingsEditor;
+    private final ItemTypeEditor itemTypeEditor;
+    private final FloorPlacementEditor floorPlacementEditor;
 
     private final List<String> openedSessions = new ArrayList<>();
 
@@ -70,7 +80,9 @@ class GameConnectorConcurrencyTest {
             CharacterMover characterMover,
             ZoneEditor zoneEditor,
             RoomEditor roomEditor,
-            WorldSettingsEditor worldSettingsEditor
+            WorldSettingsEditor worldSettingsEditor,
+            ItemTypeEditor itemTypeEditor,
+            FloorPlacementEditor floorPlacementEditor
     ) {
         this.gameConnector = gameConnector;
         this.sender = sender;
@@ -81,6 +93,8 @@ class GameConnectorConcurrencyTest {
         this.zoneEditor = zoneEditor;
         this.roomEditor = roomEditor;
         this.worldSettingsEditor = worldSettingsEditor;
+        this.itemTypeEditor = itemTypeEditor;
+        this.floorPlacementEditor = floorPlacementEditor;
     }
 
     @AfterEach
@@ -153,6 +167,43 @@ class GameConnectorConcurrencyTest {
         gameConnector.handle("c-a", "보기");
         assertThat(sender.lastTo("c-a", RoomMessage.class).room().id()).isEqualTo(start);
         assertThat(roomIdOf(hanbaek)).isEqualTo(start);
+    }
+
+    /** 같은 바닥 물건을 둘이 동시에 여러 번 주워도 한 사람씩 처리되어, 두 소지품의 합이 바닥에 있던 수와 같다(D53) */
+    @Test
+    void concurrentPickNeverDuplicates() throws Exception {
+        Zone zone = zoneEditor.create(createZoneSaveRequest("동시줍기촌"));
+        Long start = room(zone, "타작마당");
+        worldSettingsEditor.designateStartRoom(start);
+        ItemType hide = itemTypeEditor.create(
+                new ItemTypeSaveRequest("동시가죽", "", ItemCategory.MATERIAL, 2, true, null));
+        floorPlacementEditor.create(start, new FloorPlacementSaveRequest(id(hide.getId()), 50, null));
+        enterAt("p-a", "동시갑", start);
+        enterAt("p-b", "동시을", start);
+
+        runConcurrently(picks("p-a"), picks("p-b"));
+
+        sender.clear();
+        int total = 0;
+        for (String sessionId : List.of("p-a", "p-b")) {
+            gameConnector.handle(sessionId, "소지품");
+            total += sender.lastTo(sessionId, InventoryMessage.class).items().stream()
+                    .filter(item -> item.name().equals("동시가죽"))
+                    .mapToInt(ItemView::count)
+                    .sum();
+        }
+        assertThat(total).isEqualTo(50);
+        gameConnector.handle("p-a", "보기");
+        assertThat(sender.lastTo("p-a", RoomMessage.class).items()).isEmpty();
+    }
+
+    private Callable<@Nullable Void> picks(String sessionId) {
+        return () -> {
+            for (int i = 0; i < 20; i++) {
+                gameConnector.handle(sessionId, "줍기 동시가죽 " + (i % 2 == 0 ? "전부" : "3"));
+            }
+            return null;
+        };
     }
 
     private void runConcurrently(Callable<?>... tasks) throws Exception {

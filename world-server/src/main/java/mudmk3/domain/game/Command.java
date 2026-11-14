@@ -8,7 +8,7 @@ import static java.util.Objects.requireNonNull;
 /** 플레이어가 입력한 한 줄을 알아들은 명령 */
 public sealed interface Command {
 
-    /** 지금 방 보기. 인자가 있으면 자세히 보기(1차엔 없음) */
+    /** 지금 방 보기. 인자가 있으면 그 대상 보기(3차엔 물건만 자세히 보인다) */
     record Look(@Nullable String argument) implements Command {
     }
 
@@ -27,6 +27,24 @@ public sealed interface Command {
 
     /** NPC에게 말 걸기. 대상이 빠졌으면 null, 낱말이 빠졌으면 null(인사) */
     record Talk(@Nullable String target, @Nullable String word) implements Command {
+    }
+
+    /** 소지품 보기 */
+    record Inventory() implements Command {
+    }
+
+    /** 바닥의 물건 줍기 */
+    record Pick(ItemArguments args) implements Command {
+        public Pick {
+            requireNonNull(args);
+        }
+    }
+
+    /** 소지품의 물건 버리기 */
+    record Drop(ItemArguments args) implements Command {
+        public Drop {
+            requireNonNull(args);
+        }
     }
 
     record Who() implements Command {

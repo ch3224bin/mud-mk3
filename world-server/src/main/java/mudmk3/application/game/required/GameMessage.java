@@ -32,7 +32,7 @@ public sealed interface GameMessage {
 
     /**
      * 방 보기. owner는 지역을 소유한 성·종문(없으면 null), exits는 방위 한글 이름(방위 순서),
-     * occupants는 나를 뺀 사람(들어온 순서) 다음 그 방의 NPC(만든 순서)
+     * occupants는 나를 뺀 사람(들어온 순서) 다음 그 방의 NPC(만든 순서), items는 바닥 물건(같은 종류를 묶은 한 줄씩, D40 순서)
      */
     record RoomMessage(
             ZoneView zone,
@@ -40,11 +40,13 @@ public sealed interface GameMessage {
             RoomView room,
             @Nullable OwnerView owner,
             List<String> exits,
-            List<OccupantView> occupants
+            List<OccupantView> occupants,
+            List<FloorItemView> items
     ) implements GameMessage {
         public RoomMessage {
             exits = List.copyOf(exits);
             occupants = List.copyOf(occupants);
+            items = List.copyOf(items);
         }
 
         @Override
@@ -72,9 +74,46 @@ public sealed interface GameMessage {
                 return new OccupantView(name, "npc");
             }
         }
+
+        /** 바닥 물건 한 줄: 이름과 합친 수 */
+        public record FloorItemView(String name, int count) {
+        }
     }
 
-    /** 안내·결과·거절. tone: {@code info} | {@code error} */
+    /**
+     * 소지품(묻는 사람에게만). stones는 가진 영석 등급만(하품부터), items는 영석 밖 묶음(표시 순서),
+     * text는 그린 줄들({@code \n} 으로 나뉨)
+     */
+    record InventoryMessage(
+            int usedSlots,
+            int totalSlots,
+            List<StoneView> stones,
+            List<ItemView> items,
+            String text,
+            String tone
+    ) implements GameMessage {
+        public InventoryMessage {
+            stones = List.copyOf(stones);
+            items = List.copyOf(items);
+        }
+
+        public static InventoryMessage of(int usedSlots, int totalSlots, List<StoneView> stones, List<ItemView> items, String text) {
+            return new InventoryMessage(usedSlots, totalSlots, stones, items, requireNonNull(text), "item");
+        }
+
+        @Override
+        public String type() {
+            return "inventory";
+        }
+
+        public record StoneView(String name, long count) {
+        }
+
+        public record ItemView(String name, int count, boolean bound, boolean quest) {
+        }
+    }
+
+    /** 안내·결과·거절. tone: {@code info} | {@code error} | {@code item}(물건 명령의 결과) */
     record SystemMessage(String text, String tone) implements GameMessage {
         public static SystemMessage info(String text) {
             return new SystemMessage(text, "info");
@@ -84,16 +123,27 @@ public sealed interface GameMessage {
             return new SystemMessage(text, "error");
         }
 
+        public static SystemMessage item(String text) {
+            return new SystemMessage(text, "item");
+        }
+
         @Override
         public String type() {
             return "system";
         }
     }
 
-    /** 같은 방에서 일어난 일. event: {@code arrive} | {@code leave} | {@code appear} | {@code disappear} */
+    /**
+     * 같은 방에서 일어난 일. tone: {@code movement} | {@code item},
+     * event: {@code arrive} | {@code leave} | {@code appear} | {@code disappear} | {@code pick} | {@code drop} | {@code give}
+     */
     record NoticeMessage(String text, String tone, String actor, String event) implements GameMessage {
         public static NoticeMessage movement(String text, String actor, String event) {
             return new NoticeMessage(requireNonNull(text), "movement", actor, event);
+        }
+
+        public static NoticeMessage item(String text, String actor, String event) {
+            return new NoticeMessage(requireNonNull(text), "item", actor, event);
         }
 
         @Override

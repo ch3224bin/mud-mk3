@@ -1,14 +1,18 @@
 package mudmk3.domain.game;
 
 import mudmk3.domain.game.Command.Empty;
+import mudmk3.domain.game.Command.Drop;
 import mudmk3.domain.game.Command.Help;
+import mudmk3.domain.game.Command.Inventory;
 import mudmk3.domain.game.Command.Look;
 import mudmk3.domain.game.Command.Move;
+import mudmk3.domain.game.Command.Pick;
 import mudmk3.domain.game.Command.Quit;
 import mudmk3.domain.game.Command.Say;
 import mudmk3.domain.game.Command.Talk;
 import mudmk3.domain.game.Command.Unknown;
 import mudmk3.domain.game.Command.Who;
+import mudmk3.domain.item.ItemQuery;
 import mudmk3.domain.room.Direction;
 import org.junit.jupiter.api.Test;
 
@@ -72,5 +76,31 @@ class CommandParserTest {
         assertThat(parse("말 안녕")).isEqualTo(new Unknown("말"));
         assertThat(parse("보")).isEqualTo(new Unknown("보"));
         assertThat(parse("북 가자")).isEqualTo(new Unknown("북"));
+    }
+
+    @Test
+    void inventory() {
+        assertThat(parse("소지품")).isEqualTo(new Inventory());
+        assertThat(parse("ㅈ")).isEqualTo(new Inventory());
+        assertThat(parse(" ㅈ ")).isEqualTo(new Inventory());
+    }
+
+    @Test
+    void inventoryWithArgumentFail() {
+        assertThat(parse("소지품 x")).isEqualTo(new Unknown("소지품"));
+        assertThat(parse("ㅈ 가죽")).isEqualTo(new Unknown("ㅈ"));
+    }
+
+    @Test
+    void pick() {
+        assertThat(parse("줍기")).isEqualTo(new Pick(new ItemArguments(null, Amount.one())));
+        assertThat(parse("줍기 2.가죽")).isEqualTo(new Pick(new ItemArguments(new ItemQuery("가죽", 2), Amount.one())));
+        assertThat(parse("줍기 늑대 가죽 전부")).isEqualTo(new Pick(new ItemArguments(new ItemQuery("늑대 가죽", 0), new Amount.All())));
+    }
+
+    @Test
+    void drop() {
+        assertThat(parse("버리기 하품 10")).isEqualTo(new Drop(new ItemArguments(new ItemQuery("하품 영석", 0), new Amount.Count(10))));
+        assertThat(parse("버리기")).isEqualTo(new Drop(new ItemArguments(null, Amount.one())));
     }
 }

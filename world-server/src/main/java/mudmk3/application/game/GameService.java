@@ -3,6 +3,7 @@ package mudmk3.application.game;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.floor.provided.RoomFloor;
 import mudmk3.application.game.provided.GameConnector;
 import mudmk3.application.game.required.GameCloseReason;
 import mudmk3.application.game.required.GameMessage;
@@ -68,7 +69,6 @@ public class GameService implements GameConnector {
     static final String CHARACTER_CREATED = "캐릭터를 만들었습니다.";
     static final String REPLACED = "다른 곳에서 접속해 이 연결을 끊습니다.";
     static final String COMMAND_TOO_LONG = "명령이 너무 깁니다.";
-    static final String NO_DETAILED_LOOK = "아직 자세히 볼 수 없습니다.";
     static final String NO_EXIT = "그쪽으로는 길이 없습니다.";
     static final String SAY_EMPTY = "무엇이라 말하시겠습니까?";
     static final String SAY_TOO_LONG = "말은 200자 이내로 하십시오.";
@@ -88,6 +88,8 @@ public class GameService implements GameConnector {
     private final NpcFinder npcFinder;
     private final WorldSettingsFinder worldSettingsFinder;
     private final PresenceRepository presenceRepository;
+    private final RoomFloor roomFloor;
+    private final ItemCommandHandler itemCommandHandler;
     private final GameMessageSender sender;
     private final TransactionTemplate transactionTemplate;
 
@@ -105,6 +107,8 @@ public class GameService implements GameConnector {
             NpcFinder npcFinder,
             WorldSettingsFinder worldSettingsFinder,
             PresenceRepository presenceRepository,
+            RoomFloor roomFloor,
+            ItemCommandHandler itemCommandHandler,
             GameMessageSender sender,
             PlatformTransactionManager transactionManager
     ) {
@@ -115,6 +119,8 @@ public class GameService implements GameConnector {
         this.npcFinder = npcFinder;
         this.worldSettingsFinder = worldSettingsFinder;
         this.presenceRepository = presenceRepository;
+        this.roomFloor = roomFloor;
+        this.itemCommandHandler = itemCommandHandler;
         this.sender = sender;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
@@ -341,6 +347,7 @@ public class GameService implements GameConnector {
             case Command.Move move -> move(sessionId, session, player, move.direction());
             case Command.Say say -> say(sessionId, player, say.message());
             case Command.Talk talk -> talk(sessionId, player, talk);
+            case Command.Inventory _, Command.Pick _, Command.Drop _ -> itemCommandHandler.handle(command, player, this::send);
             case Command.Who _ -> who(sessionId);
             case Command.Help _ -> send(sessionId, SystemMessage.info(HELP));
             case Command.Quit _ -> quit(sessionId, player);
@@ -352,7 +359,7 @@ public class GameService implements GameConnector {
 
     private void look(String sessionId, OnlinePlayer player, Command.Look look) {
         if (look.argument() != null) {
-            send(sessionId, SystemMessage.info(NO_DETAILED_LOOK));
+            itemCommandHandler.handle(look, player, this::send);
             return;
         }
         send(sessionId, roomView(roomFinder.find(player.getRoomId()), false, player.getCharacterId()));
@@ -493,11 +500,11 @@ public class GameService implements GameConnector {
         send(sessionId, roomView(room, zoneEntered, session.requireCharacterId()));
     }
 
-    /** 방 보기: 그 방의 사람(나 빼고)과 배치된 NPC를 지금 읽어 넣는다 */
+    /** 방 보기: 그 방의 사람(나 빼고)·배치된 NPC·바닥 물건을 지금 읽어 넣는다 */
     private GameMessage roomView(Room room, boolean zoneEntered, Long viewerCharacterId) {
         Long roomId = requireNonNull(room.getId());
-        return RoomViewAssembler.assemble(room, zoneEntered,
-                presenceRepository.findAllInRoom(roomId), npcFinder.findAllInRoom(roomId), viewerCharacterId);
+        return RoomViewAssembler.assemble(room, zoneEntered, presenceRepository.findAllInRoom(roomId),
+                npcFinder.findAllInRoom(roomId), roomFloor.look(roomId), viewerCharacterId);
     }
 
     private void notifyOthers(OnlinePlayer actor, Long roomId, String text, String event) {

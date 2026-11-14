@@ -2,9 +2,13 @@ package mudmk3.adapter.websocket;
 
 import mudmk3.application.game.required.GameCloseReason;
 import mudmk3.application.game.required.GameMessage;
+import mudmk3.application.game.required.GameMessage.InventoryMessage;
+import mudmk3.application.game.required.GameMessage.InventoryMessage.ItemView;
+import mudmk3.application.game.required.GameMessage.InventoryMessage.StoneView;
 import mudmk3.application.game.required.GameMessage.NoticeMessage;
 import mudmk3.application.game.required.GameMessage.PromptMessage;
 import mudmk3.application.game.required.GameMessage.RoomMessage;
+import mudmk3.application.game.required.GameMessage.RoomMessage.FloorItemView;
 import mudmk3.application.game.required.GameMessage.RoomMessage.OccupantView;
 import mudmk3.application.game.required.GameMessage.RoomMessage.OwnerView;
 import mudmk3.application.game.required.GameMessage.RoomMessage.RoomView;
@@ -64,12 +68,12 @@ class WebSocketGameMessageSenderTest {
     void roomJson() {
         RoomMessage room = new RoomMessage(new ZoneView(1L, "청우촌"), true,
                 new RoomView(2L, "마을 어귀", "흙길이 갈라진다."), null, List.of("북", "남동"),
-                List.of(OccupantView.player("한립"), OccupantView.npc("왕씨")));
+                List.of(OccupantView.player("한립"), OccupantView.npc("왕씨")), List.of());
 
         assertJson(room, """
                 {"type":"room","zone":{"id":1,"name":"청우촌"},"zoneEntered":true,
                  "room":{"id":2,"name":"마을 어귀","description":"흙길이 갈라진다."},"owner":null,
-                 "exits":["북","남동"],"occupants":[{"name":"한립","kind":"player"},{"name":"왕씨","kind":"npc"}]}""");
+                 "exits":["북","남동"],"occupants":[{"name":"한립","kind":"player"},{"name":"왕씨","kind":"npc"}],"items":[]}""");
         assertThat(sender.toJson(room)).contains("\"owner\":null");
     }
 
@@ -77,12 +81,46 @@ class WebSocketGameMessageSenderTest {
     void roomWithOwnerJson() {
         RoomMessage room = new RoomMessage(new ZoneView(3L, "청석성"), false,
                 new RoomView(4L, "남문", "돌로 쌓은 성문이 우뚝 서 있다."), new OwnerView("castle", "청석성"),
-                List.of("남"), List.of());
+                List.of("남"), List.of(), List.of());
 
         assertJson(room, """
                 {"type":"room","zone":{"id":3,"name":"청석성"},"zoneEntered":false,
                  "room":{"id":4,"name":"남문","description":"돌로 쌓은 성문이 우뚝 서 있다."},
-                 "owner":{"kind":"castle","name":"청석성"},"exits":["남"],"occupants":[]}""");
+                 "owner":{"kind":"castle","name":"청석성"},"exits":["남"],"occupants":[],"items":[]}""");
+    }
+
+    @Test
+    void roomWithItemsJson() {
+        RoomMessage room = new RoomMessage(new ZoneView(1L, "청우촌"), false,
+                new RoomView(2L, "마을 어귀", "흙길이 갈라진다."), null, List.of(),
+                List.of(OccupantView.npc("왕씨")), List.of(new FloorItemView("늑대 가죽", 3), new FloorItemView("비검", 1)));
+
+        assertJson(room, """
+                {"type":"room","zone":{"id":1,"name":"청우촌"},"zoneEntered":false,
+                 "room":{"id":2,"name":"마을 어귀","description":"흙길이 갈라진다."},"owner":null,
+                 "exits":[],"occupants":[{"name":"왕씨","kind":"npc"}],
+                 "items":[{"name":"늑대 가죽","count":3},{"name":"비검","count":1}]}""");
+        assertThat(propertyNames(room))
+                .containsExactly("type", "zone", "zoneEntered", "room", "owner", "exits", "occupants", "items");
+    }
+
+    @Test
+    void inventoryJson() {
+        InventoryMessage inventory = InventoryMessage.of(3, 22, List.of(new StoneView("하품 영석", 30)),
+                List.of(new ItemView("하급 저물대", 1, false, false), new ItemView("회춘단(연기 초)", 3, false, false),
+                        new ItemView("비검", 1, true, false), new ItemView("왕씨의 약초 꾸러미", 1, false, true)),
+                "[소지품 3/22칸]  하품 영석 30\n하급 저물대   회춘단(연기 초) x3   비검 (귀속)\n왕씨의 약초 꾸러미 (퀘스트)");
+
+        assertJson(inventory, """
+                {"type":"inventory","usedSlots":3,"totalSlots":22,"stones":[{"name":"하품 영석","count":30}],
+                 "items":[{"name":"하급 저물대","count":1,"bound":false,"quest":false},
+                          {"name":"회춘단(연기 초)","count":3,"bound":false,"quest":false},
+                          {"name":"비검","count":1,"bound":true,"quest":false},
+                          {"name":"왕씨의 약초 꾸러미","count":1,"bound":false,"quest":true}],
+                 "text":"[소지품 3/22칸]  하품 영석 30\\n하급 저물대   회춘단(연기 초) x3   비검 (귀속)\\n왕씨의 약초 꾸러미 (퀘스트)",
+                 "tone":"item"}""");
+        assertThat(propertyNames(inventory))
+                .containsExactly("type", "usedSlots", "totalSlots", "stones", "items", "text", "tone");
     }
 
     @Test
@@ -100,12 +138,16 @@ class WebSocketGameMessageSenderTest {
                 {"type":"system","text":"접속한 사람 (1)\\n  한백    청우촌","tone":"info"}""");
         assertJson(SystemMessage.error("그쪽으로는 길이 없습니다."), """
                 {"type":"system","text":"그쪽으로는 길이 없습니다.","tone":"error"}""");
+        assertJson(SystemMessage.item("늑대 가죽 2개를 주웠습니다."), """
+                {"type":"system","text":"늑대 가죽 2개를 주웠습니다.","tone":"item"}""");
     }
 
     @Test
     void noticeJson() {
         assertJson(NoticeMessage.movement("한백이 북쪽으로 떠난다.", "한백", "leave"), """
                 {"type":"notice","text":"한백이 북쪽으로 떠난다.","tone":"movement","actor":"한백","event":"leave"}""");
+        assertJson(NoticeMessage.item("한백이 늑대 가죽 2개를 줍는다.", "한백", "pick"), """
+                {"type":"notice","text":"한백이 늑대 가죽 2개를 줍는다.","tone":"item","actor":"한백","event":"pick"}""");
     }
 
     @Test
@@ -261,6 +303,10 @@ class WebSocketGameMessageSenderTest {
 
         session.awaitEvents(1);
         assertThat(session.events()).containsExactly("close:" + code);
+    }
+
+    private List<String> propertyNames(GameMessage message) {
+        return jsonMapper.readTree(sender.toJson(message)).properties().stream().map(java.util.Map.Entry::getKey).toList();
     }
 
     private void assertJson(GameMessage message, String expected) {
