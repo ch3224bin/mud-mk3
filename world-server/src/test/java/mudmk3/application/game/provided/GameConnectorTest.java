@@ -24,12 +24,22 @@ import mudmk3.application.game.required.GameMessage.RoomMessage.OccupantView;
 import mudmk3.application.game.required.GameMessage.RoomMessage.OwnerView;
 import mudmk3.application.game.required.GameMessage.SayMessage;
 import mudmk3.application.game.required.GameMessage.SessionMessage;
+import mudmk3.application.game.required.GameMessage.StatusMessage;
+import mudmk3.application.game.required.GameMessage.StatusMessage.CultivationView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.GaugeView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.RealmView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.RootView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.SpiritRootView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.StatsView;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
 import mudmk3.application.game.required.GameMessage.TalkMessage;
+import mudmk3.application.cultivation.provided.ReadResult;
+import mudmk3.application.cultivation.provided.TechniqueReader;
 import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.item.provided.ItemTypeEditor;
 import mudmk3.application.item.provided.ItemTypeFinder;
+import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.npc.provided.NpcSaveRequest;
@@ -37,6 +47,10 @@ import mudmk3.application.npc.provided.NpcTopicRequest;
 import mudmk3.application.npc.provided.ShopItemRequest;
 import mudmk3.application.npc.provided.ShopSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
+import mudmk3.application.technique.provided.AbilityRequest;
+import mudmk3.application.technique.provided.TechniqueEditor;
+import mudmk3.application.technique.provided.TechniqueSaveRequest;
+import mudmk3.application.technique.provided.TechniqueView;
 import mudmk3.application.world.provided.StartingItemRequest;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
@@ -46,15 +60,18 @@ import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.faction.Faction;
 import mudmk3.domain.faction.FactionKind;
 import mudmk3.domain.item.BagGrade;
+import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.SpiritStoneGrade;
 import mudmk3.domain.npc.Npc;
 import mudmk3.domain.npc.ShopKind;
 import mudmk3.domain.shared.Realm;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
 
+import static mudmk3.application.technique.provided.TechniqueRequestFixture.changchunRequest;
 import static mudmk3.domain.character.CharacterFixture.createCharacter;
 import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
@@ -85,6 +102,8 @@ class GameConnectorTest extends BaseGameTest {
 
     private final NpcFinder npcFinder;
     private final PresenceFinder presenceFinder;
+    private final TechniqueEditor techniqueEditor;
+    private final TechniqueReader techniqueReader;
 
     GameConnectorTest(
             GameConnector gameConnector,
@@ -101,6 +120,8 @@ class GameConnectorTest extends BaseGameTest {
             NpcEditor npcEditor,
             NpcFinder npcFinder,
             PresenceFinder presenceFinder,
+            TechniqueEditor techniqueEditor,
+            TechniqueReader techniqueReader,
             ItemTypeEditor itemTypeEditor,
             ItemTypeFinder itemTypeFinder,
             FloorPlacementEditor floorPlacementEditor,
@@ -114,6 +135,8 @@ class GameConnectorTest extends BaseGameTest {
                 itemTypeEditor, itemTypeFinder, floorPlacementEditor, inventoryFinder, inventoryEditor, clock, entityManager);
         this.npcFinder = npcFinder;
         this.presenceFinder = presenceFinder;
+        this.techniqueEditor = techniqueEditor;
+        this.techniqueReader = techniqueReader;
     }
 
     @Test
@@ -2023,5 +2046,179 @@ class GameConnectorTest extends BaseGameTest {
         characterRepository.save(createCharacter(accountId, name, roomId));
         entityManager.flush();
         return accountId;
+    }
+
+    // ---- 상태·공법·신통 (4차)
+
+    @Test
+    void statusMessage() {
+        prepareMap();
+        enter("a", "한백");
+        enter("b", "한립");
+        sender.clear();
+
+        gameConnector.handle("a", "상태");
+
+        StatusMessage status = sender.lastTo("a", StatusMessage.class);
+        assertThat(status.characterName()).isEqualTo("한백");
+        assertThat(status.realm()).isEqualTo(new RealmView("MORTAL", "범인"));
+        assertThat(status.spiritRoot()).isEqualTo(new SpiritRootView("목·화 진영근",
+                List.of(new RootView("WOOD", "목", 50), new RootView("FIRE", "화", 50))));
+        assertThat(status.stats()).isEqualTo(new StatsView(new GaugeView(10, 10), new GaugeView(0, 0),
+                new GaugeView(10, 10), new GaugeView(10, 10), new GaugeView(0, 0), 1, 1));
+        assertThat(status.cultivation()).isNull();
+        assertThat(status.tone()).isEqualTo("status");
+        assertThat(status.text()).isEqualTo("""
+                한백 · 범인 · 목·화 진영근 (목 50, 화 50)
+                기혈  10 / 10     법력  0 / 0
+                의식  10 / 10     정혈  10 / 10
+                육신  1   근력  1   영력  0 / 0
+                깨달음  금 0 · 목 0 · 수 0 · 화 0 · 토 0 · 연체 0""");
+        assertThat(sender.messagesTo("a")).hasSize(1);
+        assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    @Test
+    void statusShortcut() {
+        prepareMap();
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "ㅅ");
+
+        assertThat(sender.messagesTo("a")).singleElement().isInstanceOf(StatusMessage.class);
+    }
+
+    @Test
+    void statusWithArgumentFail() {
+        prepareMap();
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "상태 한립");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.error(UNKNOWN));
+    }
+
+    @Test
+    void statusAfterRealmChange() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        setRealm(han, Realm.QI_1);
+        sender.clear();
+
+        gameConnector.handle("a", "상태");
+
+        StatusMessage status = sender.lastTo("a", StatusMessage.class);
+        assertThat(status.realm()).isEqualTo(new RealmView("QI_1", "연기 1층"));
+        assertThat(status.cultivation()).isEqualTo(new CultivationView(0, 190));
+        assertThat(status.stats().qiBlood()).isEqualTo(new GaugeView(60, 60));
+        assertThat(status.stats().mana()).isEqualTo(new GaugeView(25, 25));
+        assertThat(status.text().lines().toList()).contains("수위  0 / 190");
+    }
+
+    @Test
+    void techniquesInfo() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        enter("b", "한립");
+        sender.clear();
+
+        gameConnector.handle("a", "공법");
+        gameConnector.handle("a", "신통");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                SystemMessage.info("익힌 공법이 없습니다."), SystemMessage.info("배운 신통이 없습니다."));
+
+        learnChangchun(han);
+        sender.clear();
+        gameConnector.handle("a", "공법");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                SystemMessage.info("장춘공  1/9성 · 목 · 오행  다음 2성: 목 깨달음 120 (지금 0)"));
+        assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    @Test
+    void techniquesShowRequiredRealmWhenBelow() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        TechniqueView view = learnChangchun(han);
+        techniqueEditor.update(view.id(), withStartRealm(changchunRequest("장춘공"), Realm.QI_3));
+        entityManager.flush();
+        entityManager.clear();
+        sender.clear();
+
+        gameConnector.handle("a", "공법");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.info(
+                "장춘공  1/9성 · 목 · 오행  다음 2성: 목 깨달음 120 (지금 0)  (연기 3층 필요)"));
+    }
+
+    @Test
+    void abilitiesFollowDefinition() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        enter("b", "한립");
+        TechniqueView view = learnChangchun(han);
+        sender.clear();
+
+        gameConnector.handle("a", "신통");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.info("""
+                [장춘공 1성]
+                  화탄술  공격·화  법력 5  대기 3초"""));
+
+        TechniqueSaveRequest original = changchunRequest("장춘공");
+        List<AbilityRequest> abilities = original.abilities().stream()
+                .map(ability -> switch (ability.name()) {
+                    case "화탄술" -> withCooldown(ability, new BigDecimal("5"));
+                    case "천안술" -> withLearnStage(ability, 1);
+                    default -> ability;
+                })
+                .toList();
+        techniqueEditor.update(view.id(), new TechniqueSaveRequest(original.name(), original.description(),
+                original.elements(), original.startRealm(), original.stages(), abilities));
+        entityManager.flush();
+        entityManager.clear();
+        sender.clear();
+
+        gameConnector.handle("a", "신통");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.info("""
+                [장춘공 1성]
+                  화탄술  공격·화  법력 5  대기 5초
+                  천안술  탐지·목  법력 3  대기 10초"""));
+        assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    /** 장춘공을 만들어 옥간에 담고 소지품에 넣은 뒤 읽는다(게임 {@code 읽기} 명령을 거치지 않음) */
+    private TechniqueView learnChangchun(Long accountId) {
+        TechniqueView view = techniqueEditor.create(changchunRequest("장춘공"));
+        Long scrollId = itemTypeEditor.create(new ItemTypeSaveRequest("장춘공 옥간", null, ItemCategory.SCROLL, 30,
+                null, view.id())).getId();
+        give(accountId, scrollId, 1);
+        ReadResult result = techniqueReader.read(characterIdOf(accountId), scrollId);
+        assertThat(result).isInstanceOf(ReadResult.Learned.class);
+        entityManager.flush();
+        entityManager.clear();
+        return view;
+    }
+
+    private static TechniqueSaveRequest withStartRealm(TechniqueSaveRequest request, Realm startRealm) {
+        return new TechniqueSaveRequest(request.name(), request.description(), request.elements(), startRealm,
+                request.stages(), request.abilities());
+    }
+
+    private static AbilityRequest withCooldown(AbilityRequest ability, BigDecimal cooldownSeconds) {
+        return new AbilityRequest(ability.name(), ability.learnStage(), ability.kind(), ability.elements(),
+                ability.bodyRefining(), ability.target(), ability.costStat(), ability.costAmount(),
+                ability.costPerTick(), ability.castSeconds(), cooldownSeconds, ability.usableWhen());
+    }
+
+    private static AbilityRequest withLearnStage(AbilityRequest ability, int learnStage) {
+        return new AbilityRequest(ability.name(), learnStage, ability.kind(), ability.elements(),
+                ability.bodyRefining(), ability.target(), ability.costStat(), ability.costAmount(),
+                ability.costPerTick(), ability.castSeconds(), ability.cooldownSeconds(), ability.usableWhen());
     }
 }

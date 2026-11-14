@@ -1,8 +1,13 @@
 package mudmk3.application.game.required;
 
+import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.character.SpiritRoot;
+import mudmk3.domain.cultivation.StatSheet;
+import mudmk3.domain.shared.Realm;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
+import java.util.OptionalInt;
 
 import static java.util.Objects.requireNonNull;
 
@@ -113,7 +118,77 @@ public sealed interface GameMessage {
         }
     }
 
-    /** 안내·결과·거절. tone: {@code info} | {@code error} | {@code item}(물건 명령의 결과) */
+    /**
+     * 상태(묻는 사람에게만). realm·spiritRoot·stats 는 구조, cultivation 은 수위(범인이면 null), text 는 그린 줄들
+     * ({@code \n} 으로 나뉨). 4차에는 현재 수치 = 최대치다
+     */
+    record StatusMessage(
+            String characterName,
+            RealmView realm,
+            SpiritRootView spiritRoot,
+            StatsView stats,
+            @Nullable CultivationView cultivation,
+            String text,
+            String tone
+    ) implements GameMessage {
+
+        /** 영근을 정한 캐릭터의 상태. 수위는 4차에 쌓는 길이 없어 늘 0 이다 */
+        public static StatusMessage of(PlayerCharacter character, StatSheet stats, String text) {
+            Realm realm = character.getRealm();
+            SpiritRoot root = character.findSpiritRoot()
+                    .orElseThrow(() -> new IllegalStateException("영근을 아직 정하지 않은 캐릭터입니다. id: " + character.getId()));
+            List<RootView> roots = root.entries().stream()
+                    .map(entry -> new RootView(entry.element().name(), entry.element().koreanName(),
+                            (int) Math.floor(stats.aptitude(entry.element()))))
+                    .toList();
+            OptionalInt required = realm.requiredCultivation();
+            return new StatusMessage(
+                    character.getName().value(),
+                    new RealmView(realm.name(), realm.koreanName()),
+                    new SpiritRootView(root.name(), roots),
+                    new StatsView(GaugeView.full(stats.qiBlood()), GaugeView.full(stats.mana()),
+                            GaugeView.full(stats.sense()), GaugeView.full(stats.essence()),
+                            GaugeView.full(stats.spirit()), stats.body(), stats.strength()),
+                    required.isPresent() ? new CultivationView(0, required.getAsInt()) : null,
+                    requireNonNull(text),
+                    "status");
+        }
+
+        @Override
+        public String type() {
+            return "status";
+        }
+
+        /** code 는 enum 이름({@code QI_1}), name 은 한글 이름 */
+        public record RealmView(String code, String name) {
+        }
+
+        /** roots 는 오행 순 */
+        public record SpiritRootView(String name, List<RootView> roots) {
+            public SpiritRootView {
+                roots = List.copyOf(roots);
+            }
+        }
+
+        /** element 는 enum 이름({@code WOOD}), aptitude 는 소수점을 버린 자질 */
+        public record RootView(String element, String elementName, int aptitude) {
+        }
+
+        public record StatsView(GaugeView qiBlood, GaugeView mana, GaugeView sense, GaugeView essence, GaugeView spirit,
+                                int body, int strength) {
+        }
+
+        public record GaugeView(int current, int max) {
+            static GaugeView full(int max) {
+                return new GaugeView(max, max);
+            }
+        }
+
+        public record CultivationView(int current, int required) {
+        }
+    }
+
+    /** 안내·결과·거절. tone: {@code info} | {@code error} | {@code item}(물건 명령의 결과) | {@code growth}(성장) */
     record SystemMessage(String text, String tone) implements GameMessage {
         public static SystemMessage info(String text) {
             return new SystemMessage(text, "info");
@@ -125,6 +200,11 @@ public sealed interface GameMessage {
 
         public static SystemMessage item(String text) {
             return new SystemMessage(text, "item");
+        }
+
+        /** 공법을 익힘·경지가 바뀜 */
+        public static SystemMessage growth(String text) {
+            return new SystemMessage(text, "growth");
         }
 
         @Override

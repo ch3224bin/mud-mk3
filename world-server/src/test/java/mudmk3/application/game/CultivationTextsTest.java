@@ -1,0 +1,187 @@
+package mudmk3.application.game;
+
+import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.character.SpiritRoot;
+import mudmk3.domain.cultivation.CharacterTechnique;
+import mudmk3.domain.cultivation.StatSheet;
+import mudmk3.domain.shared.Element;
+import mudmk3.domain.shared.Realm;
+import mudmk3.domain.technique.AbilityKind;
+import mudmk3.domain.technique.AbilitySaveInfo;
+import mudmk3.domain.technique.AbilityTarget;
+import mudmk3.domain.technique.CostStat;
+import mudmk3.domain.technique.Technique;
+import mudmk3.domain.technique.TechniqueSaveInfo;
+import mudmk3.domain.technique.UsableWhen;
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+import static mudmk3.domain.character.CharacterFixture.createCharacter;
+import static mudmk3.domain.cultivation.CharacterTechniqueFixture.learned;
+import static mudmk3.domain.technique.TechniqueFixture.ability;
+import static mudmk3.domain.technique.TechniqueFixture.changchun;
+import static mudmk3.domain.technique.TechniqueFixture.fireBall;
+import static mudmk3.domain.technique.TechniqueFixture.greenWood;
+import static mudmk3.domain.technique.TechniqueFixture.ironBody;
+import static mudmk3.domain.technique.TechniqueFixture.stage;
+import static org.assertj.core.api.Assertions.assertThat;
+
+class CultivationTextsTest {
+
+    private final CultivationTexts texts = new CultivationTexts();
+
+    @Test
+    void statusQi1() {
+        PlayerCharacter han = character("목 화", Realm.QI_1);
+        StatSheet stats = StatSheet.of(Realm.QI_1, han.findSpiritRoot().orElseThrow(), List.of(learned(changchun())));
+
+        assertThat(texts.status(han, stats)).isEqualTo("""
+                한백 · 연기 1층 · 목·화 진영근 (목 50, 화 50)
+                기혈  60 / 60     법력  25 / 25
+                의식  20 / 20     정혈  20 / 20
+                육신  6   근력  3   영력  5 / 5
+                수위  0 / 190
+                깨달음  금 0 · 목 0 · 수 0 · 화 0 · 토 0 · 연체 0""");
+    }
+
+    @Test
+    void statusMortal() {
+        PlayerCharacter han = character("화", Realm.MORTAL);
+        StatSheet stats = StatSheet.of(Realm.MORTAL, han.findSpiritRoot().orElseThrow(), List.of());
+
+        assertThat(texts.status(han, stats)).isEqualTo("""
+                한백 · 범인 · 화 천영근 (화 100)
+                기혈  10 / 10     법력  0 / 0
+                의식  10 / 10     정혈  10 / 10
+                육신  1   근력  1   영력  0 / 0
+                깨달음  금 0 · 목 0 · 수 0 · 화 0 · 토 0 · 연체 0""");
+    }
+
+    @Test
+    void statusCommaNumbers() {
+        PlayerCharacter han = character("목 화", Realm.QI_13);
+        StatSheet stats = StatSheet.of(Realm.QI_13, han.findSpiritRoot().orElseThrow(), List.of());
+
+        assertThat(texts.status(han, stats).lines().toList()).contains("수위  0 / 11,000");
+    }
+
+    @Test
+    void statusShowsAptitudeWithGainFloored() {
+        PlayerCharacter han = character("금 목 화", Realm.QI_3);
+        StatSheet stats = StatSheet.of(Realm.QI_3, han.findSpiritRoot().orElseThrow(),
+                List.of(learned(changchun(), 5)));
+
+        assertThat(texts.status(han, stats).lines().findFirst().orElseThrow())
+                .isEqualTo("한백 · 연기 3층 · 금·목·화 진영근 (금 33, 목 37, 화 33)");
+    }
+
+    @Test
+    void techniquesLine() {
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(changchun()))))
+                .isEqualTo("장춘공  1/9성 · 목 · 오행  다음 2성: 목 깨달음 120 (지금 0)");
+    }
+
+    @Test
+    void bodyRefiningLine() {
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(ironBody()))))
+                .isEqualTo("강체결  1/9성 · 연체  다음 2성: 연체 깨달음 530 (지금 0)");
+    }
+
+    @Test
+    void techniquesInLearningOrder() {
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(changchun()), learned(ironBody())))).isEqualTo("""
+                장춘공  1/9성 · 목 · 오행  다음 2성: 목 깨달음 120 (지금 0)
+                강체결  1/9성 · 연체  다음 2성: 연체 깨달음 530 (지금 0)""");
+    }
+
+    @Test
+    void multiElementSplitsInsight() {
+        Technique fireEarth = Technique.create(new TechniqueSaveInfo("화토공", "", List.of(Element.EARTH, Element.FIRE),
+                Realm.MORTAL, List.of(stage(0, 0, 0, 0, 0, 0), stage(400, 0, 0, 0, 0, 0)), List.of(fireBall())));
+
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(fireEarth))))
+                .isEqualTo("화토공  1/2성 · 화·토 · 오행  다음 2성: 화 깨달음 200 (지금 0) · 토 깨달음 200 (지금 0)");
+    }
+
+    @Test
+    void lastStageLine() {
+        Technique single = Technique.create(new TechniqueSaveInfo("목령공", "", List.of(Element.WOOD), Realm.MORTAL,
+                List.of(stage(0, 0, 0, 0, 0, 0)), List.of(fireBall())));
+
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(single))))
+                .isEqualTo("목령공  1/1성 · 끝에 이름 · 목 · 오행");
+    }
+
+    @Test
+    void realmTooLowSuffix() {
+        assertThat(texts.techniques(Realm.QI_3, List.of(learned(greenWood()))))
+                .isEqualTo("청목결  1/8성 · 목 · 오행  다음 2성: 목 깨달음 1,800 (지금 0)  (연기 7층 필요)");
+        assertThat(texts.techniques(Realm.QI_7, List.of(learned(greenWood()))))
+                .doesNotContain("필요");
+    }
+
+    @Test
+    void noTechniques() {
+        assertThat(texts.techniques(Realm.QI_1, List.of())).isEqualTo("익힌 공법이 없습니다.");
+    }
+
+    @Test
+    void abilitiesBlock() {
+        assertThat(texts.abilities(List.of(learned(changchun()), learned(ironBody())))).isEqualTo("""
+                [장춘공 1성]
+                  화탄술  공격·화  법력 5  대기 3초
+                [강체결 1성]
+                  철권  공격·연체  법력 없음  대기 4초""");
+    }
+
+    @Test
+    void abilitiesUpToStage() {
+        assertThat(texts.abilities(List.of(learned(changchun(), 2)))).isEqualTo("""
+                [장춘공 2성]
+                  화탄술  공격·화  법력 5  대기 3초
+                  천안술  탐지·목  법력 3  대기 10초""");
+    }
+
+    @Test
+    void castTimeShown() {
+        assertThat(abilityLine(ability("화탄술", 1, AbilityKind.ATTACK, List.of(Element.FIRE), AbilityTarget.SINGLE,
+                CostStat.MANA, "5", "2", "3", UsableWhen.COMBAT_ONLY)))
+                .isEqualTo("  화탄술  공격·화  법력 5  시전 2초  대기 3초");
+    }
+
+    @Test
+    void perTickCost() {
+        assertThat(abilityLine(new AbilitySaveInfo("호신술", 1, AbilityKind.DEFENSE, List.of(Element.FIRE, Element.EARTH),
+                false, AbilityTarget.SELF, CostStat.SENSE, new BigDecimal("1"), true, BigDecimal.ZERO,
+                new BigDecimal("90"), UsableWhen.ANYTIME)))
+                .isEqualTo("  호신술  방어·화·토  의식 1 (틱마다)  대기 1분 30초");
+    }
+
+    @Test
+    void noElementAbility() {
+        assertThat(abilityLine(ability("정심술", 1, AbilityKind.BUFF, List.of(), AbilityTarget.SELF,
+                CostStat.MANA, "1.5", "0", "10", UsableWhen.ANYTIME)))
+                .isEqualTo("  정심술  보조  법력 1.5  대기 10초");
+    }
+
+    @Test
+    void noAbilities() {
+        assertThat(texts.abilities(List.of())).isEqualTo("배운 신통이 없습니다.");
+    }
+
+    /** 그 신통 하나를 1성에 둔 공법을 익혔을 때 신통 줄 */
+    private String abilityLine(AbilitySaveInfo info) {
+        Technique technique = Technique.create(new TechniqueSaveInfo("시험공", "", List.of(Element.FIRE), Realm.MORTAL,
+                List.of(stage(0, 0, 0, 0, 0, 0)), List.of(info)));
+        CharacterTechnique learned = learned(technique);
+        return texts.abilities(List.of(learned)).lines().skip(1).findFirst().orElseThrow();
+    }
+
+    private static PlayerCharacter character(String roots, Realm realm) {
+        PlayerCharacter character = createCharacter(1L, "한백", 10L, SpiritRoot.parse(roots).orElseThrow());
+        character.changeRealm(realm);
+        return character;
+    }
+}

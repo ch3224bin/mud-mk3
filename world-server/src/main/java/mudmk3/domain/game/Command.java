@@ -90,6 +90,18 @@ public sealed interface Command {
     record Cancel() implements Command {
     }
 
+    /** 경지·영근·스탯·수위·깨달음 보기 */
+    record Status() implements Command {
+    }
+
+    /** 익힌 공법 보기 */
+    record Techniques() implements Command {
+    }
+
+    /** 배운 신통 보기 */
+    record Abilities() implements Command {
+    }
+
     record Who() implements Command {
     }
 

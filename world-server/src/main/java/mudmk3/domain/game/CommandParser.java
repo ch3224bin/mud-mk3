@@ -41,6 +41,9 @@ public final class CommandParser {
             case "주기" -> parseGive(rest);
             case "확인" -> rest.isEmpty() ? new Command.Confirm() : new Command.Unknown(word);
             case "취소" -> rest.isEmpty() ? new Command.Cancel() : new Command.Unknown(word);
+            case "상태", "ㅅ" -> rest.isEmpty() ? new Command.Status() : new Command.Unknown(word);
+            case "공법" -> rest.isEmpty() ? new Command.Techniques() : new Command.Unknown(word);
+            case "신통" -> rest.isEmpty() ? new Command.Abilities() : new Command.Unknown(word);
             case "누구" -> rest.isEmpty() ? new Command.Who() : new Command.Unknown(word);
             case "도움말" -> rest.isEmpty() ? new Command.Help() : new Command.Unknown(word);
             case "종료" -> rest.isEmpty() ? new Command.Quit() : new Command.Unknown(word);

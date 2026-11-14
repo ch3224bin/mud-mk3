@@ -3,6 +3,7 @@ package mudmk3.application.game;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.cultivation.provided.CultivationFinder;
 import mudmk3.application.floor.provided.RoomFloor;
 import mudmk3.application.game.provided.GameConnector;
 import mudmk3.application.game.required.GameCloseReason;
@@ -11,6 +12,7 @@ import mudmk3.application.game.required.GameMessage.NoticeMessage;
 import mudmk3.application.game.required.GameMessage.PromptMessage;
 import mudmk3.application.game.required.GameMessage.SayMessage;
 import mudmk3.application.game.required.GameMessage.SessionMessage;
+import mudmk3.application.game.required.GameMessage.StatusMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
 import mudmk3.application.game.required.GameMessage.TalkMessage;
 import mudmk3.application.game.required.GameMessageSender;
@@ -22,6 +24,7 @@ import mudmk3.application.world.provided.WorldSettingsFinder;
 import mudmk3.domain.character.CharacterName;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
+import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.game.Command;
 import mudmk3.domain.game.CommandParser;
 import mudmk3.domain.game.OnlinePlayer;
@@ -101,6 +104,8 @@ public class GameService implements GameConnector {
     private final RoomFloor roomFloor;
     private final ItemCommandHandler itemCommandHandler;
     private final ShopCommandHandler shopCommandHandler;
+    private final CultivationFinder cultivationFinder;
+    private final CultivationTexts cultivationTexts;
     private final GameMessageSender sender;
     private final TransactionTemplate transactionTemplate;
 
@@ -121,6 +126,8 @@ public class GameService implements GameConnector {
             RoomFloor roomFloor,
             ItemCommandHandler itemCommandHandler,
             ShopCommandHandler shopCommandHandler,
+            CultivationFinder cultivationFinder,
+            CultivationTexts cultivationTexts,
             GameMessageSender sender,
             PlatformTransactionManager transactionManager
     ) {
@@ -134,6 +141,8 @@ public class GameService implements GameConnector {
         this.roomFloor = roomFloor;
         this.itemCommandHandler = itemCommandHandler;
         this.shopCommandHandler = shopCommandHandler;
+        this.cultivationFinder = cultivationFinder;
+        this.cultivationTexts = cultivationTexts;
         this.sender = sender;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
@@ -435,6 +444,12 @@ public class GameService implements GameConnector {
                     itemCommandHandler.handle(command, player, this::send);
             case Command.ShopList _, Command.Buy _, Command.Sell _, Command.Appraise _, Command.Confirm _, Command.Cancel _ ->
                     shopCommandHandler.handle(command, player, session, this::send);
+            case Command.Status _ -> status(sessionId, player);
+            case Command.Techniques _ -> send(sessionId, SystemMessage.info(cultivationTexts.techniques(
+                    characterFinder.find(player.getCharacterId()).getRealm(),
+                    cultivationFinder.findLearned(player.getCharacterId()))));
+            case Command.Abilities _ -> send(sessionId, SystemMessage.info(
+                    cultivationTexts.abilities(cultivationFinder.findLearned(player.getCharacterId()))));
             case Command.Who _ -> who(sessionId);
             case Command.Help _ -> send(sessionId, SystemMessage.info(HELP));
             case Command.Quit _ -> quit(sessionId, player);
@@ -442,6 +457,13 @@ public class GameService implements GameConnector {
             }
             case Command.Unknown _ -> send(sessionId, SystemMessage.error(UNKNOWN));
         }
+    }
+
+    /** 경지·스탯은 메모리에 두지 않고 명령마다 DB와 공법 정의로 계산한다 */
+    private void status(String sessionId, OnlinePlayer player) {
+        PlayerCharacter character = characterFinder.find(player.getCharacterId());
+        StatSheet stats = cultivationFinder.stats(player.getCharacterId());
+        send(sessionId, StatusMessage.of(character, stats, cultivationTexts.status(character, stats)));
     }
 
     private void look(String sessionId, OnlinePlayer player, Command.Look look) {

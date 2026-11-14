@@ -15,6 +15,13 @@ import mudmk3.application.game.required.GameMessage.RoomMessage.RoomView;
 import mudmk3.application.game.required.GameMessage.RoomMessage.ZoneView;
 import mudmk3.application.game.required.GameMessage.SayMessage;
 import mudmk3.application.game.required.GameMessage.SessionMessage;
+import mudmk3.application.game.required.GameMessage.StatusMessage;
+import mudmk3.application.game.required.GameMessage.StatusMessage.CultivationView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.GaugeView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.RealmView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.RootView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.SpiritRootView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.StatsView;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
 import mudmk3.application.game.required.GameMessage.TalkMessage;
 import org.junit.jupiter.api.AfterEach;
@@ -124,6 +131,43 @@ class WebSocketGameMessageSenderTest {
     }
 
     @Test
+    void status() {
+        StatusMessage status = new StatusMessage("한백", new RealmView("QI_1", "연기 1층"),
+                new SpiritRootView("목·화 진영근", List.of(new RootView("WOOD", "목", 50), new RootView("FIRE", "화", 50))),
+                new StatsView(new GaugeView(60, 60), new GaugeView(25, 25), new GaugeView(20, 20), new GaugeView(20, 20),
+                        new GaugeView(5, 5), 6, 3),
+                new CultivationView(0, 190), "한백 · 연기 1층\n수위  0 / 190", "status");
+
+        assertJson(status, """
+                {"type":"status","characterName":"한백","realm":{"code":"QI_1","name":"연기 1층"},
+                 "spiritRoot":{"name":"목·화 진영근","roots":[{"element":"WOOD","elementName":"목","aptitude":50},
+                                                          {"element":"FIRE","elementName":"화","aptitude":50}]},
+                 "stats":{"qiBlood":{"current":60,"max":60},"mana":{"current":25,"max":25},
+                          "sense":{"current":20,"max":20},"essence":{"current":20,"max":20},
+                          "spirit":{"current":5,"max":5},"body":6,"strength":3},
+                 "cultivation":{"current":0,"required":190},
+                 "text":"한백 · 연기 1층\\n수위  0 / 190","tone":"status"}""");
+        assertThat(propertyNames(status)).containsExactly(
+                "type", "characterName", "realm", "spiritRoot", "stats", "cultivation", "text", "tone");
+        JsonNode tree = jsonMapper.readTree(sender.toJson(status));
+        assertThat(tree.get("spiritRoot").get("roots").get(0)).isEqualTo(jsonMapper.readTree("""
+                {"element":"WOOD","elementName":"목","aptitude":50}"""));
+        assertThat(tree.get("stats").properties().stream().map(java.util.Map.Entry::getKey).toList())
+                .containsExactly("qiBlood", "mana", "sense", "essence", "spirit", "body", "strength");
+    }
+
+    @Test
+    void statusMortalJson() {
+        StatusMessage status = new StatusMessage("한백", new RealmView("MORTAL", "범인"),
+                new SpiritRootView("화 천영근", List.of(new RootView("FIRE", "화", 100))),
+                new StatsView(new GaugeView(10, 10), new GaugeView(0, 0), new GaugeView(10, 10), new GaugeView(10, 10),
+                        new GaugeView(0, 0), 1, 1),
+                null, "한백 · 범인", "status");
+
+        assertThat(sender.toJson(status)).contains("\"cultivation\":null");
+    }
+
+    @Test
     void talkJson() {
         assertJson(TalkMessage.talk("왕씨", null, "왕씨: \"어서 오시오.\"\n물어볼 수 있는 낱말: [단약]"), """
                 {"type":"talk","npc":"왕씨","word":null,
@@ -140,6 +184,8 @@ class WebSocketGameMessageSenderTest {
                 {"type":"system","text":"그쪽으로는 길이 없습니다.","tone":"error"}""");
         assertJson(SystemMessage.item("늑대 가죽 2개를 주웠습니다."), """
                 {"type":"system","text":"늑대 가죽 2개를 주웠습니다.","tone":"item"}""");
+        assertJson(SystemMessage.growth("경지가 연기 1층으로 바뀌었습니다."), """
+                {"type":"system","text":"경지가 연기 1층으로 바뀌었습니다.","tone":"growth"}""");
     }
 
     @Test

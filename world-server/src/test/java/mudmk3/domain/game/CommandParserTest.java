@@ -1,5 +1,6 @@
 package mudmk3.domain.game;
 
+import mudmk3.domain.game.Command.Abilities;
 import mudmk3.domain.game.Command.Appraise;
 import mudmk3.domain.game.Command.Buy;
 import mudmk3.domain.game.Command.Cancel;
@@ -16,7 +17,9 @@ import mudmk3.domain.game.Command.Move;
 import mudmk3.domain.game.Command.Pick;
 import mudmk3.domain.game.Command.Quit;
 import mudmk3.domain.game.Command.Say;
+import mudmk3.domain.game.Command.Status;
 import mudmk3.domain.game.Command.Talk;
+import mudmk3.domain.game.Command.Techniques;
 import mudmk3.domain.game.Command.Unknown;
 import mudmk3.domain.game.Command.Who;
 import mudmk3.domain.item.ItemQuery;
@@ -96,6 +99,27 @@ class CommandParserTest {
     void inventoryWithArgumentFail() {
         assertThat(parse("소지품 x")).isEqualTo(new Unknown("소지품"));
         assertThat(parse("ㅈ 가죽")).isEqualTo(new Unknown("ㅈ"));
+    }
+
+    @Test
+    void status() {
+        assertThat(parse("상태")).isEqualTo(new Status());
+        assertThat(parse("ㅅ")).isEqualTo(new Status());
+        assertThat(parse(" 상태 ")).isEqualTo(new Status());
+    }
+
+    @Test
+    void statusWithArgumentFail() {
+        assertThat(parse("상태 한립")).isEqualTo(new Unknown("상태"));
+        assertThat(parse("ㅅ 한립")).isEqualTo(new Unknown("ㅅ"));
+    }
+
+    @Test
+    void techniquesAndAbilities() {
+        assertThat(parse("공법")).isEqualTo(new Techniques());
+        assertThat(parse("신통")).isEqualTo(new Abilities());
+        assertThat(parse("공법 장춘공")).isEqualTo(new Unknown("공법"));
+        assertThat(parse("신통 화탄술")).isEqualTo(new Unknown("신통"));
     }
 
     @Test
