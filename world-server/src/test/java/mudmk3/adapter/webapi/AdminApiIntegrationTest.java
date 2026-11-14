@@ -135,6 +135,34 @@ record AdminApiIntegrationTest(MockMvcTester mvc) {
                 .hasStatus(HttpStatus.NO_CONTENT);
     }
 
+    @Test
+    void manageItemTypes() {
+        var list = assertThat(mvc.get().with(admin()).uri("/api/admin/item-types")).hasStatusOk().bodyJson();
+        list.extractingPath("$[0:4].name").asArray().containsExactly("하품 영석", "중품 영석", "상품 영석", "극품 영석");
+        list.extractingPath("$[0:4].spiritStone").asArray().containsOnly(true);
+
+        long itemTypeId = id(post("/api/admin/item-types", """
+                {"name":"회춘단","description":"몸을 되살리는 단약이다.","category":"PILL","baseValue":3,"tradable":true}"""));
+        var found = assertThat(mvc.get().with(admin()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
+                .hasStatusOk().bodyJson();
+        found.extractingPath("$.name").isEqualTo("회춘단");
+        found.extractingPath("$.categoryName").isEqualTo("단약");
+        found.extractingPath("$.stackSize").isEqualTo(99);
+
+        var updated = assertThat(put("/api/admin/item-types/%d".formatted(itemTypeId), """
+                {"name":"회춘단(연기 초)","description":"몸을 되살리는 단약이다.","category":"PILL","baseValue":5,"tradable":false}"""))
+                .hasStatusOk().bodyJson();
+        updated.extractingPath("$.name").isEqualTo("회춘단(연기 초)");
+        updated.extractingPath("$.baseValue").isEqualTo(5);
+        updated.extractingPath("$.tradable").isEqualTo(false);
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.get().with(admin()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson().extractingPath("$.detail").isEqualTo("물건 종류를 찾을 수 없습니다. id: " + itemTypeId);
+    }
+
     private MvcTestResult post(String uri, String json) {
         return mvc.post().with(admin()).with(clientHeader()).uri(uri).contentType(MediaType.APPLICATION_JSON).content(json).exchange();
     }

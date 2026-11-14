@@ -3,15 +3,19 @@ package mudmk3.adapter.webapi;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import mudmk3.application.faction.provided.FactionInUseException;
+import mudmk3.application.item.provided.ItemTypeInUseException;
+import mudmk3.application.item.provided.SpiritStoneChangeException;
 import mudmk3.application.room.provided.ExitConflictException;
 import mudmk3.application.room.provided.StartRoomDeletionException;
 import mudmk3.application.zone.provided.ZoneNotEmptyException;
 import mudmk3.domain.faction.DuplicateFactionNameException;
+import mudmk3.domain.item.DuplicateItemTypeNameException;
 import mudmk3.domain.npc.DuplicateNpcNameException;
 import mudmk3.domain.zone.DuplicateZoneNameException;
 import mudmk3.support.exception.ValidationException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.TypeMismatchException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -42,10 +46,20 @@ public class ApiControllerAdvice extends ResponseEntityExceptionHandler {
             FactionInUseException.class,
             ZoneNotEmptyException.class,
             ExitConflictException.class,
-            StartRoomDeletionException.class
+            StartRoomDeletionException.class,
+            DuplicateItemTypeNameException.class,
+            ItemTypeInUseException.class,
+            SpiritStoneChangeException.class
     })
     public ProblemDetail handleConflict(RuntimeException exception) {
         return problem(HttpStatus.CONFLICT, exception.getMessage(), exception);
+    }
+
+    /** 앞선 검사를 지난 뒤 DB 제약에 걸린 것은 드문 동시 변경으로 본다. DB 메시지는 내보내지 않는다 */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException exception) {
+        log.warn("DB 제약 위반", exception);
+        return problem(HttpStatus.CONFLICT, "다른 곳에서 함께 바꾸고 있어 저장하지 못했습니다. 다시 시도하십시오.", exception);
     }
 
     @ExceptionHandler({
