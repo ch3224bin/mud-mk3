@@ -28,6 +28,7 @@ public record TechniqueSaveRequest(
         RequestValues.required(startRealm, "startRealm");
     }
 
+    /** 컴팩트 생성자가 이미 채웠지만 컴포넌트가 @Nullable 타입이라 다시 채운다 */
     public TechniqueSaveInfo toInfo() {
         return new TechniqueSaveInfo(name, description == null ? "" : description, RequestValues.elements(elements),
                 startRealm,

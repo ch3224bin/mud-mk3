@@ -27,6 +27,7 @@ public record StageRequest(
         aptitudeGain = orZero(aptitudeGain);
     }
 
+    /** 컴팩트 생성자가 이미 채웠지만 컴포넌트가 @Nullable 타입이라 다시 채운다 */
     public TechniqueStage toStage() {
         return new TechniqueStage(orZero(insightRequired), orZero(aptitudeRequired), orZero(manaBonus),
                 orZero(senseBonus), orZero(spiritBonus), orZero(essenceBonus), orZero(bodyBonus),

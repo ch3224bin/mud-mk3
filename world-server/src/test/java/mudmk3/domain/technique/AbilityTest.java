@@ -111,6 +111,10 @@ class AbilityTest {
     void costAmountFail() {
         assertFail(changchunWith(List.of(fireBallWith("0", "0", "3"))), "소모가 있으면 양을 0보다 크게 정하십시오: 화탄술");
         assertFail(changchunWith(List.of(fireBallWith("-1", "0", "3"))), "소모가 있으면 양을 0보다 크게 정하십시오: 화탄술");
+        assertFail(changchunWith(List.of(fireBallWith("10000.1", "0", "3"))), "소모 양은 0.1~10,000으로 정하십시오: 화탄술");
+        assertThat(Technique.create(changchunWith(List.of(fireBallWith("10000", "0", "3")))).getAbilities()
+                .getFirst().getCostAmount()).isEqualByComparingTo("10000");
+        assertThat(Technique.create(changchunWith(List.of(fireBallWith("0.1", "0", "3")))).getAbilities()).hasSize(1);
     }
 
     @Test

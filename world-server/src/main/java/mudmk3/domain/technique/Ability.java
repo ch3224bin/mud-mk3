@@ -28,6 +28,7 @@ import static java.util.Objects.requireNonNull;
 public class Ability extends AbstractEntity {
 
     private static final Pattern NAME_PATTERN = Pattern.compile("^\\S{1,12}$");
+    private static final BigDecimal COST_AMOUNT_MAX = BigDecimal.valueOf(10_000);
     private static final BigDecimal CAST_MAX = BigDecimal.valueOf(60);
     private static final BigDecimal COOLDOWN_MIN = new BigDecimal("0.1");
     private static final BigDecimal COOLDOWN_MAX = BigDecimal.valueOf(3600);
@@ -70,7 +71,7 @@ public class Ability extends AbstractEntity {
     /**
      * 이름 규칙·중복 다음의 규칙을 정해진 순서로 검사하고 공법에 딸린 신통을 만든다:
      * 예약어 → 배우는 단계 → 같은 오행 두 번 → 연체 신통에 오행 → 연체술 공법의 법력 소모 → 소수 자리 →
-     * 소모 없음인데 양 → 소모가 있는데 양 → 시전 시간 → 재사용 대기시간
+     * 소모 없음인데 양 → 소모가 있는데 양 → 소모 양 상한(10,000) → 시전 시간 → 재사용 대기시간
      */
     static Ability create(Technique technique, AbilitySaveInfo info, int stageCount, boolean bodyRefiningTechnique) {
         String name = info.name();
@@ -96,6 +97,9 @@ public class Ability extends AbstractEntity {
         }
         if (info.costStat() != CostStat.NONE && info.costAmount().signum() <= 0) {
             throw new IllegalArgumentException("소모가 있으면 양을 0보다 크게 정하십시오: " + name);
+        }
+        if (info.costAmount().compareTo(COST_AMOUNT_MAX) > 0) {
+            throw new IllegalArgumentException("소모 양은 0.1~10,000으로 정하십시오: " + name);
         }
         if (info.castSeconds().signum() < 0 || info.castSeconds().compareTo(CAST_MAX) > 0) {
             throw new IllegalArgumentException("시전 시간은 0~60초로 정하십시오: " + name);

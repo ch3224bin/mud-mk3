@@ -1,8 +1,5 @@
 package mudmk3.domain.technique;
 
-import mudmk3.application.technique.provided.AbilityRequest;
-import mudmk3.application.technique.provided.StageRequest;
-import mudmk3.application.technique.provided.TechniqueSaveRequest;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
 
@@ -142,20 +139,5 @@ public final class TechniqueFixture {
 
     public static TechniqueSaveInfo changchunWithStages(List<TechniqueStage> stages) {
         return new TechniqueSaveInfo("장춘공", "", List.of(Element.WOOD), Realm.MORTAL, stages, List.of(fireBall()));
-    }
-
-    /** 장춘공 요청(관리 REST 모양) */
-    public static TechniqueSaveRequest changchunRequest(String name) {
-        return new TechniqueSaveRequest(name, "목 속성 입문 공법.", List.of(Element.WOOD), Realm.MORTAL,
-                changchunStages().stream()
-                        .map(stage -> new StageRequest(stage.insightRequired(), stage.aptitudeRequired(),
-                                stage.manaBonus(), stage.senseBonus(), stage.spiritBonus(), stage.essenceBonus(),
-                                stage.bodyBonus(), stage.strengthBonus(), stage.aptitudeGain()))
-                        .toList(),
-                changchunAbilities().stream()
-                        .map(info -> new AbilityRequest(info.name(), info.learnStage(), info.kind(), info.elements(),
-                                info.bodyRefining(), info.target(), info.costStat(), info.costAmount(),
-                                info.costPerTick(), info.castSeconds(), info.cooldownSeconds(), info.usableWhen()))
-                        .toList());
     }
 }
