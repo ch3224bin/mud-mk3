@@ -19,11 +19,29 @@
 | Task 11 play-client — 바닥 물건 줄, 소지품·물건 메시지, 자동완성 | | `room.items`(`FloorItem`)·`InventoryMessage`·tone `item`(system·notice, notice event `pick`·`drop`·`give`), 방 보기 NPC 다음 바닥 물건 줄(`이름 N개`, 1개면 이름만), `.line-item`(`--item: #9fd4a3`), COMMANDS 3차(D51 순서), 이름 후보에 바닥 물건(occupants 다음). 판정: 이동 notice 넷만 후보를 바꾸고 물건 notice 는 무시(switch 로 명시). `귀속 해제` 는 COMMANDS 에 따로 넣지 않음(D51 목록 그대로, `귀속` 뒤 낱말은 이름 후보). |
 | Task 12 스펙 반영 — 제안 결정을 시스템 스펙에 `(제안)` 으로 | | D32~D56을 `index.md`(3차 범위에 계획 링크·구현 날짜 2026-11-14, 3차 열린 질문 30개에 `→ (제안)` 답)·`admin-tool.md`(`## 3차 아이템 데이터`(D32~D35·D38)·`## 3차 화면`(D50)·`## 3차 REST API`(D49)·반영 절 D54·표의 아이템·상점 줄)·`command.md`(`### 물건 이름 찾기와 수량`·`줍기·버리기·소지품·물건 보기`·`상점 명령`·`결제와 확인`·`귀속`·`주기`·`3차 같은 방 알림`·`3차 도움말`, 1·2차 `보기 <무엇이든>` 문구를 3차 동작에 맞춤)·`world-structure.md`(`### 3차 데이터 모델`)·`npc.md`(`### 3차 상점 역할 데이터`)·`platform.md`(`### 3차 WebSocket 메시지 변경`·`### 3차 월드 상태와 저장`(D37·D39·D53·D55)·플레이 화면 D51·저장소 구성 D52)에 옮김. 룰북보다 줄인 것(D43 정혈 비용 없음, D45 `(꺼냄)`·내구도 없음, D42 목록 효과 설명 없음)을 명시. 구현 판정 반영: 확인은 실제로 깰 때만·정확히 10초까지 유효, 거스름 칸 수 `slotsShort`, 기준가 409 여러 상점 `, ` 잇기, 판매가 상한 문구, 매입가 쉼표 없음, 주기 앞부분 일치는 다른 사람 먼저, 방에 없음 문구는 정규화 이름, 수량 상한, 귀속 묶음 안전망, 바닥 시각 열 `timestamp with time zone`(계획은 `timestamp`), DB 제약 위반 전역 409(2차 spec에 해당 500 문구는 없어 맞출 것 없음), admin-console 바닥 수정·삭제·영석 화면, `귀속 해제` 자동완성 없음. 계획과 코드의 차이(구현 판정은 계획이 아니라 코드 기준으로 적음): 바닥 시각 열 `timestamp with time zone`, 거스름 칸 수 `slotsNeeded` → `slotsShort`(실제로 모자란 칸), 확인 질문에서 여러 등급을 `, ` 로 잇는 경우와 거스름 0 일 때 문장을 빼는 경우는 생기지 않음(깨는 등급은 하나, 거스름은 늘 0보다 큼). 리뷰 수정: 귀속 실패 문구를 룰북에 맞춤(`회춘단은 귀속할 수 없습니다.` → `단약은 귀속할 수 없습니다.`(종류 이름), `이미 귀속된 물건입니다.` → `이미 당신에게 귀속된 물건입니다.`), 확인 질문 문구는 룰북 item.md 출력 예와 같음 |
 | Task 13 README — 3차 시나리오와 명령, 도움말 대조 | | 모듈 소개에 3차 한 줄, `## 3차 시나리오`(아이템 종류 다섯·바닥 물건·시작 소지품·상점·play-client 소지품~주기), `## 되는 명령` 3차 줄·수량 문법·`보기 <무엇>` 줄·앞부분 선택 대상, 브라우저 수동 확인 3차 항목, `pgdata` 스키마 한 줄. 대조: README 도움말 문구는 `GameService.HELP` 와 글자 그대로 같음, 명령 이름은 `CommandParser`, 소지품 표시는 `ItemCommandHandler.inventoryText`, 5분은 `DroppedItem.LIFETIME`, admin 화면 이름(`아이템`·`시작 소지품`·`바닥 물건`·`상점`)은 코드와 같음. play-client `COMMANDS` 는 D51과 같고 `귀속 해제` 는 자동완성에 없어(서버 명령·도움말엔 있음) README에 그렇게 적음. 스모크 절은 3차 항목 없이 그대로(Task 14). |
+| Task 14 통합 확인 — compose 한 번 빌드·실행, 스모크 3차 시나리오, 정리 | | `smoke-test.mjs` 에 단계 16~25(아이템 종류 넷·영석 목록 → 광장 바닥 늑대 가죽 3 → 시작 소지품 비우고 D 생성(0/2칸)·시작 소지품 넷 저장·칸 넘침 400 → 상점 NPC 단약방·판매가 400·쓰이는 종류 삭제 409 → C 생성 3/22칸 → 줍기·버리기(D 알림)·바닥 묶음·물건 보기 → 목록·사기·팔기·값(30→24→25)·재료 거절 → 귀속·거절 셋·귀속 해제 → D에게 주기(단약·하품 5)·받는 쪽 칸 없음·없는 사람·도움말 → 시작 소지품 되돌림, `finally` 에서도 되돌림). 이름에 숫자 6자리 실행 번호(조사는 받침 없음), 받는 문구의 `{이/가}` 는 스크립트 `withIGa`. compose 빌드 한 번, 스모크 첫 실행에 통과, 모듈 코드 변경 없음. 디스크: 시작 전 남은 54Gi·이미지 2.382GB·빌드 캐시 63.45MB, 빌드 뒤 52Gi·2.445GB·1.602GB, 정리 뒤 53Gi·2.382GB·62.21MB. README 스모크 절 3차 항목. |
 
 ## 상태
 
-- 계획 작성(2026-11-14). 구현 전.
+- **3차 이터레이션 구현 완료** (2026-11-14). 남은 것: 최종 전체 리뷰, 브라우저 수동 확인(README 체크리스트 3차 항목).
+- 검증 (Task 14):
+  - world-server `./gradlew clean build` — BUILD SUCCESSFUL, 테스트 709개 통과(실패·건너뜀 0), SpotBugs·ArchUnit 포함.
+  - play-client `npm ci && npm test && npm run build` — 6 파일 75개 통과, 정적 export 빌드 성공.
+  - admin-console `npm ci && npm test && npm run build` — 12 파일 70개 통과, 정적 export 빌드 성공.
+  - compose: `docker compose build` 한 번(세 이미지) → `docker compose up -d` → `node scripts/smoke-test.mjs` 단계 1~25 `SMOKE OK`(첫 실행에 통과, 다시 빌드 없음).
+  - 기존 `pgdata` 에서 올림. 기동 로그에 스키마 오류 없음(`ddl-auto=update` 가 새 유니크 제약을 걸기 전 `constraint ... does not exist, skipping` 경고 셋 — `uk_inventory_character_id`·`uk_item_type_name`·`uk_item_type_spirit_stone_grade`, 첫 생성 때의 PostgreSQL 안내라 문제 아님).
+  - `.env` 는 고치지 않았다(개발용 로그인 꺼짐·관리자 본인 이메일). 빌드는 `.env` 그대로, `up` 때만 셸 값으로 `MUD_DEV_LOGIN_ENABLED=true`, `MUD_ADMIN_EMAILS=<기존>,smoke-admin@example.com` 을 덮어썼다. 시작 소지품은 스모크가 처음 값(`[]`)으로 되돌렸고(확인함), 시작 방은 끝난 뒤 원래 방(`태초 마을 / 태초 객잔`, id 1)으로 되돌렸다. 스모크 데이터(지역 `스모크 mwg640pn`, 아이템 종류 `회춘단368923` 등, NPC `상인368923`)는 `pgdata` 에 남아 있다.
+- 디스크 (Task 14):
+  - 시작 전 `df -h .` 남은 공간 54Gi. `docker system df`: 이미지 2.382GB, 빌드 캐시 63.45MB.
+  - compose 빌드 뒤 `df -h .` 52Gi, `docker system df`: 이미지 2.445GB, 빌드 캐시 1.602GB.
+  - 정리: `docker compose down`(볼륨 `pgdata` 남김) → `docker image prune -f` → `docker builder prune -f`(988MB) → `world-server/build`, `play-client/{.next,out}`, `admin-console/{.next,out}` 삭제(`git check-ignore` 로 확인). `node_modules` 는 남김.
+  - 정리 뒤 dangling 이미지 0개, `docker system df`: 이미지 2.382GB(`mud-mk3-*` 세 이미지는 남김), 빌드 캐시 62.21MB(회수 가능 0B). `df -h .` 남은 공간 53Gi.
 
 ## 리드 판정 (Ruling)
 
 ## 다음 할 일
+
+- 리드: 최종 전체 리뷰(opus).
+- 창호: 브라우저 수동 확인(README `수동 확인 — 브라우저` 3차 항목 — 바닥 물건 줄 색, 소지품 표시, 영석을 깨는 거래의 `확인`·`취소`·10초 넘김, 버린 물건 5분 뒤 사라짐, `줍기 늑` + Tab). `(제안)` 결정 검토(docs/spec/system 의 `(제안)`, 특히 index.md 3차 열린 질문 답 30개).
+- 스모크가 못 보는 것: 영석을 깨야 하는 거래의 확인 질문(상위 영석으로 치르기)·10초 만료, 버린 물건 5분 만료·배치 재등장(실제 시간이 걸림 — 자동 테스트는 `MutableClock` 으로 확인).
+- 2차에서 그대로 둔 Minor(계획 `## 2차에서 미룬 Minor` 의 '그대로 둠')와 1차 이월 항목은 그대로.

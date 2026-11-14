@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// compose 로 띄운 세 서비스(world-server)에 대고 1차·2차 시나리오를 자동으로 확인한다.
+// compose 로 띄운 세 서비스(world-server)에 대고 1차·2차·3차 시나리오를 자동으로 확인한다.
 // 사용: node scripts/smoke-test.mjs [baseUrl=http://localhost:8080]
 // 전제: world-server 가 SPRING_PROFILES_ACTIVE=local, MUD_DEV_LOGIN_ENABLED=true 로 떠 있고
 //       MUD_ADMIN_EMAILS 에 관리자 이메일(기본 smoke-admin@example.com, 바꾸려면 SMOKE_ADMIN_EMAIL)이 들어 있다.
 // Node 26 내장 fetch·WebSocket 만 쓴다(의존성 없음). 실패하면 무엇이 기대와 달랐는지 출력하고 종료 코드 1.
-// 실행마다 지역·플레이어 이메일·캐릭터 이름·성·종문·NPC 이름에 실행 번호를 섞는다. 만든 데이터는 지우지 않는다.
+// 실행마다 지역·플레이어 이메일·캐릭터 이름·성·종문·NPC·아이템 종류 이름에 실행 번호를 섞는다. 만든 데이터는 지우지 않는다.
+// 시작 소지품은 3차 단계에서 바꾸고 끝에(실패해도) 처음 값으로 되돌린다. 시작 방은 그 실행의 광장으로 남는다.
 
 const baseUrl = (process.argv[2] ?? "http://localhost:8080").replace(/\/$/, "");
 const wsUrl = baseUrl.replace(/^http/, "ws") + "/ws/game";
@@ -23,6 +24,14 @@ const innNpcName = `점소이${runNo}`;
 const randomHangul = () => String.fromCodePoint(0xac00 + Math.floor(Math.random() * (0xd7a3 - 0xac00 + 1)));
 const nameA = "갑사" + randomHangul() + randomHangul();
 const nameB = "을사" + randomHangul() + randomHangul();
+const nameC = "병사" + randomHangul() + randomHangul();
+const nameD = "정사" + randomHangul() + randomHangul();
+// 3차 아이템 종류·상점 NPC. 숫자로 끝나는 이름은 조사 규칙상 받침 없음(회춘단123456는·를·와·가)
+const bagName = `하급 저물대${runNo}`;
+const pillName = `회춘단${runNo}`;
+const hideName = `늑대 가죽${runNo}`;
+const swordName = `비검${runNo}`;
+const merchantName = `상인${runNo}`;
 
 class SmokeFailure extends Error {}
 
@@ -32,6 +41,12 @@ function fail(message) {
 
 function step(text) {
   console.log(`- ${text}`);
+}
+
+/** 끝 글자 받침에 맞춘 이/가. 한글이 아니면 받침 없음으로 본다 */
+function withIGa(word) {
+  const code = word.codePointAt(word.length - 1) - 0xac00;
+  return word + (code >= 0 && code <= 0xd7a3 - 0xac00 && code % 28 !== 0 ? "이" : "가");
 }
 
 // ---- REST ----
@@ -156,8 +171,10 @@ async function createCharacter(client, name) {
 // ---- 시나리오 ----
 
 async function run() {
-  console.log(`스모크 테스트 ${baseUrl} (실행 번호 ${runId}, 관리자 ${adminEmail}, 캐릭터 ${nameA}·${nameB})`);
+  console.log(`스모크 테스트 ${baseUrl} (실행 번호 ${runId}, 관리자 ${adminEmail}, 캐릭터 ${nameA}·${nameB}·${nameC}·${nameD})`);
   const clients = [];
+  let admin = null;
+  let originalStartingItems = null;
   const connect = (...args) => {
     const client = new GameClient(...args);
     clients.push(client);
@@ -166,7 +183,7 @@ async function run() {
 
   try {
     step("1. 개발용 로그인 — 관리자·플레이어 A·B 세션");
-    const admin = await devLogin(adminEmail);
+    admin = await devLogin(adminEmail);
     if (!admin.me.admin) fail(`${adminEmail} 이 관리자가 아님 — MUD_ADMIN_EMAILS 를 확인하십시오`);
     const playerA = await devLogin(`smoke-a-${runId}@example.com`);
     const playerB = await devLogin(`smoke-b-${runId}@example.com`);
@@ -355,9 +372,183 @@ async function run() {
     const unplaced = await api(admin, "GET", `/api/admin/npcs/${innNpc.id}`);
     if (unplaced.roomId !== null || unplaced.zoneId !== null) fail(`방을 지웠는데 배치가 남음: ${JSON.stringify(unplaced)}`);
 
-    console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName})`);
+    step(`16. 관리자 — 아이템 종류 ${bagName}·${pillName}·${hideName}·${swordName}, 목록 앞 넷은 영석`);
+    const itemType = (name, category, baseValue, { description = "", bagGrade = null } = {}) =>
+      api(admin, "POST", "/api/admin/item-types",
+        { name, description, category, baseValue, tradable: true, bagGrade }, { expect: 201 });
+    const bag = await itemType(bagName, "BAG", 30, { bagGrade: "LOW" });
+    if (bag.categoryName !== "저물대" || bag.bagGradeName !== "하급" || bag.bagSlots !== 20) {
+      fail(`저물대 응답이 다름: ${JSON.stringify(bag)}`);
+    }
+    const pill = await itemType(pillName, "PILL", 3);
+    const hide = await itemType(hideName, "MATERIAL", 2, { description: "거칠고 질긴 늑대의 가죽이다." });
+    const sword = await itemType(swordName, "ARTIFACT", 40);
+    if (pill.categoryName !== "단약" || hide.categoryName !== "재료" || sword.categoryName !== "법기") {
+      fail(`아이템 종류 이름이 다름: ${[pill, hide, sword].map((t) => t.categoryName).join(", ")}`);
+    }
+    const itemTypes = await api(admin, "GET", "/api/admin/item-types");
+    const firstFour = itemTypes.slice(0, 4).map((t) => t.name);
+    if (JSON.stringify(firstFour) !== JSON.stringify(["하품 영석", "중품 영석", "상품 영석", "극품 영석"])) {
+      fail(`아이템 종류 목록 앞 넷이 영석이 아님: ${JSON.stringify(firstFour)}`);
+    }
+    const lowStone = itemTypes[0];
+
+    step(`17. 관리자 — 광장 바닥에 ${hideName} 3개(재등장 없음) → 방 상세 floorItems remaining 3`);
+    await api(admin, "POST", `/api/admin/rooms/${square.id}/floor-items`,
+      { itemTypeId: hide.id, count: 3, respawnMinutes: null }, { expect: 201 });
+    const floorRoom = await api(admin, "GET", `/api/admin/rooms/${square.id}`);
+    const placed = floorRoom.floorItems.find((f) => f.itemTypeId === hide.id);
+    if (placed?.remaining !== 3 || placed.itemName !== hideName || placed.respawnMinutes !== null) {
+      fail(`광장 바닥 물건이 다름: ${JSON.stringify(floorRoom.floorItems)}`);
+    }
+
+    step(`18. 관리자 — 시작 소지품 비우기 → D(${nameD}) 생성(0/2칸) → 시작 소지품 넷 저장, 칸 넘침 400`);
+    originalStartingItems = (await api(admin, "GET", "/api/admin/world/starting-items"))
+      .map(({ itemTypeId, count }) => ({ itemTypeId, count }));
+    const emptied = await api(admin, "PUT", "/api/admin/world/starting-items", { items: [] });
+    if (emptied.length !== 0) fail(`시작 소지품이 비지 않음: ${JSON.stringify(emptied)}`);
+    const playerD = await devLogin(`smoke-d-${runId}@example.com`);
+    const d = connect("D", playerD.cookie);
+    await createCharacter(d, nameD);
+    const inventoryOf = async (client) => {
+      const m = client.send("소지품");
+      return client.waitFor((msg) => msg.type === "inventory", `${client.label} 소지품`, m);
+    };
+    const emptyInventory = await inventoryOf(d);
+    if (emptyInventory.usedSlots !== 0 || emptyInventory.totalSlots !== 2 || !emptyInventory.text.startsWith("[소지품 0/2칸]")) {
+      fail(`D 소지품이 빈 0/2칸이 아님: ${JSON.stringify(emptyInventory)}`);
+    }
+    const startingItems = [
+      { itemTypeId: bag.id, count: 1 },
+      { itemTypeId: lowStone.id, count: 30 },
+      { itemTypeId: pill.id, count: 3 },
+      { itemTypeId: sword.id, count: 1 },
+    ];
+    const saved = await api(admin, "PUT", "/api/admin/world/starting-items", { items: startingItems });
+    if (JSON.stringify(saved.map((s) => [s.itemName, s.count]))
+      !== JSON.stringify([[bagName, 1], ["하품 영석", 30], [pillName, 3], [swordName, 1]])) {
+      fail(`저장한 시작 소지품이 다름: ${JSON.stringify(saved)}`);
+    }
+    const overflow = await api(admin, "PUT", "/api/admin/world/starting-items",
+      { items: startingItems.slice(1) }, { expect: 400 });
+    if (overflow.detail !== "시작 소지품이 칸을 넘습니다. (필요 3칸, 칸 2)") fail(`칸 넘침 detail 이 다름: ${overflow.detail}`);
+
+    step(`19. 관리자 — NPC ${merchantName} 을 광장에 두고 단약방 [${pillName}], 판매가 1 → 400, 쓰이는 ${pillName} 삭제 → 409`);
+    const merchant = await api(admin, "POST", "/api/admin/npcs", {
+      name: merchantName, greeting: "무엇을 찾으시오?", defaultAnswer: "모르오.", topics: [], llmEnabled: false, roomId: square.id,
+    }, { expect: 201 });
+    const shopNpc = await api(admin, "PUT", `/api/admin/npcs/${merchant.id}/shop`,
+      { kind: "PILL_SHOP", items: [{ itemTypeId: pill.id, price: null }] });
+    if (shopNpc.shop?.kindName !== "단약방" || shopNpc.shop.items[0]?.effectivePrice !== 3 || shopNpc.shop.items[0].price !== null) {
+      fail(`상점 응답이 다름: ${JSON.stringify(shopNpc.shop)}`);
+    }
+    const unfair = await api(admin, "PUT", `/api/admin/npcs/${merchant.id}/shop`,
+      { kind: "PILL_SHOP", items: [{ itemTypeId: pill.id, price: 1 }] }, { expect: 400 });
+    if (unfair.detail !== `판매가는 매입가의 2배보다 커야 합니다: ${pillName} (매입가 0.75, 판매가 1)`) {
+      fail(`판매가 detail 이 다름: ${unfair.detail}`);
+    }
+    await api(admin, "DELETE", `/api/admin/item-types/${pill.id}`, undefined, { expect: 409 });
+
+    step(`20. C(${nameC}) 생성 → 소지품 3/22칸, 하품 영석 30`);
+    const playerC = await devLogin(`smoke-c-${runId}@example.com`);
+    const c = connect("C", playerC.cookie);
+    await createCharacter(c, nameC);
+    const startInventory = await inventoryOf(c);
+    if (startInventory.usedSlots !== 3 || startInventory.totalSlots !== 22
+      || JSON.stringify(startInventory.stones) !== JSON.stringify([{ name: "하품 영석", count: 30 }])
+      || startInventory.text.split("\n")[0] !== "[소지품 3/22칸]  하품 영석 30") {
+      fail(`C 시작 소지품이 다름: ${JSON.stringify(startInventory)}`);
+    }
+    const stonesOf = async (client) => (await inventoryOf(client)).stones;
+    /** 보낸 명령 뒤 처음 오는 system 메시지가 기대 문구인지 */
+    const expectSystem = async (client, input, expected, tone) => {
+      const m = client.send(input);
+      const msg = await client.waitFor((x) => x.type === "system", `${client.label} ${input} system`, m);
+      if (msg.text !== expected || (tone && msg.tone !== tone)) {
+        fail(`${client.label} ${input} 결과가 다름. 기대 ${JSON.stringify(expected)}${tone ? `(${tone})` : ""}, 실제 ${JSON.stringify(msg)}`);
+      }
+      return msg;
+    };
+
+    step(`21. C 보기·줍기·버리기·물건 보기 — D가 pick·drop 알림을 받음`);
+    const floorLook = async () => {
+      const m = c.send("보기");
+      return (await c.waitFor(isRoom("광장"), "C 보기 room", m)).items;
+    };
+    let items = await floorLook();
+    if (!items.some((i) => i.name === hideName && i.count === 3)) fail(`광장 바닥에 ${hideName} 3 이 없음: ${JSON.stringify(items)}`);
+    let dMark = d.mark();
+    await expectSystem(c, `줍기 ${hideName} 2`, `${hideName} 2개를 주웠습니다.`, "item");
+    await d.waitFor(isNotice("pick", nameC), `${nameC} pick`, dMark);
+    dMark = d.mark();
+    await expectSystem(c, `버리기 ${hideName} 1`, `${hideName} 1개를 버렸습니다.`, "item");
+    await d.waitFor(isNotice("drop", nameC), `${nameC} drop`, dMark);
+    items = await floorLook();
+    if (!items.some((i) => i.name === hideName && i.count === 2)) fail(`광장 바닥 ${hideName} 이 2(배치 1 + 버린 1)가 아님: ${JSON.stringify(items)}`);
+    await expectSystem(c, `보기 ${hideName}`, `${hideName} — 거칠고 질긴 늑대의 가죽이다.`, "item");
+
+    step(`22. C 목록·사기·팔기·값 — 영석 30 → 24 → 25, 재료는 단약방이 사지 않음`);
+    mark = c.send("목록");
+    const shopList = await c.waitFor((m) => m.type === "system", "목록", mark);
+    if (!shopList.text.includes(`[${merchantName} 단약방]`) || !shopList.text.includes(`  1. ${pillName}  3`)
+      || !shopList.text.includes("사 주는 것: 단약·영약")) {
+      fail(`목록이 다름: ${JSON.stringify(shopList.text)}`);
+    }
+    await expectSystem(c, `사기 ${pillName} 2`, `${pillName} 2개를 샀습니다. (하품 영석 -6)`, "item");
+    let stones = await stonesOf(c);
+    if (JSON.stringify(stones) !== JSON.stringify([{ name: "하품 영석", count: 24 }])) fail(`사기 뒤 영석이 24 가 아님: ${JSON.stringify(stones)}`);
+    await expectSystem(c, `팔기 ${pillName} 2`, `${pillName} 2개를 팔았습니다. (하품 영석 +1)`, "item");
+    stones = await stonesOf(c);
+    if (JSON.stringify(stones) !== JSON.stringify([{ name: "하품 영석", count: 25 }])) fail(`팔기 뒤 영석이 25 가 아님: ${JSON.stringify(stones)}`);
+    await expectSystem(c, `값 ${pillName}`, `${pillName} 1개에 하품 영석 0.75 — 3개면 2`, "item");
+    await expectSystem(c, `팔기 ${hideName}`, `${merchantName}: "그런 물건은 받지 않소." (재료는 재료상에 팔 수 있습니다)`, "error");
+
+    step(`23. C 귀속 ${swordName} → 버리기·팔기·주기 거절 → 귀속 해제`);
+    await expectSystem(c, `귀속 ${swordName}`, `${swordName}에 정혈을 한 방울 떨어뜨린다. ${swordName}가 당신에게 귀속되었습니다.`, "item");
+    const boundInventory = await inventoryOf(c);
+    if (!boundInventory.items.some((i) => i.name === swordName && i.bound === true)) {
+      fail(`소지품에 귀속된 ${swordName} 이 없음: ${JSON.stringify(boundInventory.items)}`);
+    }
+    await expectSystem(c, `버리기 ${swordName}`, "귀속된 물건은 버릴 수 없습니다.", "error");
+    await expectSystem(c, `팔기 ${swordName}`, `${merchantName}: "귀속된 물건은 사 줄 수 없소."`, "error");
+    await expectSystem(c, `주기 ${nameD} ${swordName}`, "귀속된 물건은 남에게 줄 수 없습니다.", "error");
+    await expectSystem(c, `귀속 해제 ${swordName}`, `${swordName}와 이어진 정혈의 끈을 끊었습니다. 귀속이 풀렸습니다.`, "item");
+
+    step(`24. C 주기 ${nameD} — 회춘단·하품 5, 칸 없는 D는 가죽 거절, 없는 사람, 도움말`);
+    dMark = d.mark();
+    await expectSystem(c, `주기 ${nameD} ${pillName} 1`, `${nameD}에게 ${pillName} 1개를 주었습니다.`, "item");
+    const handed = await d.waitFor((m) => m.type === "system" && m.tone === "item", "D 건넸습니다", dMark);
+    if (handed.text !== `${withIGa(nameC)} ${pillName} 1개를 건넸습니다.`) fail(`D가 받은 문구가 다름: ${JSON.stringify(handed)}`);
+    await expectSystem(c, `주기 ${nameD} 하품 5`, `${nameD}에게 하품 영석 5개를 주었습니다.`, "item");
+    stones = await stonesOf(d);
+    if (JSON.stringify(stones) !== JSON.stringify([{ name: "하품 영석", count: 5 }])) fail(`D 영석이 5 가 아님: ${JSON.stringify(stones)}`);
+    await expectSystem(c, `주기 ${nameD} ${hideName} 1`, `${nameD}의 저물대에 자리가 없습니다.`, "error");
+    await expectSystem(c, `주기 없는사람 ${pillName}`, "여기에 없는사람은 없습니다.", "error");
+    mark = c.send("도움말");
+    const help3 = await c.waitFor((m) => m.type === "system" && m.text.startsWith("명령:"), "3차 도움말", mark);
+    if (!help3.text.includes("주기 <대상> <물건> [수량]") || !help3.text.includes("귀속 해제 <물건>")) {
+      fail(`도움말에 주기·귀속 해제가 없음: ${help3.text}`);
+    }
+
+    step("25. 관리자 — 시작 소지품을 처음 값으로 되돌림");
+    const restored = await api(admin, "PUT", "/api/admin/world/starting-items", { items: originalStartingItems });
+    const restoredItems = restored.map(({ itemTypeId, count }) => ({ itemTypeId, count }));
+    if (JSON.stringify(restoredItems) !== JSON.stringify(originalStartingItems)) {
+      fail(`시작 소지품이 처음 값으로 돌아가지 않음: ${JSON.stringify(restored)}`);
+    }
+    originalStartingItems = null;
+
+    console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName}·${merchantName})`);
   } finally {
     clients.forEach((c) => c.close());
+    if (admin && originalStartingItems) {
+      try {
+        await api(admin, "PUT", "/api/admin/world/starting-items", { items: originalStartingItems });
+        console.log("- (정리) 시작 소지품을 처음 값으로 되돌림");
+      } catch (error) {
+        console.error(`- (정리) 시작 소지품 되돌리기 실패: ${error.message ?? error}`);
+      }
+    }
   }
 }
 
