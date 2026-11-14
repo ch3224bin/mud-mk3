@@ -5,12 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import AdminGuard from "../../src/components/AdminGuard";
 import ExitEditor from "../../src/components/ExitEditor";
+import FloorItemsEditor from "../../src/components/FloorItemsEditor";
 import RoomForm from "../../src/components/RoomForm";
 import TopBar from "../../src/components/TopBar";
 import {
   deleteRoom,
   errorMessage,
   getRoom,
+  type ItemTypeResponse,
+  listItemTypes,
   listZones,
   type RoomDetailResponse,
   type RoomSaveRequest,
@@ -34,6 +37,7 @@ function RoomView() {
   const router = useRouter();
   const [room, setRoom] = useState<RoomDetailResponse | null>(null);
   const [zones, setZones] = useState<ZoneResponse[]>([]);
+  const [itemTypes, setItemTypes] = useState<ItemTypeResponse[]>([]);
   const [worldVersion, setWorldVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,11 +45,12 @@ function RoomView() {
     let active = true;
     setRoom(null);
     setError(null);
-    Promise.all([getRoom(roomId), listZones()])
-      .then(([loadedRoom, loadedZones]) => {
+    Promise.all([getRoom(roomId), listZones(), listItemTypes()])
+      .then(([loadedRoom, loadedZones, loadedItemTypes]) => {
         if (!active) return;
         setRoom(loadedRoom);
         setZones(loadedZones);
+        setItemTypes(loadedItemTypes);
       })
       .catch((e) => active && setError(errorMessage(e)));
     return () => {
@@ -130,6 +135,7 @@ function RoomView() {
                 ))}
               </ul>
             )}
+            <FloorItemsEditor key={`floor-${room.id}`} room={room} itemTypes={itemTypes} onRoomChange={setRoom} />
           </>
         )}
       </main>

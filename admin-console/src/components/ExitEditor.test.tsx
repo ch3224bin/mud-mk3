@@ -31,6 +31,7 @@ const room: RoomDetailResponse = {
     },
   ],
   npcs: [],
+  floorItems: [],
 };
 
 const updatedRoom: RoomDetailResponse = { ...room, exits: [] };

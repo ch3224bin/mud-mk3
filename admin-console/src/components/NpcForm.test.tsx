@@ -22,6 +22,7 @@ const npc: NpcDetailResponse = {
   roomName: "청석숲 오솔길",
   zoneId: 2,
   zoneName: "청석숲",
+  shop: null,
 };
 
 beforeEach(() => {

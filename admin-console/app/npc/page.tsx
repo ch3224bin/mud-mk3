@@ -4,12 +4,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import AdminGuard from "../../src/components/AdminGuard";
 import NpcForm from "../../src/components/NpcForm";
+import ShopEditor from "../../src/components/ShopEditor";
 import TopBar from "../../src/components/TopBar";
 import {
   createNpc,
   deleteNpc,
   errorMessage,
   getNpc,
+  type ItemTypeResponse,
+  listItemTypes,
   type NpcDetailResponse,
   type NpcSaveRequest,
   updateNpc,
@@ -31,6 +34,7 @@ function NpcView() {
   const npcId = idParam === null ? null : Number(idParam);
   const router = useRouter();
   const [npc, setNpc] = useState<NpcDetailResponse | null>(null);
+  const [itemTypes, setItemTypes] = useState<ItemTypeResponse[]>([]);
   // 저장하면 서버가 다듬은 값(앞뒤 공백, 낱말의 [ ])으로 폼을 다시 연다.
   const [savedCount, setSavedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +46,12 @@ function NpcView() {
       return;
     }
     let active = true;
-    getNpc(npcId)
-      .then((loaded) => active && setNpc(loaded))
+    Promise.all([getNpc(npcId), listItemTypes()])
+      .then(([loaded, loadedItemTypes]) => {
+        if (!active) return;
+        setNpc(loaded);
+        setItemTypes(loadedItemTypes);
+      })
       .catch((e) => active && setError(errorMessage(e)));
     return () => {
       active = false;
@@ -95,6 +103,7 @@ function NpcView() {
               </button>
             </div>
             <NpcForm key={`${npc.id}-${savedCount}`} initial={npc} onSubmit={(request) => handleUpdate(npc.id, request)} />
+            <ShopEditor key={`shop-${npc.id}`} npc={npc} itemTypes={itemTypes} onNpcChange={setNpc} />
           </>
         )}
       </main>

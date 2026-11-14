@@ -3,11 +3,16 @@ import {
   ApiError,
   apiFetch,
   createItemType,
+  createFloorItem,
   createNpc,
   deleteExit,
+  deleteFloorItem,
+  deleteShop,
   listZones,
   putExit,
+  saveShop,
   saveStartingItems,
+  updateFloorItem,
   updateZone,
 } from "./api";
 
@@ -192,6 +197,64 @@ describe("saveStartingItems", () => {
     expect(url).toBe("http://localhost:8080/api/admin/world/starting-items");
     expect(init.method).toBe("PUT");
     expect(init.body).toBe('{"items":[{"itemTypeId":5,"count":1},{"itemTypeId":1,"count":30}]}');
+    expect(headersOf(init).get("X-MUD-Client")).toBe("1");
+  });
+});
+
+describe("바닥 물건", () => {
+  it("createFloorItem 은 POST /api/admin/rooms/{roomId}/floor-items 에 재등장 null 을 그대로 보낸다", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, { id: 9 }));
+
+    await createFloorItem(3, { itemTypeId: 7, count: 2, respawnMinutes: null });
+
+    const { url, init } = lastCall();
+    expect(url).toBe("http://localhost:8080/api/admin/rooms/3/floor-items");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe('{"itemTypeId":7,"count":2,"respawnMinutes":null}');
+    expect(headersOf(init).get("X-MUD-Client")).toBe("1");
+  });
+
+  it("updateFloorItem 은 PUT, deleteFloorItem 은 DELETE /api/admin/floor-items/{id} 로 보낸다", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { id: 9 }));
+    await updateFloorItem(9, { itemTypeId: 7, count: 1, respawnMinutes: 10 });
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/floor-items/9");
+    expect(lastCall().init.method).toBe("PUT");
+    expect(lastCall().init.body).toBe('{"itemTypeId":7,"count":1,"respawnMinutes":10}');
+
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(deleteFloorItem(9)).resolves.toBeUndefined();
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/floor-items/9");
+    expect(lastCall().init.method).toBe("DELETE");
+  });
+});
+
+describe("상점", () => {
+  it("saveShop 은 PUT /api/admin/npcs/{id}/shop 에 종류와 물건(값 null 포함)을 입력 순서대로 보낸다", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { id: 4 }));
+
+    await saveShop(4, {
+      kind: "PILL_SHOP",
+      items: [
+        { itemTypeId: 7, price: null },
+        { itemTypeId: 8, price: 12 },
+      ],
+    });
+
+    const { url, init } = lastCall();
+    expect(url).toBe("http://localhost:8080/api/admin/npcs/4/shop");
+    expect(init.method).toBe("PUT");
+    expect(init.body).toBe('{"kind":"PILL_SHOP","items":[{"itemTypeId":7,"price":null},{"itemTypeId":8,"price":12}]}');
+    expect(headersOf(init).get("X-MUD-Client")).toBe("1");
+  });
+
+  it("deleteShop 은 DELETE /api/admin/npcs/{id}/shop 를 보낸다", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(deleteShop(4)).resolves.toBeUndefined();
+
+    const { url, init } = lastCall();
+    expect(url).toBe("http://localhost:8080/api/admin/npcs/4/shop");
+    expect(init.method).toBe("DELETE");
     expect(headersOf(init).get("X-MUD-Client")).toBe("1");
   });
 });

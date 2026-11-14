@@ -48,7 +48,21 @@ export type RoomDetailResponse = {
   start: boolean;
   exits: ExitResponse[];
   npcs: { id: number; name: string }[];
+  /** 관리자가 둔 바닥 물건(id 순) */
+  floorItems: FloorPlacementResponse[];
 };
+/** respawnMinutes 가 null 이면 한 번뿐, remaining 은 지금 시각으로 계산한 남은 수 */
+export type FloorPlacementResponse = {
+  id: number;
+  roomId: number;
+  itemTypeId: number;
+  itemName: string;
+  count: number;
+  respawnMinutes: number | null;
+  remaining: number;
+};
+/** respawnMinutes 가 null 이면 한 번뿐 */
+export type FloorPlacementSaveRequest = { itemTypeId: number; count: number; respawnMinutes: number | null };
 export type WorldResponse = {
   startRoomId: number | null;
   startRoomName: string | null;
@@ -64,7 +78,22 @@ export type NpcSummaryResponse = {
   roomId: number | null;
   roomName: string | null;
   zoneName: string | null;
+  /** 상점이 아니면 null */
+  shopKindName: string | null;
 };
+export type ShopKindCode =
+  | "PILL_SHOP"
+  | "ARTIFACT_SHOP"
+  | "BOOK_SHOP"
+  | "TALISMAN_SHOP"
+  | "MATERIAL_SHOP"
+  | "GENERAL_STORE"
+  | "BEAST_SHOP";
+/** price 는 정한 값(없으면 null = 기준가를 따름), effectivePrice 는 실제로 파는 값 */
+export type NpcShopItemResponse = { itemTypeId: number; itemName: string; price: number | null; effectivePrice: number };
+export type NpcShopResponse = { kind: ShopKindCode; kindName: string; items: NpcShopItemResponse[] };
+/** 파는 물건은 입력 순서. price 가 null 이면 기준가로 판다 */
+export type ShopSaveRequest = { kind: ShopKindCode; items: { itemTypeId: number; price: number | null }[] };
 export type NpcDetailResponse = {
   id: number;
   name: string;
@@ -76,6 +105,8 @@ export type NpcDetailResponse = {
   roomName: string | null;
   zoneId: number | null;
   zoneName: string | null;
+  /** 상점이 아니면 null */
+  shop: NpcShopResponse | null;
 };
 
 export type ItemCategoryCode =
@@ -199,6 +230,14 @@ export const putExit = (roomId: number, direction: DirectionCode, request: ExitS
 export const deleteExit = (roomId: number, direction: DirectionCode, twoWay: boolean) =>
   apiFetch<void>(`/api/admin/rooms/${roomId}/exits/${direction}?twoWay=${twoWay}`, { method: "DELETE" });
 
+export const createFloorItem = (roomId: number, request: FloorPlacementSaveRequest) =>
+  apiFetch<FloorPlacementResponse>(`/api/admin/rooms/${roomId}/floor-items`, jsonBody("POST", request));
+/** 고치면 남은 수가 처음 수로 돌아간다 */
+export const updateFloorItem = (floorItemId: number, request: FloorPlacementSaveRequest) =>
+  apiFetch<FloorPlacementResponse>(`/api/admin/floor-items/${floorItemId}`, jsonBody("PUT", request));
+export const deleteFloorItem = (floorItemId: number) =>
+  apiFetch<void>(`/api/admin/floor-items/${floorItemId}`, { method: "DELETE" });
+
 export const listNpcs = () => apiFetch<NpcSummaryResponse[]>("/api/admin/npcs");
 export const getNpc = (npcId: number) => apiFetch<NpcDetailResponse>(`/api/admin/npcs/${npcId}`);
 export const createNpc = (request: NpcSaveRequest) =>
@@ -206,6 +245,10 @@ export const createNpc = (request: NpcSaveRequest) =>
 export const updateNpc = (npcId: number, request: NpcSaveRequest) =>
   apiFetch<NpcDetailResponse>(`/api/admin/npcs/${npcId}`, jsonBody("PUT", request));
 export const deleteNpc = (npcId: number) => apiFetch<void>(`/api/admin/npcs/${npcId}`, { method: "DELETE" });
+export const saveShop = (npcId: number, request: ShopSaveRequest) =>
+  apiFetch<NpcDetailResponse>(`/api/admin/npcs/${npcId}/shop`, jsonBody("PUT", request));
+/** 상점이 없어도 204 */
+export const deleteShop = (npcId: number) => apiFetch<void>(`/api/admin/npcs/${npcId}/shop`, { method: "DELETE" });
 
 export const getWorld = () => apiFetch<WorldResponse>("/api/admin/world");
 export const setStartRoom = (roomId: number) =>

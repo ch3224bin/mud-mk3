@@ -51,6 +51,7 @@ function NpcsView() {
                 <th>배치</th>
                 <th>낱말 수</th>
                 <th>LLM</th>
+                <th>상점</th>
               </tr>
             </thead>
             <tbody>
@@ -68,6 +69,7 @@ function NpcsView() {
                   </td>
                   <td>{npc.topicCount}</td>
                   <td>{npc.llmEnabled ? "켬" : "끔"}</td>
+                  <td>{npc.shopKindName ?? "-"}</td>
                 </tr>
               ))}
             </tbody>

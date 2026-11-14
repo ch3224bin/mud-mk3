@@ -1,4 +1,4 @@
-import type { BagGradeCode, ItemCategoryCode } from "./api";
+import type { BagGradeCode, ItemCategoryCode, ShopKindCode } from "./api";
 
 /**
  * 아이템 종류 표(world-server ItemCategory 와 같음, 룰북 item.md 종류 순서).
@@ -37,7 +37,7 @@ export const BAG_GRADES: { code: BagGradeCode; name: string; slots: number }[] =
 ];
 
 /** 상점 종류와 파는 물건 종류(world-server ShopKind 와 같음, 룰북 game-structure.md 상점 표 순서) */
-export const SHOP_KINDS: { code: string; name: string; sells: ItemCategoryCode[] }[] = [
+export const SHOP_KINDS: { code: ShopKindCode; name: string; sells: ItemCategoryCode[] }[] = [
   { code: "PILL_SHOP", name: "단약방", sells: ["PILL"] },
   { code: "ARTIFACT_SHOP", name: "법기점", sells: ["ARTIFACT", "PUPPET", "TOOL"] },
   { code: "BOOK_SHOP", name: "서방", sells: ["SCROLL"] },
