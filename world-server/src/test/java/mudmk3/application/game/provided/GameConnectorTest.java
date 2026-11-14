@@ -41,6 +41,8 @@ import mudmk3.application.world.provided.StartingItemRequest;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.application.zone.provided.ZoneSaveRequest;
+import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.faction.Faction;
 import mudmk3.domain.faction.FactionKind;
 import mudmk3.domain.item.BagGrade;
@@ -53,6 +55,8 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.List;
 
+import static mudmk3.domain.character.CharacterFixture.createCharacter;
+import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,6 +65,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GameConnectorTest extends BaseGameTest {
 
     private static final String NAME_PROMPT = "이름을 정하십시오. (한글 2~6자)";
+    private static final String ROOT_PROMPT = "영근을 고르십시오. 오행(금 목 수 화 토) 가운데 1~5개를 띄어 쓰십시오.";
+    private static final String INVALID_ROOT = "오행(금 목 수 화 토) 가운데 1~5개를 겹치지 않게 띄어 쓰십시오.";
+    private static final String ROOT_MISSING = "영근을 아직 정하지 않았습니다. 영근을 고르면 세계에 들어갑니다.";
+    private static final String CREATE_CONFIRM_PROMPT = """
+            목·화 진영근 — 목 50, 화 50
+            ────────
+            이름 한백 · 영근 목·화 진영근 (목 50, 화 50)
+            이대로 만들려면 '확인', 고치려면 '뒤로'.""";
+    private static final String ROOT_CONFIRM_PROMPT = """
+            목·화 진영근 — 목 50, 화 50
+            ────────
+            이름 한백 · 영근 목·화 진영근 (목 50, 화 50)
+            이대로 정하려면 '확인', 고치려면 '뒤로'.""";
     private static final String UNKNOWN = "무슨 말인지 모르겠습니다. ('도움말' 로 명령을 볼 수 있습니다)";
 
     private static final String NO_TALK_TARGET = "누구에게 말을 거시겠습니까?";
@@ -127,19 +144,12 @@ class GameConnectorTest extends BaseGameTest {
 
         sender.clear();
         gameConnector.handle("s1", "한백");
-        assertThat(sender.messagesTo("s1")).containsExactly(
-                new PromptMessage("이름 한백\n이대로 만들려면 '확인', 고치려면 '뒤로'."));
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(ROOT_PROMPT));
 
         sender.clear();
-        gameConnector.handle("s1", "아니");
-        assertThat(sender.messagesTo("s1")).containsExactly(
-                new PromptMessage("이름 한백\n이대로 만들려면 '확인', 고치려면 '뒤로'."));
+        gameConnector.handle("s1", "목 화");
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(CREATE_CONFIRM_PROMPT));
 
-        sender.clear();
-        gameConnector.handle("s1", "뒤로");
-        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(NAME_PROMPT));
-
-        gameConnector.handle("s1", "한백");
         sender.clear();
         gameConnector.handle("s1", "확인");
 
@@ -164,6 +174,7 @@ class GameConnectorTest extends BaseGameTest {
         enter("other", "한립");
         connect("s1", prepareAccount("hanbaek@example.com"));
         gameConnector.handle("s1", "한백");
+        gameConnector.handle("s1", "목 화");
         sender.clear();
 
         gameConnector.handle("s1", "확인");
@@ -177,7 +188,7 @@ class GameConnectorTest extends BaseGameTest {
     @Test
     void createCharacterDuplicateNameFail() {
         prepareMap();
-        characterCreator.create(prepareAccount("first@example.com"), "한백");
+        characterCreator.create(prepareAccount("first@example.com"), "한백", spiritRoot());
         connect("s1", prepareAccount("hanbaek@example.com"));
         sender.clear();
 
@@ -203,11 +214,12 @@ class GameConnectorTest extends BaseGameTest {
     }
 
     @Test
-    void createCharacterNameTakenWhileConfirmingFail() {
+    void nameTakenAtConfirm() {
         prepareMap();
         connect("s1", prepareAccount("hanbaek@example.com"));
         gameConnector.handle("s1", "한백");
-        characterCreator.create(prepareAccount("first@example.com"), "한백");
+        gameConnector.handle("s1", "목 화");
+        characterCreator.create(prepareAccount("first@example.com"), "한백", spiritRoot());
         sender.clear();
 
         gameConnector.handle("s1", "확인");
@@ -215,6 +227,269 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(sender.messagesTo("s1")).containsExactly(
                 new SystemMessage("이미 있는 이름입니다. 다른 이름을 정하십시오.", "error"),
                 new PromptMessage(NAME_PROMPT));
+    }
+
+    @Test
+    void createAsksRootAfterName() {
+        prepareMap();
+        connect("s1", prepareAccount("hanbaek@example.com"));
+        sender.clear();
+
+        gameConnector.handle("s1", "한백");
+
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(ROOT_PROMPT));
+    }
+
+    @Test
+    void invalidRootAsksAgain() {
+        prepareMap();
+        connect("s1", prepareAccount("hanbaek@example.com"));
+        gameConnector.handle("s1", "한백");
+
+        for (String input : List.of("목 목", "", "물", "금 목 수 화 토 금", "목,화")) {
+            sender.clear();
+            gameConnector.handle("s1", input);
+            assertThat(sender.messagesTo("s1")).as(input).containsExactly(
+                    new SystemMessage(INVALID_ROOT, "error"), new PromptMessage(ROOT_PROMPT));
+        }
+    }
+
+    @Test
+    void rootBackToName() {
+        prepareMap();
+        connect("s1", prepareAccount("hanbaek@example.com"));
+        gameConnector.handle("s1", "한백");
+        sender.clear();
+
+        gameConnector.handle("s1", "뒤로");
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(NAME_PROMPT));
+
+        sender.clear();
+        gameConnector.handle("s1", "한립");
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(ROOT_PROMPT));
+    }
+
+    @Test
+    void confirmPromptShape() {
+        prepareMap();
+        connect("s1", prepareAccount("hanbaek@example.com"));
+        gameConnector.handle("s1", "한백");
+        sender.clear();
+
+        gameConnector.handle("s1", "화 목");
+
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(
+                "목·화 진영근 — 목 50, 화 50\n"
+                        + "────────\n"
+                        + "이름 한백 · 영근 목·화 진영근 (목 50, 화 50)\n"
+                        + "이대로 만들려면 '확인', 고치려면 '뒤로'."));
+    }
+
+    @Test
+    void threeRootsSummaryFloors() {
+        prepareMap();
+        connect("s1", prepareAccount("hanbaek@example.com"));
+        gameConnector.handle("s1", "한백");
+        sender.clear();
+
+        gameConnector.handle("s1", "수 금 목");
+
+        assertThat(sender.lastTo("s1", PromptMessage.class).text()).isEqualTo("""
+                금·목·수 진영근 — 금 33, 목 33, 수 33
+                ────────
+                이름 한백 · 영근 금·목·수 진영근 (금 33, 목 33, 수 33)
+                이대로 만들려면 '확인', 고치려면 '뒤로'.""");
+    }
+
+    @Test
+    void confirmBackToRoot() {
+        prepareMap();
+        connect("s1", prepareAccount("hanbaek@example.com"));
+        gameConnector.handle("s1", "한백");
+        gameConnector.handle("s1", "목 화");
+        sender.clear();
+
+        gameConnector.handle("s1", "뒤로");
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(ROOT_PROMPT));
+
+        sender.clear();
+        gameConnector.handle("s1", "토");
+        assertThat(sender.lastTo("s1", PromptMessage.class).text()).isEqualTo("""
+                토 천영근 — 토 100
+                ────────
+                이름 한백 · 영근 토 천영근 (토 100)
+                이대로 만들려면 '확인', 고치려면 '뒤로'.""");
+    }
+
+    @Test
+    void otherInputRepeatsConfirm() {
+        prepareMap();
+        connect("s1", prepareAccount("hanbaek@example.com"));
+        gameConnector.handle("s1", "한백");
+        gameConnector.handle("s1", "목 화");
+        sender.clear();
+
+        gameConnector.handle("s1", "아니");
+
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(CREATE_CONFIRM_PROMPT));
+    }
+
+    @Test
+    void createMortalWithRoot() {
+        GameMap map = prepareMap();
+        enter("other", "한립");
+        Long accountId = prepareAccount("hanbaek@example.com");
+        connect("s1", accountId);
+        gameConnector.handle("s1", "한백");
+        gameConnector.handle("s1", "화 목");
+        sender.clear();
+
+        gameConnector.handle("s1", "확인");
+
+        List<GameMessage> messages = sender.messagesTo("s1");
+        assertThat(messages).hasSize(3);
+        assertThat(messages.get(0)).isEqualTo(new SystemMessage("캐릭터를 만들었습니다.", "info"));
+        assertThat(messages.get(1)).isEqualTo(new SessionMessage("playing", "한백"));
+        assertThat(((RoomMessage) messages.get(2)).room().id()).isEqualTo(map.entranceId());
+        assertThat(sender.messagesTo("other"))
+                .containsExactly(new NoticeMessage("한백이 나타난다.", "movement", "한백", "appear"));
+        entityManager.flush();
+        entityManager.clear();
+        PlayerCharacter created = characterFinder.findByAccountId(accountId).orElseThrow();
+        assertThat(created.getRealm()).isEqualTo(Realm.MORTAL);
+        assertThat(created.findSpiritRoot()).map(SpiritRoot::summary).contains("목 50, 화 50");
+    }
+
+    @Test
+    void existingCharacterChoosesRoot() {
+        GameMap map = prepareMap();
+        Long accountId = prepareLegacyCharacter("한백", map.wellId());
+        enterAt("other", "한립", map.wellId());
+        sender.clear();
+
+        connect("s1", accountId);
+        assertThat(sender.messagesTo("s1")).containsExactly(
+                new SessionMessage("creating", "한백"),
+                new SystemMessage(ROOT_MISSING, "info"),
+                new PromptMessage(ROOT_PROMPT));
+        assertThat(sender.messagesTo("other")).isEmpty();
+
+        sender.clear();
+        gameConnector.handle("s1", "목 목");
+        assertThat(sender.messagesTo("s1")).containsExactly(
+                new SystemMessage(INVALID_ROOT, "error"), new PromptMessage(ROOT_PROMPT));
+
+        sender.clear();
+        gameConnector.handle("s1", "뒤로");
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(ROOT_PROMPT));
+
+        sender.clear();
+        gameConnector.handle("s1", "목 화");
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(ROOT_CONFIRM_PROMPT));
+
+        sender.clear();
+        gameConnector.handle("s1", "뒤로");
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(ROOT_PROMPT));
+
+        gameConnector.handle("s1", "목 화");
+        sender.clear();
+        gameConnector.handle("s1", "아니");
+        assertThat(sender.messagesTo("s1")).containsExactly(new PromptMessage(ROOT_CONFIRM_PROMPT));
+
+        sender.clear();
+        gameConnector.handle("s1", "확인");
+        List<GameMessage> messages = sender.messagesTo("s1");
+        assertThat(messages).hasSize(3);
+        assertThat(messages.get(0)).isEqualTo(new SystemMessage("영근을 정했습니다.", "info"));
+        assertThat(messages.get(1)).isEqualTo(new SessionMessage("playing", "한백"));
+        RoomMessage room = (RoomMessage) messages.get(2);
+        assertThat(room.room().id()).isEqualTo(map.wellId());
+        assertThat(room.occupants()).containsExactly(new OccupantView("한립", "player"));
+        assertThat(sender.messagesTo("other"))
+                .containsExactly(new NoticeMessage("한백이 나타난다.", "movement", "한백", "appear"));
+        assertThat(presenceFinder.onlineCharacterIds()).contains(characterIdOf(accountId));
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(characterFinder.findByAccountId(accountId).orElseThrow().findSpiritRoot())
+                .map(SpiritRoot::name).contains("목·화 진영근");
+
+        sender.clear();
+        gameConnector.handle("s1", "보기");
+        assertThat(sender.lastTo("s1", RoomMessage.class).room().id()).isEqualTo(map.wellId());
+    }
+
+    @Test
+    void existingCharacterRootingIsNotInWorld() {
+        GameMap map = prepareMap();
+        Long accountId = prepareLegacyCharacter("한백", map.entranceId());
+        enter("other", "한립");
+        connect("s1", accountId);
+        sender.clear();
+
+        gameConnector.handle("other", "누구");
+
+        assertThat(sender.lastTo("other", SystemMessage.class).text()).startsWith("접속한 사람 (1)");
+        assertThat(presenceFinder.onlineCharacterIds()).doesNotContain(characterIdOf(accountId));
+    }
+
+    @Test
+    void reconnectWhileRootingRestarts() {
+        GameMap map = prepareMap();
+        Long accountId = prepareLegacyCharacter("한백", map.entranceId());
+        connect("a1", accountId);
+        gameConnector.handle("a1", "목 화");
+        sender.clear();
+
+        connect("a2", accountId);
+
+        assertThat(sender.messagesTo("a1"))
+                .containsExactly(new SystemMessage("다른 곳에서 접속해 이 연결을 끊습니다.", "info"));
+        assertThat(sender.closeReasonOf("a1")).contains(GameCloseReason.REPLACED);
+        assertThat(sender.messagesTo("a2")).containsExactly(
+                new SessionMessage("creating", "한백"),
+                new SystemMessage(ROOT_MISSING, "info"),
+                new PromptMessage(ROOT_PROMPT));
+
+        sender.clear();
+        gameConnector.handle("a2", "확인");
+        assertThat(sender.messagesTo("a2")).containsExactly(
+                new SystemMessage(INVALID_ROOT, "error"), new PromptMessage(ROOT_PROMPT));
+    }
+
+    @Test
+    void reconnectWhileNewRootingRestartsFromName() {
+        prepareMap();
+        Long accountId = prepareAccount("hanbaek@example.com");
+        connect("a1", accountId);
+        gameConnector.handle("a1", "한백");
+        gameConnector.handle("a1", "목 화");
+        sender.clear();
+
+        connect("a2", accountId);
+
+        assertThat(sender.closeReasonOf("a1")).contains(GameCloseReason.REPLACED);
+        assertThat(sender.messagesTo("a2"))
+                .containsExactly(new SessionMessage("creating", null), new PromptMessage(NAME_PROMPT));
+    }
+
+    @Test
+    void disconnectWhileRootingAsksNextTime() {
+        GameMap map = prepareMap();
+        Long accountId = prepareLegacyCharacter("한백", map.entranceId());
+        enter("other", "한립");
+        connect("s1", accountId);
+        gameConnector.handle("s1", "목 화");
+        sender.clear();
+
+        gameConnector.disconnect("s1");
+        assertThat(sender.messagesTo("other")).isEmpty();
+
+        connect("s2", accountId);
+        assertThat(sender.messagesTo("s2")).containsExactly(
+                new SessionMessage("creating", "한백"),
+                new SystemMessage(ROOT_MISSING, "info"),
+                new PromptMessage(ROOT_PROMPT));
+        assertThat(characterFinder.findByAccountId(accountId).orElseThrow().findSpiritRoot()).isEmpty();
     }
 
     @Test
@@ -942,7 +1217,7 @@ class GameConnectorTest extends BaseGameTest {
     void oldCharacterGetsEmptyInventory() {
         prepareMap();
         Long accountId = prepareAccount("hanbaek@example.com");
-        Long characterId = characterCreator.create(accountId, "한백").getId();
+        Long characterId = characterCreator.create(accountId, "한백", spiritRoot()).getId();
         entityManager.flush();
         entityManager.createNativeQuery("DELETE FROM inventory WHERE character_id = ?1")
                 .setParameter(1, characterId).executeUpdate();
@@ -1740,5 +2015,13 @@ class GameConnectorTest extends BaseGameTest {
         sender.clear();
         gameConnector.handle(sessionId, command);
         assertThat(sender.messagesTo(sessionId)).containsExactly(expected);
+    }
+
+    /** 4차 전에 만든 캐릭터처럼 영근 없이 그 방에 저장한다 */
+    private Long prepareLegacyCharacter(String name, Long roomId) {
+        Long accountId = prepareAccount("legacy-" + name.codePoints().sum() + "@example.com");
+        characterRepository.save(createCharacter(accountId, name, roomId));
+        entityManager.flush();
+        return accountId;
     }
 }

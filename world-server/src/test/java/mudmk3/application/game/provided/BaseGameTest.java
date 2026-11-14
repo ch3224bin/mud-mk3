@@ -48,6 +48,7 @@ import org.junit.jupiter.api.BeforeEach;
 import java.util.ArrayList;
 import java.util.List;
 
+import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
@@ -244,7 +245,7 @@ abstract class BaseGameTest {
     /** 캐릭터를 만든 계정으로 접속한다(시작 방에서 시작) */
     protected Long enter(String sessionId, String name) {
         Long accountId = prepareAccount(emailOf(name));
-        characterCreator.create(accountId, name);
+        characterCreator.create(accountId, name, spiritRoot());
         connect(sessionId, accountId);
         return accountId;
     }
@@ -252,7 +253,7 @@ abstract class BaseGameTest {
     /** 캐릭터를 그 방에 옮겨 둔 뒤 접속한다 */
     protected Long enterAt(String sessionId, String name, Long roomId) {
         Long accountId = prepareAccount(emailOf(name));
-        Long characterId = id(characterCreator.create(accountId, name).getId());
+        Long characterId = id(characterCreator.create(accountId, name, spiritRoot()).getId());
         characterMover.moveTo(characterId, roomId);
         connect(sessionId, accountId);
         return accountId;

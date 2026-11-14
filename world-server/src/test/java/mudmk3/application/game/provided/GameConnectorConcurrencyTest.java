@@ -41,6 +41,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -247,7 +248,7 @@ class GameConnectorConcurrencyTest {
     private Long enterAt(String sessionId, String name, Long roomId) {
         String email = "c" + name.codePoints().mapToObj(Integer::toHexString).reduce("", String::concat) + "@example.com";
         Long accountId = accountLogin.login(new AccountLoginRequest("google-" + email, email)).accountId();
-        Long characterId = id(characterCreator.create(accountId, name).getId());
+        Long characterId = id(characterCreator.create(accountId, name, spiritRoot()).getId());
         characterMover.moveTo(characterId, roomId);
         openedSessions.add(sessionId);
         gameConnector.connect(sessionId, accountId);

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,7 +38,7 @@ record CharacterMoverTest(
         Room start = prepareStartRoom(zone);
         Room spring = roomEditor.create(createRoomSaveRequest(zone.getId(), "샘터"));
         Long accountId = prepareAccount("hanbaek@example.com");
-        PlayerCharacter character = characterCreator.create(accountId, "한백");
+        PlayerCharacter character = characterCreator.create(accountId, "한백", spiritRoot());
         flushAndClear();
 
         characterMover.moveTo(character.getId(), spring.getId());
@@ -61,9 +62,9 @@ record CharacterMoverTest(
         Room start = prepareStartRoom(zone);
         Room spring = roomEditor.create(createRoomSaveRequest(zone.getId(), "샘터"));
         Room hill = roomEditor.create(createRoomSaveRequest(zone.getId(), "언덕"));
-        PlayerCharacter hanbaek = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백");
-        PlayerCharacter hanli = characterCreator.create(prepareAccount("hanli@example.com"), "한립");
-        PlayerCharacter stayer = characterCreator.create(prepareAccount("stayer@example.com"), "남궁완");
+        PlayerCharacter hanbaek = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백", spiritRoot());
+        PlayerCharacter hanli = characterCreator.create(prepareAccount("hanli@example.com"), "한립", spiritRoot());
+        PlayerCharacter stayer = characterCreator.create(prepareAccount("stayer@example.com"), "남궁완", spiritRoot());
         characterMover.moveTo(hanbaek.getId(), spring.getId());
         characterMover.moveTo(hanli.getId(), spring.getId());
         characterMover.moveTo(stayer.getId(), hill.getId());

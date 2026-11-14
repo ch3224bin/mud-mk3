@@ -1,6 +1,7 @@
 package mudmk3.adapter.websocket;
 
 import mudmk3.application.character.provided.CharacterCreator;
+import mudmk3.application.character.required.CharacterRepository;
 import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.floor.provided.FloorPlacementSaveRequest;
 import mudmk3.application.game.provided.GameConnector;
@@ -59,6 +60,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Objects.requireNonNull;
+import static mudmk3.domain.character.CharacterFixture.createCharacter;
+import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
@@ -95,6 +98,7 @@ class GameWebSocketIntegrationTest {
     private final ItemTypeEditor itemTypeEditor;
     private final FloorPlacementEditor floorPlacementEditor;
     private final CharacterCreator characterCreator;
+    private final CharacterRepository characterRepository;
     private final PresenceRepository presenceRepository;
     private final GameConnector gameConnector;
     private final InventoryEditor inventoryEditor;
@@ -113,6 +117,7 @@ class GameWebSocketIntegrationTest {
             ItemTypeEditor itemTypeEditor,
             FloorPlacementEditor floorPlacementEditor,
             CharacterCreator characterCreator,
+            CharacterRepository characterRepository,
             PresenceRepository presenceRepository,
             GameConnector gameConnector,
             InventoryEditor inventoryEditor,
@@ -127,6 +132,7 @@ class GameWebSocketIntegrationTest {
         this.itemTypeEditor = itemTypeEditor;
         this.floorPlacementEditor = floorPlacementEditor;
         this.characterCreator = characterCreator;
+        this.characterRepository = characterRepository;
         this.presenceRepository = presenceRepository;
         this.gameConnector = gameConnector;
         this.inventoryEditor = inventoryEditor;
@@ -181,7 +187,10 @@ class GameWebSocketIntegrationTest {
                 {"type":"prompt","text":"이름을 정하십시오. (한글 2~6자)"}"""));
 
         client.command("한백");
-        assertThat(client.next().get("type").asString()).isEqualTo("prompt");
+        assertThat(client.next()).isEqualTo(json("""
+                {"type":"prompt","text":"영근을 고르십시오. 오행(금 목 수 화 토) 가운데 1~5개를 띄어 쓰십시오."}"""));
+        client.command("목 화");
+        assertThat(client.next().get("text").asString()).startsWith("목·화 진영근 — 목 50, 화 50\n");
         client.command("확인");
 
         assertThat(client.next()).isEqualTo(json("""
@@ -195,6 +204,31 @@ class GameWebSocketIntegrationTest {
         assertThat(room.get("room").get("name").asString()).isEqualTo("마을 어귀");
         assertThat(room.get("exits")).isEqualTo(json("[\"북\"]"));
         assertThat(room.get("occupants")).isEqualTo(json("[]"));
+    }
+
+    @Test
+    void legacyCharacterChoosesRootOverWebSocket() throws Exception {
+        Login login = login("hanbai@example.com");
+        // 4차 전에 만든 캐릭터: 영근이 없다
+        characterRepository.save(createCharacter(login.accountId(), "한백", requireNonNull(entranceId)));
+        Client client = connect(login.cookie(), ALLOWED_ORIGIN);
+
+        assertThat(client.next()).isEqualTo(json("""
+                {"type":"session","state":"creating","characterName":"한백"}"""));
+        assertThat(client.next()).isEqualTo(json("""
+                {"type":"system","text":"영근을 아직 정하지 않았습니다. 영근을 고르면 세계에 들어갑니다.","tone":"info"}"""));
+        assertThat(client.next()).isEqualTo(json("""
+                {"type":"prompt","text":"영근을 고르십시오. 오행(금 목 수 화 토) 가운데 1~5개를 띄어 쓰십시오."}"""));
+
+        client.command("목 화");
+        assertThat(client.next().get("text").asString())
+                .endsWith("\n이대로 정하려면 '확인', 고치려면 '뒤로'.");
+        client.command("확인");
+
+        assertThat(client.next()).isEqualTo(json("""
+                {"type":"system","text":"영근을 정했습니다.","tone":"info"}"""));
+        client.awaitRoom();
+        assertThat(client.lastRoom().get("room").get("name").asString()).isEqualTo("마을 어귀");
     }
 
     @Test
@@ -335,7 +369,7 @@ class GameWebSocketIntegrationTest {
     @Test
     void secondConnectionClosesFirstWith4409() throws Exception {
         Login login = login("hanbai@example.com");
-        characterCreator.create(login.accountId(), "한백");
+        characterCreator.create(login.accountId(), "한백", spiritRoot());
         Client first = connect(login.cookie(), ALLOWED_ORIGIN);
         first.awaitRoom();
 
@@ -377,7 +411,7 @@ class GameWebSocketIntegrationTest {
         }).when(stuck).sendMessage(any());
         sender.register(stuck);
         Long stuckAccountId = login("wangsun@example.com").accountId();
-        characterCreator.create(stuckAccountId, "왕선");
+        characterCreator.create(stuckAccountId, "왕선", spiritRoot());
         gameConnector.connect("stuck-session", stuckAccountId);
         try {
             Client client = enter("hanbai@example.com", "한백");
@@ -434,7 +468,7 @@ class GameWebSocketIntegrationTest {
     /** 캐릭터를 만든 계정으로 접속해 방 보기까지 받는다 */
     private Client enter(String email, String name) throws Exception {
         Login login = login(email);
-        Long characterId = characterCreator.create(login.accountId(), name).getId();
+        Long characterId = characterCreator.create(login.accountId(), name, spiritRoot()).getId();
         Client client = connect(login.cookie(), ALLOWED_ORIGIN);
         client.characterId = characterId;
         client.awaitRoom();

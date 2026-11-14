@@ -22,7 +22,6 @@ import mudmk3.domain.room.Room;
 import mudmk3.domain.shared.Josa;
 import mudmk3.domain.shared.Realm;
 import mudmk3.support.stereotype.ApplicationService;
-import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
@@ -46,13 +45,24 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
-    public PlayerCharacter create(Long accountId, String name) {
-        return createCharacter(accountId, name, null);
-    }
-
-    @Override
     public PlayerCharacter create(Long accountId, String name, SpiritRoot spiritRoot) {
-        return createCharacter(accountId, name, requireNonNull(spiritRoot));
+        requireNonNull(spiritRoot);
+        CharacterName characterName = new CharacterName(name);
+        accountFinder.find(accountId);
+        if (characterFinder.findByAccountId(accountId).isPresent()) {
+            throw new CharacterAlreadyExistsException("이미 캐릭터가 있습니다");
+        }
+        if (characterFinder.isNameTaken(characterName.value())) {
+            throw new DuplicateCharacterNameException("이미 있는 이름입니다. 다른 이름을 정하십시오.");
+        }
+        Room startRoom = worldSettingsFinder.findStartRoom()
+                .orElseThrow(() -> new WorldNotReadyException(
+                        "아직 세계가 열리지 않았습니다. 관리자가 시작 방을 정해야 합니다."));
+        PlayerCharacter character = characterRepository.save(PlayerCharacter.create(
+                new CharacterCreateInfo(accountId, characterName, requireNonNull(startRoom.getId()), spiritRoot)));
+        // 같은 트랜잭션에서 시작 소지품을 준다(바꾼 시작 소지품은 그 뒤 만드는 캐릭터부터 받는다)
+        inventoryEditor.createWithStartingItems(requireNonNull(character.getId()));
+        return character;
     }
 
     @Override
@@ -94,25 +104,6 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
         if (filled > 0) {
             log.info("경지가 비어 있던 캐릭터 {}명을 {} 채웠습니다", filled, Josa.withEuroRo(Realm.QI_1.koreanName()));
         }
-    }
-
-    private PlayerCharacter createCharacter(Long accountId, String name, @Nullable SpiritRoot spiritRoot) {
-        CharacterName characterName = new CharacterName(name);
-        accountFinder.find(accountId);
-        if (characterFinder.findByAccountId(accountId).isPresent()) {
-            throw new CharacterAlreadyExistsException("이미 캐릭터가 있습니다");
-        }
-        if (characterFinder.isNameTaken(characterName.value())) {
-            throw new DuplicateCharacterNameException("이미 있는 이름입니다. 다른 이름을 정하십시오.");
-        }
-        Room startRoom = worldSettingsFinder.findStartRoom()
-                .orElseThrow(() -> new WorldNotReadyException(
-                        "아직 세계가 열리지 않았습니다. 관리자가 시작 방을 정해야 합니다."));
-        PlayerCharacter character = characterRepository.save(PlayerCharacter.create(
-                new CharacterCreateInfo(accountId, characterName, requireNonNull(startRoom.getId()), spiritRoot)));
-        // 같은 트랜잭션에서 시작 소지품을 준다(바꾼 시작 소지품은 그 뒤 만드는 캐릭터부터 받는다)
-        inventoryEditor.createWithStartingItems(requireNonNull(character.getId()));
-        return character;
     }
 
     @Override

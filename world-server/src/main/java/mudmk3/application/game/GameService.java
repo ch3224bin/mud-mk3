@@ -21,6 +21,7 @@ import mudmk3.application.room.provided.RoomFinder;
 import mudmk3.application.world.provided.WorldSettingsFinder;
 import mudmk3.domain.character.CharacterName;
 import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.game.Command;
 import mudmk3.domain.game.CommandParser;
 import mudmk3.domain.game.OnlinePlayer;
@@ -67,6 +68,12 @@ public class GameService implements GameConnector {
     static final String CONFIRM = "확인";
     static final String BACK = "뒤로";
     static final String CHARACTER_CREATED = "캐릭터를 만들었습니다.";
+    static final String ROOT_PROMPT = "영근을 고르십시오. 오행(금 목 수 화 토) 가운데 1~5개를 띄어 쓰십시오.";
+    static final String INVALID_ROOT = "오행(금 목 수 화 토) 가운데 1~5개를 겹치지 않게 띄어 쓰십시오.";
+    static final String ROOT_MISSING = "영근을 아직 정하지 않았습니다. 영근을 고르면 세계에 들어갑니다.";
+    static final String ROOT_CHOSEN = "영근을 정했습니다.";
+    static final String CONFIRM_CREATE = "이대로 만들려면 '확인', 고치려면 '뒤로'.";
+    static final String CONFIRM_ROOT = "이대로 정하려면 '확인', 고치려면 '뒤로'.";
     static final String REPLACED = "다른 곳에서 접속해 이 연결을 끊습니다.";
     static final String COMMAND_TOO_LONG = "명령이 너무 깁니다.";
     static final String NO_EXIT = "그쪽으로는 길이 없습니다.";
@@ -207,6 +214,15 @@ public class GameService implements GameConnector {
 
         PlayerCharacter found = character.get();
         Long characterId = requireNonNull(found.getId());
+        if (found.findSpiritRoot().isEmpty()) {
+            // 4차 전에 만든 캐릭터: 세계에 들어가기 전에 영근을 고른다
+            String name = found.getName().value();
+            sessions.put(sessionId, GameSession.rootingExisting(accountId, characterId, name));
+            send(sessionId, new SessionMessage(SessionMessage.CREATING, name));
+            send(sessionId, SystemMessage.info(ROOT_MISSING));
+            send(sessionId, new PromptMessage(ROOT_PROMPT));
+            return;
+        }
         GameSession session = GameSession.playing(accountId, characterId);
         sessions.put(sessionId, session);
 
@@ -223,13 +239,16 @@ public class GameService implements GameConnector {
             return;
         }
 
-        Room room = roomFinder.findOptional(found.getRoomId()).orElseGet(() -> {
-            // 저장된 방이 지워졌으면 시작 방에서 시작한다
-            characterMover.moveTo(characterId, requireNonNull(startRoom.get().getId()));
-            return startRoom.get();
-        });
         send(sessionId, new SessionMessage(SessionMessage.PLAYING, found.getName().value()));
-        enterWorld(sessionId, session, accountId, found.getName().value(), room);
+        enterWorld(sessionId, session, accountId, found.getName().value(), savedRoomOf(found, startRoom.get()));
+    }
+
+    /** 캐릭터의 저장된 방. 지워졌으면 시작 방으로 옮기고 시작 방 */
+    private Room savedRoomOf(PlayerCharacter character, Room startRoom) {
+        return roomFinder.findOptional(character.getRoomId()).orElseGet(() -> {
+            characterMover.moveTo(requireNonNull(character.getId()), requireNonNull(startRoom.getId()));
+            return startRoom;
+        });
     }
 
     /** 같은 계정의 앞 연결을 닫는다. 캐릭터는 세계에 그대로 둔다(새 연결이 이어받는다) */
@@ -276,7 +295,8 @@ public class GameService implements GameConnector {
         }
         switch (session.getPhase()) {
             case NAMING -> handleName(sessionId, session, text.strip());
-            case CONFIRMING -> handleConfirm(sessionId, session, text.strip());
+            case ROOTING, ROOTING_EXISTING -> handleRoot(sessionId, session, text.strip());
+            case CONFIRMING, CONFIRMING_EXISTING -> handleConfirm(sessionId, session, text.strip());
             case PLAYING -> handleCommand(sessionId, session, CommandParser.parse(text));
         }
     }
@@ -292,18 +312,45 @@ public class GameService implements GameConnector {
             askNameAgain(sessionId, session, DUPLICATE_NAME);
             return;
         }
-        session.confirmName(name);
-        send(sessionId, new PromptMessage(confirmPrompt(name)));
+        session.rooting(name);
+        send(sessionId, new PromptMessage(ROOT_PROMPT));
+    }
+
+    /** 영근 입력. '뒤로' 는 새 캐릭터면 이름 묻기로, 기존 캐릭터면 같은 영근 묻기로 */
+    private void handleRoot(String sessionId, GameSession session, String input) {
+        if (input.equals(BACK)) {
+            if (!session.isExisting()) {
+                session.askName();
+                send(sessionId, new PromptMessage(NAME_PROMPT));
+                return;
+            }
+            send(sessionId, new PromptMessage(ROOT_PROMPT));
+            return;
+        }
+        Optional<SpiritRoot> root = SpiritRoot.parse(input);
+        if (root.isEmpty()) {
+            send(sessionId, SystemMessage.error(INVALID_ROOT));
+            send(sessionId, new PromptMessage(ROOT_PROMPT));
+            return;
+        }
+        session.confirmRoot(root.get());
+        send(sessionId, new PromptMessage(confirmPrompt(session)));
     }
 
     private void handleConfirm(String sessionId, GameSession session, String answer) {
         switch (answer) {
-            case CONFIRM -> createCharacter(sessionId, session);
-            case BACK -> {
-                session.askName();
-                send(sessionId, new PromptMessage(NAME_PROMPT));
+            case CONFIRM -> {
+                if (session.isExisting()) {
+                    chooseRoot(sessionId, session);
+                } else {
+                    createCharacter(sessionId, session);
+                }
             }
-            default -> send(sessionId, new PromptMessage(confirmPrompt(session.requirePendingName())));
+            case BACK -> {
+                session.askRoot();
+                send(sessionId, new PromptMessage(ROOT_PROMPT));
+            }
+            default -> send(sessionId, new PromptMessage(confirmPrompt(session)));
         }
     }
 
@@ -321,15 +368,42 @@ public class GameService implements GameConnector {
             close(sessionId, GameCloseReason.WORLD_NOT_READY);
             return;
         }
-        PlayerCharacter character = characterCreator.create(session.getAccountId(), name);
+        PlayerCharacter character = characterCreator.create(session.getAccountId(), name, session.requirePendingRoot());
         session.startPlaying(requireNonNull(character.getId()));
         send(sessionId, SystemMessage.info(CHARACTER_CREATED));
         send(sessionId, new SessionMessage(SessionMessage.PLAYING, name));
         enterWorld(sessionId, session, session.getAccountId(), name, startRoom.get());
     }
 
-    private static String confirmPrompt(String name) {
-        return "이름 " + name + "\n이대로 만들려면 '확인', 고치려면 '뒤로'.";
+    /** 영근이 없는 기존 캐릭터의 영근을 정하고 저장된 방으로 세계에 들어간다(보통 접속과 같다) */
+    private void chooseRoot(String sessionId, GameSession session) {
+        Optional<Room> startRoom = worldSettingsFinder.findStartRoom();
+        if (startRoom.isEmpty()) {
+            sessions.remove(sessionId);
+            send(sessionId, SystemMessage.error(WORLD_NOT_READY));
+            close(sessionId, GameCloseReason.WORLD_NOT_READY);
+            return;
+        }
+        Long characterId = session.requireCharacterId();
+        characterCreator.chooseSpiritRoot(characterId, session.requirePendingRoot());
+        String name = session.requirePendingName();
+        session.startPlaying(characterId);
+        send(sessionId, SystemMessage.info(ROOT_CHOSEN));
+        send(sessionId, new SessionMessage(SessionMessage.PLAYING, name));
+        Room room = savedRoomOf(characterFinder.find(characterId), startRoom.get());
+        enterWorld(sessionId, session, session.getAccountId(), name, room);
+    }
+
+    /**
+     * 영근 확인 prompt 네 줄: {@code 목·화 진영근 — 목 50, 화 50} / 구분선 / {@code 이름 한백 · 영근 목·화 진영근 (목 50, 화 50)} /
+     * 새 캐릭터면 만들기, 기존 캐릭터면 정하기 안내
+     */
+    private static String confirmPrompt(GameSession session) {
+        SpiritRoot root = session.requirePendingRoot();
+        return root.name() + " — " + root.summary()
+                + "\n────────"
+                + "\n이름 " + session.requirePendingName() + " · 영근 " + root.name() + " (" + root.summary() + ")"
+                + "\n" + (session.isExisting() ? CONFIRM_ROOT : CONFIRM_CREATE);
     }
 
     private void askNameAgain(String sessionId, GameSession session, String error) {

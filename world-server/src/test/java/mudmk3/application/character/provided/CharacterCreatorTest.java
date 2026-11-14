@@ -5,6 +5,7 @@ import mudmk3.ApplicationServiceTest;
 import mudmk3.application.account.provided.AccountLogin;
 import mudmk3.application.account.provided.AccountLoginRequest;
 import mudmk3.application.character.CharacterModifyService;
+import mudmk3.application.character.required.CharacterRepository;
 import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.item.ItemTypeModifyService;
 import mudmk3.application.item.provided.ItemTypeEditor;
@@ -35,6 +36,7 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 
+import static mudmk3.domain.character.CharacterFixture.createCharacter;
 import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.item.ItemTypeFixture.createItemTypeSaveRequest;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
@@ -49,6 +51,7 @@ record CharacterCreatorTest(
         CharacterCreator characterCreator,
         CharacterFinder characterFinder,
         CharacterModifyService characterModifyService,
+        CharacterRepository characterRepository,
         AccountLogin accountLogin,
         ZoneEditor zoneEditor,
         RoomEditor roomEditor,
@@ -65,7 +68,7 @@ record CharacterCreatorTest(
         Long startRoomId = prepareStartRoom();
         Long accountId = prepareAccount("hanbaek@example.com");
 
-        PlayerCharacter character = characterCreator.create(accountId, "한백");
+        PlayerCharacter character = characterCreator.create(accountId, "한백", spiritRoot());
         flushAndClear();
 
         PlayerCharacter found = characterFinder.findByAccountId(accountId).orElseThrow();
@@ -107,8 +110,10 @@ record CharacterCreatorTest(
 
     @Test
     void chooseSpiritRootForLegacy() {
-        prepareStartRoom();
-        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백");
+        Long startRoomId = prepareStartRoom();
+        // 4차 전에 만든 캐릭터: 영근이 없다
+        PlayerCharacter character = characterRepository.save(
+                createCharacter(prepareAccount("hanbaek@example.com"), "한백", startRoomId));
         flushAndClear();
         assertThat(characterFinder.find(character.getId()).findSpiritRoot()).isEmpty();
 
@@ -143,7 +148,7 @@ record CharacterCreatorTest(
     @Test
     void fillMissingRealmsOnStartupListener() throws NoSuchMethodException {
         prepareStartRoom();
-        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백");
+        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백", spiritRoot());
         entityManager.flush();
         entityManager.createNativeQuery("update player_character set realm = null where id = ?")
                 .setParameter(1, character.getId())
@@ -172,10 +177,10 @@ record CharacterCreatorTest(
     @Test
     void duplicateNameFail() {
         prepareStartRoom();
-        characterCreator.create(prepareAccount("hanbaek@example.com"), "한백");
+        characterCreator.create(prepareAccount("hanbaek@example.com"), "한백", spiritRoot());
         Long otherAccountId = prepareAccount("hanli@example.com");
 
-        assertThatThrownBy(() -> characterCreator.create(otherAccountId, "한백"))
+        assertThatThrownBy(() -> characterCreator.create(otherAccountId, "한백", spiritRoot()))
                 .isInstanceOf(DuplicateCharacterNameException.class)
                 .hasMessage("이미 있는 이름입니다. 다른 이름을 정하십시오.");
     }
@@ -187,7 +192,7 @@ record CharacterCreatorTest(
         Long accountId = prepareAccount("hanbaek@example.com");
 
         assertThat(characterFinder.isNameTaken("왕씨")).isTrue();
-        assertThatThrownBy(() -> characterCreator.create(accountId, "왕씨"))
+        assertThatThrownBy(() -> characterCreator.create(accountId, "왕씨", spiritRoot()))
                 .isInstanceOf(DuplicateCharacterNameException.class)
                 .hasMessage("이미 있는 이름입니다. 다른 이름을 정하십시오.");
         assertThat(characterFinder.findByAccountId(accountId)).isEmpty();
@@ -197,13 +202,13 @@ record CharacterCreatorTest(
     void secondCharacterForAccountFail() {
         prepareStartRoom();
         Long accountId = prepareAccount("hanbaek@example.com");
-        characterCreator.create(accountId, "한백");
+        characterCreator.create(accountId, "한백", spiritRoot());
 
-        assertThatThrownBy(() -> characterCreator.create(accountId, "한립"))
+        assertThatThrownBy(() -> characterCreator.create(accountId, "한립", spiritRoot()))
                 .isInstanceOf(CharacterAlreadyExistsException.class)
                 .hasMessage("이미 캐릭터가 있습니다");
         // 계정 검사가 이름 중복 검사보다 먼저다
-        assertThatThrownBy(() -> characterCreator.create(accountId, "한백"))
+        assertThatThrownBy(() -> characterCreator.create(accountId, "한백", spiritRoot()))
                 .isInstanceOf(CharacterAlreadyExistsException.class);
     }
 
@@ -212,7 +217,7 @@ record CharacterCreatorTest(
         prepareStartRoom();
         Long accountId = prepareAccount("hanbaek@example.com");
 
-        assertThatThrownBy(() -> characterCreator.create(accountId, "한 백"))
+        assertThatThrownBy(() -> characterCreator.create(accountId, "한 백", spiritRoot()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("이름은 띄어쓰기 없이 한글 2~6자로 정하십시오.");
         assertThat(characterFinder.findByAccountId(accountId)).isEmpty();
@@ -222,7 +227,7 @@ record CharacterCreatorTest(
     void noStartRoomFail() {
         Long accountId = prepareAccount("hanbaek@example.com");
 
-        assertThatThrownBy(() -> characterCreator.create(accountId, "한백"))
+        assertThatThrownBy(() -> characterCreator.create(accountId, "한백", spiritRoot()))
                 .isInstanceOf(WorldNotReadyException.class)
                 .hasMessage("아직 세계가 열리지 않았습니다. 관리자가 시작 방을 정해야 합니다.");
         assertThat(characterFinder.findByAccountId(accountId)).isEmpty();
@@ -232,7 +237,7 @@ record CharacterCreatorTest(
     void unknownAccountFail() {
         prepareStartRoom();
 
-        assertThatThrownBy(() -> characterCreator.create(-1L, "한백"))
+        assertThatThrownBy(() -> characterCreator.create(-1L, "한백", spiritRoot()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("계정을 찾을 수 없습니다. id: -1");
     }
@@ -247,7 +252,7 @@ record CharacterCreatorTest(
         worldSettingsEditor.replaceStartingItems(List.of(new StartingItemRequest(bag, 1), new StartingItemRequest(lowStone, 30),
                 new StartingItemRequest(healPill, 3), new StartingItemRequest(qiPill, 3)));
 
-        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백");
+        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백", spiritRoot());
         flushAndClear();
 
         Inventory inventory = inventoryFinder.find(character.getId());
@@ -274,7 +279,7 @@ record CharacterCreatorTest(
         worldSettingsEditor.replaceStartingItems(List.of(new StartingItemRequest(sword, 2),
                 new StartingItemRequest(healPill, 3), new StartingItemRequest(bag, 1)));
 
-        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백");
+        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백", spiritRoot());
         flushAndClear();
 
         Inventory inventory = inventoryFinder.find(character.getId());
@@ -287,7 +292,7 @@ record CharacterCreatorTest(
     void createWithoutStartingItems() {
         prepareStartRoom();
 
-        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백");
+        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백", spiritRoot());
         flushAndClear();
 
         Inventory inventory = inventoryFinder.find(character.getId());
@@ -301,10 +306,10 @@ record CharacterCreatorTest(
     void changedStartingItemsGoToLaterCharacters() {
         prepareStartRoom();
         Long healPill = itemTypeEditor.create(createItemTypeSaveRequest("회춘단(연기 초)", ItemCategory.PILL, 3)).getId();
-        PlayerCharacter first = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백");
+        PlayerCharacter first = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백", spiritRoot());
 
         worldSettingsEditor.replaceStartingItems(List.of(new StartingItemRequest(healPill, 5)));
-        PlayerCharacter second = characterCreator.create(prepareAccount("hanli@example.com"), "한립");
+        PlayerCharacter second = characterCreator.create(prepareAccount("hanli@example.com"), "한립", spiritRoot());
         flushAndClear();
 
         assertThat(inventoryFinder.find(first.getId()).getEntries()).isEmpty();
