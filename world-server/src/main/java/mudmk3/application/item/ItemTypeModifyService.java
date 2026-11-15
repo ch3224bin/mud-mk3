@@ -91,7 +91,7 @@ public class ItemTypeModifyService implements ItemTypeEditor {
     }
 
     /**
-     * 소지품·바닥 배치·사라지지 않은 버린 물건·상점·시작 소지품 어디서든 쓰이는지. 리포지토리 count 들의 합으로 보며,
+     * 소지품·바닥 배치·사라지지 않은 버린 물건·상점·시작 소지품·몹 드롭 표 어디서든 쓰이는지. 리포지토리 count 들의 합으로 보며,
      * 쓰는 슬라이스가 생기는 태스크가 count를 하나씩 더한다
      */
     private boolean isInUse(Long itemTypeId, Instant now) {
@@ -99,7 +99,9 @@ public class ItemTypeModifyService implements ItemTypeEditor {
                 + itemTypeRepository.countInShops(itemTypeId)
                 + itemTypeRepository.countInStartingItems(itemTypeId)
                 + itemTypeRepository.countInFloorPlacements(itemTypeId)
-                + itemTypeRepository.countInDroppedItems(itemTypeId, now);
+                + itemTypeRepository.countInDroppedItems(itemTypeId, now)
+                + itemTypeRepository.countInMobFixedDrops(itemTypeId)
+                + itemTypeRepository.countInMobTierDrops(itemTypeId);
         return uses > 0;
     }
 

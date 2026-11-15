@@ -47,6 +47,14 @@ public interface ItemTypeRepository extends Repository<ItemType, Long> {
             + " where s.itemTypeId = :itemTypeId order by n.name")
     List<ShopPrice> findShopPrices(Long itemTypeId);
 
+    /** 그 종류가 든 몹 고정 재료 줄 수 */
+    @Query("select count(m) from MobType m join m.fixedDrops d where d.itemTypeId = :itemTypeId")
+    long countInMobFixedDrops(Long itemTypeId);
+
+    /** 그 종류가 든 몹 계층 드롭 줄 수 */
+    @Query("select count(m) from MobType m join m.tierDrops d where d.itemTypeId = :itemTypeId")
+    long countInMobTierDrops(Long itemTypeId);
+
     /** 그 종류를 둔 바닥 배치 수(남은 수가 0이어도 센다) */
     @Query("select count(p) from FloorPlacement p where p.itemType.id = :itemTypeId")
     long countInFloorPlacements(Long itemTypeId);

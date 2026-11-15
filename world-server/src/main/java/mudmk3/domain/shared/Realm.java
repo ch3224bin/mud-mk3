@@ -82,4 +82,19 @@ public enum Realm {
     public boolean opensBracelet() {
         return !isBelow(FOUNDATION_EARLY);
     }
+
+    /** 대경지 차례: 범인 0, 연기 1, 축기 2 */
+    public int majorIndex() {
+        if (this == MORTAL) return 0;
+        return isBelow(FOUNDATION_EARLY) ? 1 : 2;
+    }
+
+    /** 요수의 급: 연기 1~7층 1급, 연기 8~13층 2급, 축기 3급. 범인은 급이 없어 {@code IllegalStateException} */
+    public int beastGrade() {
+        if (this == MORTAL) {
+            throw new IllegalStateException("범인 경지에는 요수의 급이 없습니다");
+        }
+        if (isBelow(QI_8)) return 1;
+        return isBelow(FOUNDATION_EARLY) ? 2 : 3;
+    }
 }

@@ -7,6 +7,7 @@ import mudmk3.MutableClock;
 import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.floor.provided.RoomFloor;
 import mudmk3.application.inventory.provided.InventoryEditor;
+import mudmk3.application.mob.provided.MobTypeEditor;
 import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.npc.provided.ShopItemRequest;
 import mudmk3.application.npc.provided.ShopSaveRequest;
@@ -20,6 +21,10 @@ import mudmk3.domain.item.DuplicateItemTypeNameException;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.item.SpiritStoneGrade;
+import mudmk3.domain.mob.DropTier;
+import mudmk3.domain.mob.MobFixedDrop;
+import mudmk3.domain.mob.MobFixture;
+import mudmk3.domain.mob.MobTierDrop;
 import mudmk3.domain.npc.ShopKind;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -42,7 +47,8 @@ import static org.assertj.core.api.Assertions.tuple;
 record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemTypeFinder, InventoryEditor inventoryEditor,
                           WorldSettingsEditor worldSettingsEditor, FloorPlacementEditor floorPlacementEditor,
                           RoomFloor roomFloor, ZoneEditor zoneEditor, RoomEditor roomEditor, NpcEditor npcEditor,
-                          TechniqueEditor techniqueEditor, MutableClock clock, EntityManager entityManager) {
+                          TechniqueEditor techniqueEditor, MobTypeEditor mobTypeEditor, MutableClock clock,
+                          EntityManager entityManager) {
 
     @Test
     void spiritStonesSeeded() {
@@ -445,6 +451,48 @@ record ItemTypeEditorTest(ItemTypeEditor itemTypeEditor, ItemTypeFinder itemType
         ItemType found = itemTypeFinder.find(changed.getId());
         assertThat(found.getCategory()).isEqualTo(ItemCategory.MATERIAL);
         assertThat(found.findTechnique()).isEmpty();
+    }
+
+    @Test
+    void deleteItemInFixedDropFail() {
+        ItemType hide = itemTypeEditor.create(createItemTypeSaveRequest("토끼 가죽", ItemCategory.MATERIAL, 1));
+        mobTypeEditor.create(MobFixture.request(MobFixture.withDrops(MobFixture.rabbit(),
+                List.of(new MobFixedDrop(hide.getId(), 1)), List.of())));
+
+        assertThatThrownBy(() -> itemTypeEditor.delete(hide.getId()))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 지울 수 없습니다: 토끼 가죽");
+    }
+
+    @Test
+    void deleteItemInTierDropFail() {
+        ItemType hide = itemTypeEditor.create(createItemTypeSaveRequest("토끼 가죽", ItemCategory.MATERIAL, 1));
+        mobTypeEditor.create(MobFixture.request(MobFixture.withDrops(MobFixture.rabbit(),
+                List.of(), List.of(new MobTierDrop(DropTier.TREASURE, hide.getId())))));
+
+        assertThatThrownBy(() -> itemTypeEditor.delete(hide.getId()))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 지울 수 없습니다: 토끼 가죽");
+    }
+
+    @Test
+    void changeCategoryOfDropItemFail() {
+        ItemType hide = itemTypeEditor.create(createItemTypeSaveRequest("토끼 가죽", ItemCategory.MATERIAL, 1));
+        ItemType pill = itemTypeEditor.create(createItemTypeSaveRequest("회춘단", ItemCategory.PILL, 3));
+        mobTypeEditor.create(MobFixture.request(MobFixture.withDrops(MobFixture.rabbit(),
+                List.of(new MobFixedDrop(hide.getId(), 1)), List.of(new MobTierDrop(DropTier.ADVANCED, pill.getId())))));
+
+        assertThatThrownBy(() -> itemTypeEditor.update(hide.getId(),
+                createItemTypeSaveRequest("토끼 가죽", ItemCategory.BEAST_FOOD, 1)))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 종류·저물대 등급을 바꿀 수 없습니다: 토끼 가죽");
+        assertThatThrownBy(() -> itemTypeEditor.update(pill.getId(),
+                createItemTypeSaveRequest("회춘단", ItemCategory.ELIXIR, 3)))
+                .isInstanceOf(ItemTypeInUseException.class)
+                .hasMessage("쓰이는 물건은 종류·저물대 등급을 바꿀 수 없습니다: 회춘단");
+        // 종류를 그대로 두면 이름·기준가는 바꿀 수 있다
+        assertThat(itemTypeEditor.update(hide.getId(), createItemTypeSaveRequest("토끼 털가죽", ItemCategory.MATERIAL, 2))
+                .getName()).isEqualTo("토끼 털가죽");
     }
 
     private static ItemTypeSaveRequest scrollRequest(ItemCategory category, @Nullable Long techniqueId) {
