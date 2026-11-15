@@ -21,6 +21,7 @@ import mudmk3.domain.technique.UsableWhen;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -168,7 +169,7 @@ class CultivationTextsTest {
 
     @Test
     void abilitiesBlock() {
-        assertThat(texts.abilities(List.of(learned(changchun()), learned(ironBody())))).isEqualTo("""
+        assertThat(texts.abilities(List.of(learned(changchun()), learned(ironBody())), null, Instant.EPOCH)).isEqualTo("""
                 [장춘공 1성]
                   화탄술  공격·화  법력 5  대기 3초
                 [강체결 1성]
@@ -177,7 +178,7 @@ class CultivationTextsTest {
 
     @Test
     void abilitiesUpToStage() {
-        assertThat(texts.abilities(List.of(learned(changchun(), 2)))).isEqualTo("""
+        assertThat(texts.abilities(List.of(learned(changchun(), 2)), null, Instant.EPOCH)).isEqualTo("""
                 [장춘공 2성]
                   화탄술  공격·화  법력 5  대기 3초
                   천안술  탐지·목  법력 3  대기 10초""");
@@ -207,7 +208,7 @@ class CultivationTextsTest {
 
     @Test
     void noAbilities() {
-        assertThat(texts.abilities(List.of())).isEqualTo("배운 신통이 없습니다.");
+        assertThat(texts.abilities(List.of(), null, Instant.EPOCH)).isEqualTo("배운 신통이 없습니다.");
     }
 
     // ---- 읽기
@@ -298,7 +299,7 @@ class CultivationTextsTest {
         Technique technique = Technique.create(new TechniqueSaveInfo("시험공", "", List.of(Element.FIRE), Realm.MORTAL,
                 List.of(stage(0, 0, 0, 0, 0, 0)), List.of(TechniqueFixture.upToStage(info, 1))));
         CharacterTechnique learned = learned(technique);
-        return texts.abilities(List.of(learned)).lines().skip(1).findFirst().orElseThrow();
+        return texts.abilities(List.of(learned), null, Instant.EPOCH).lines().skip(1).findFirst().orElseThrow();
     }
 
     private static PlayerCharacter character(String roots, Realm realm) {

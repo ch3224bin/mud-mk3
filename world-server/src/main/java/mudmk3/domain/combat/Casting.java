@@ -1,5 +1,6 @@
 package mudmk3.domain.combat;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 import static java.util.Objects.requireNonNull;
@@ -14,6 +15,11 @@ public record Casting(Long techniqueId, String abilityName, long mobId, Instant 
         requireNonNull(techniqueId);
         requireNonNull(abilityName);
         requireNonNull(firesAt);
+    }
+
+    /** 지금 시작해 {@code castSeconds} 초 뒤에 발동하는 시전 */
+    public static Casting start(AbilityKey key, long mobId, BigDecimal castSeconds, Instant now, long seq) {
+        return new Casting(key.techniqueId(), key.abilityName(), mobId, now.plus(AbilityRules.seconds(castSeconds)), seq);
     }
 
     public AbilityKey key() {

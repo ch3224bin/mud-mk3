@@ -3,6 +3,7 @@ package mudmk3.application.game;
 import lombok.RequiredArgsConstructor;
 import mudmk3.application.character.provided.CharacterVitalsEditor;
 import mudmk3.application.cultivation.provided.CultivationFinder;
+import mudmk3.application.game.required.AbilityTimersRepository;
 import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.NoticeMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
@@ -10,7 +11,9 @@ import mudmk3.application.game.required.MobInstanceRepository;
 import mudmk3.application.game.required.PlayerCombatRepository;
 import mudmk3.application.game.required.PresenceRepository;
 import mudmk3.application.mob.provided.MobPlacementFinder;
+import mudmk3.domain.combat.AbilityTimers;
 import mudmk3.domain.combat.AttackNature;
+import mudmk3.domain.combat.Casting;
 import mudmk3.domain.combat.Corpse;
 import mudmk3.domain.combat.Damage;
 import mudmk3.domain.combat.MobHit;
@@ -42,7 +45,7 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * 몹·교전·시체 메모리 상태를 다룬다(D85·D86). {@link GameService} 가 게임 락과 트랜잭션 안에서 부른다.
- * 서버 틱은 platform.md {@code #### 서버 틱} 순서대로 처리한다: 1 배치 맞추기 → 법력 회복({@link ManaRecovery}) → 2 행동 →
+ * 서버 틱은 platform.md {@code #### 서버 틱} 순서대로 처리한다: 1 배치 맞추기 → 법력 회복({@link ManaRecovery}) → 2 행동(시전 발동 포함) →
  * 3 다시 차기 → 4 시체 사라짐 → 5 재등장.
  * <p>
  * 틱이 중간에 실패하면 트랜잭션(깎인 기혈 쓰기)은 롤백되지만 메모리 상태는 되돌리지 않고 보낼 줄도 버려진다
@@ -63,6 +66,8 @@ class CombatEngine {
     private final CombatTexts combatTexts;
     private final ManaRecovery manaRecovery;
     private final CombatActions combatActions;
+    private final AbilityTimersRepository abilityTimersRepository;
+    private final AbilityCaster abilityCaster;
 
     /** 몹 id. 서버가 돌아가는 동안 늘기만 한다 */
     private final AtomicLong mobIds = new AtomicLong();
@@ -138,14 +143,23 @@ class CombatEngine {
     }
 
     /**
-     * 세계에서 빠진다(끊김·종료): 모든 교전을 끝낸다. 다음 공격 시각은 남겨 다시 접속해도 공격 간격이 줄지 않게 하고(D84),
-     * 다시 차기 예약은 지운다(세계 밖에서는 차지 않음 — 들어올 때 {@link #entered} 가 다시 예약)
+     * 세계에서 빠진다(끊김·종료): 시전을 지우고(D113, 대기시간은 남음) 모든 교전을 끝낸다. 다음 공격 시각은 남겨 다시 접속해도
+     * 공격 간격이 줄지 않게 하고(D84), 다시 차기 예약은 지운다(세계 밖에서는 차지 않음 — 들어올 때 {@link #entered} 가 다시 예약)
      */
     void leave(Long characterId, Instant now) {
+        clearCasting(characterId);
         endAll(characterId, now);
         playerCombatRepository.find(characterId).ifPresent(combat -> {
             combat.clearRefill();
             playerCombatRepository.save(combat);
+        });
+    }
+
+    /** 시전 중이면 지운다(끊김·질 때. 방 삭제로 옮겨질 때는 지우지 않는다 — 발동 때 다른 방이라 흩어짐) */
+    private void clearCasting(Long characterId) {
+        abilityTimersRepository.find(characterId).ifPresent(timers -> {
+            timers.clearCasting();
+            abilityTimersRepository.save(timers);
         });
     }
 
@@ -233,24 +247,40 @@ class CombatEngine {
     // ---- 2. 행동
 
     /**
-     * 행동 시각이 된 플레이어·몹의 행동을 (시각, 교전 시작 순번) 순으로 하나씩 처리한다. 행동마다 처리 직전에 다시 확인해
-     * 그 틱에 쓰러진 쪽·교전이 끝난 쪽의 행동은 취소된다. 밀린 행동은 몰아서 하지 않는다(행동자마다 틱에 한 번)
+     * 행동 시각이 된 플레이어·몹의 행동과 발동 시각이 된 시전을 정렬 키 (시각, 무리, 순번, 종류)로 하나씩 처리한다(D113, F20).
+     * 교전 중인 행동(플레이어·몹의 자동 공격, 이미 교전 중인 캐릭터의 시전)은 무리 0·교전 시작 순번, 아직 교전하지 않은 캐릭터의
+     * 시전은 무리 1·시전 시작 순번이다. 넷째 키는 자동 공격이 시전보다 먼저다. 행동마다 처리 직전에 다시 확인해 그 틱에 쓰러진
+     * 쪽·교전이 끝난 쪽의 행동은 취소된다. 밀린 행동은 몰아서 하지 않는다(행동자마다 틱에 한 번)
      */
     private void act(Instant now, BiConsumer<String, GameMessage> send, List<Long> defeated) {
         List<Action> due = new ArrayList<>();
         for (PlayerCombat combat : playerCombatRepository.findAll()) {
             if (!combat.isFighting() || !combat.readyAt(now)) continue;
             Instant at = combat.getNextAttackAt() == null ? now : requireNonNull(combat.getNextAttackAt());
-            due.add(new Action(at, combat.getEngageOrder(), combat.getCharacterId(), null));
+            due.add(new Action(at, ENGAGED_GROUP, combat.getEngageOrder(), AUTO_ATTACK, combat.getCharacterId(), null, null));
         }
         for (MobInstance mob : mobInstanceRepository.findAll()) {
             Instant at = mob.getNextActionAt();
             if (!mob.isFighting() || at == null || at.isAfter(now)) continue;
-            due.add(new Action(at, mob.getEngageOrder(), null, mob.getId()));
+            due.add(new Action(at, ENGAGED_GROUP, mob.getEngageOrder(), AUTO_ATTACK, null, mob.getId(), null));
         }
-        due.sort(Comparator.comparing(Action::at).thenComparingLong(Action::order));
+        for (AbilityTimers timers : abilityTimersRepository.findAll()) {
+            Optional<Casting> casting = timers.casting().filter(c -> !c.firesAt().isAfter(now));
+            if (casting.isEmpty()) continue;
+            Long characterId = timers.getCharacterId();
+            Optional<PlayerCombat> combat = playerCombatRepository.find(characterId).filter(PlayerCombat::isFighting);
+            due.add(combat.isPresent()
+                    ? new Action(casting.get().firesAt(), ENGAGED_GROUP, combat.get().getEngageOrder(), CASTING,
+                    characterId, null, casting.get())
+                    : new Action(casting.get().firesAt(), NOT_ENGAGED_GROUP, casting.get().seq(), CASTING,
+                    characterId, null, casting.get()));
+        }
+        due.sort(Comparator.comparing(Action::at).thenComparingInt(Action::group).thenComparingLong(Action::order)
+                .thenComparingInt(Action::kind));
         for (Action action : due) {
-            if (action.characterId() != null) {
+            if (action.casting() != null) {
+                abilityCaster.fire(requireNonNull(action.characterId()), action.casting(), now, send);
+            } else if (action.characterId() != null) {
                 playerTurn(action.characterId(), action.at(), now, send);
             } else {
                 mobTurn(requireNonNull(action.mobId()), action.at(), now, send, defeated);
@@ -319,20 +349,30 @@ class CombatEngine {
     }
 
     /**
-     * 졌다(D88 의 CombatEngine 몫): 기혈 1 → 모든 교전 끝(나와 싸우던 몹의 상대 목록에서도 빠짐, 다시 차기 예약) →
+     * 졌다(D88 의 CombatEngine 몫): 기혈 1 → 시전을 지움(D113) → 모든 교전 끝(나와 싸우던 몹의 상대 목록에서도 빠짐, 다시 차기 예약) →
      * {@code 기혈이 다했습니다. 눈앞이 캄캄해진다…} 와 같은 방 {@code 한백이 쓰러진다.}(event {@code defeated}).
      * 그 틱의 남은 행동은 교전이 끝나 취소된다. 시작 방으로 옮기기는 {@link GameService} 가 한다
      */
     private void onPlayerDefeated(OnlinePlayer player, int maxQiBlood, Instant now, BiConsumer<String, GameMessage> send) {
         Long characterId = player.getCharacterId();
         characterVitalsEditor.setQiBlood(characterId, 1, maxQiBlood);
+        clearCasting(characterId);
         endAll(characterId, now);
         send.accept(player.getSessionId(), SystemMessage.combat(CombatTexts.DEFEATED));
         combatActions.notifyOthers(player, combatTexts.defeatedNotice(player.getName()), "defeated", send);
     }
 
-    /** 이번 틱에 할 행동 하나: 플레이어(characterId) 또는 몹(mobId) */
-    private record Action(Instant at, long order, @Nullable Long characterId, @Nullable Long mobId) {
+    /** 정렬 무리: 교전 중인 행동 */
+    private static final int ENGAGED_GROUP = 0;
+    /** 정렬 무리: 아직 교전하지 않은 캐릭터의 시전 */
+    private static final int NOT_ENGAGED_GROUP = 1;
+    /** 정렬 종류: 자동 공격(플레이어·몹)이 시전보다 먼저 */
+    private static final int AUTO_ATTACK = 0;
+    private static final int CASTING = 1;
+
+    /** 이번 틱에 할 행동 하나: 플레이어(characterId)·몹(mobId)의 자동 공격, 또는 캐릭터의 시전 발동(casting) */
+    private record Action(Instant at, int group, long order, int kind, @Nullable Long characterId, @Nullable Long mobId,
+                          @Nullable Casting casting) {
     }
 
     // ---- 3. 다시 차기

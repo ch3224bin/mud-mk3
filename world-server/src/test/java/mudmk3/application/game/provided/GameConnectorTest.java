@@ -87,6 +87,7 @@ import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
 import static mudmk3.domain.mob.MobFixture.wolf;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
+import static mudmk3.domain.technique.TechniqueFixture.changchunInfo;
 import static mudmk3.domain.technique.TechniqueFixture.greenWoodInfo;
 import static mudmk3.domain.technique.TechniqueFixture.ironBodyInfo;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -810,18 +811,40 @@ class GameConnectorTest extends BaseGameTest {
                 new SystemMessage(UNKNOWN, "error"), new SystemMessage(UNKNOWN, "error"));
     }
 
+    /** 명령도 신통도 아닌 첫 낱말은 여전히 모르는 명령이다(이름 해석 4, D118) */
     @Test
-    void abilityAndStopAnswerUnknownUntilConnected() {
+    void unknownWordStillUnknown() {
         prepareMap();
         enter("a", "한백");
         sender.clear();
 
-        gameConnector.handle("a", "화탄술 청모랑");
         gameConnector.handle("a", "대화왕씨");
-        gameConnector.handle("a", "중지");
+        gameConnector.handle("a", "화탄술 청모랑");
 
-        assertThat(sender.messagesTo("a")).containsExactly(
-                SystemMessage.error(UNKNOWN), SystemMessage.error(UNKNOWN), SystemMessage.error(UNKNOWN));
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.error(UNKNOWN), SystemMessage.error(UNKNOWN));
+    }
+
+    /** 재사용 대기가 남은 신통 줄 끝에 {@code (1.8초 남음)}, 끝나면 꼬리 없음(D114) */
+    @Test
+    void abilitiesShowCooldownRemaining() {
+        GameMap map = prepareMap();
+        Long han = enter("a", "한백");
+        setRealm(han, Realm.QI_1);
+        learn(han, changchunInfo());
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "화탄술 청모랑");
+
+        advance(1.2);
+        gameConnector.handle("a", "신통");
+        assertThat(sender.lastTo("a", SystemMessage.class).text()).isEqualTo("""
+                [장춘공 1성]
+                  화탄술  공격·화  법력 5  대기 3초  (1.8초 남음)""");
+
+        advance(1.8);
+        gameConnector.handle("a", "신통");
+        assertThat(sender.lastTo("a", SystemMessage.class).text()).isEqualTo("""
+                [장춘공 1성]
+                  화탄술  공격·화  법력 5  대기 3초""");
     }
 
     @Test
@@ -844,7 +867,7 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.handle("a", "도움말");
 
         assertThat(sender.messagesTo("a")).containsExactly(new SystemMessage(
-                "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 공격 <대상> · 수습 <시체> · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건> · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량] · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 확인 · 취소 · 누구 · 도움말 · 종료",
+                "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건> · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량] · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 확인 · 취소 · 누구 · 도움말 · 종료",
                 "info"));
     }
 

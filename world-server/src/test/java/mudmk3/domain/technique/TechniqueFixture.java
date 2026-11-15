@@ -71,6 +71,17 @@ public final class TechniqueFixture {
         return stagePowers(1, lastStage, "2", "0.2", "1.2");
     }
 
+    /**
+     * 낙뢰술(시전 신통 픽스처): 1성, 공격, 화, 한 대상, 법력 5, 시전 2, 대기 3, 전투 중만, 이펙트 문장 하나.
+     * 단계별 값은 화탄술과 같다(F14)
+     */
+    public static AbilitySaveInfo lightning() {
+        return withStagePowers(withEffectLines(
+                ability("낙뢰술", 1, AbilityKind.ATTACK, List.of(Element.FIRE), AbilityTarget.SINGLE,
+                        CostStat.MANA, "5", "2", "3", UsableWhen.COMBAT_ONLY),
+                List.of("하늘에서 내리친 뇌기가 {대상}을 꿰뚫는다!")), fireBallStagePowers(9));
+    }
+
     /** 천안술: 2성, 탐지, 목, 자신, 법력 3, 대기 10, 전투 밖에도 */
     public static AbilitySaveInfo heavenEye() {
         return ability("천안술", 2, AbilityKind.DETECTION, List.of(Element.WOOD), AbilityTarget.SELF,

@@ -3,10 +3,12 @@ package mudmk3.adapter.websocket;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterRealmEditor;
 import mudmk3.application.character.required.CharacterRepository;
+import mudmk3.application.cultivation.required.CharacterTechniqueRepository;
 import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.floor.provided.FloorPlacementSaveRequest;
 import mudmk3.application.game.provided.GameConnector;
 import mudmk3.application.game.provided.GameTicker;
+import mudmk3.application.game.required.AbilityTimersRepository;
 import mudmk3.application.game.required.CorpseRepository;
 import mudmk3.application.game.required.MobInstanceRepository;
 import mudmk3.application.game.required.PlayerCombatRepository;
@@ -23,8 +25,11 @@ import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.technique.provided.TechniqueEditor;
 import mudmk3.application.technique.provided.TechniqueView;
+import mudmk3.application.technique.required.TechniqueRepository;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
+import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.cultivation.CharacterTechnique;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.mob.MobFixedDrop;
@@ -127,6 +132,9 @@ class GameWebSocketIntegrationTest {
     private final MobInstanceRepository mobInstanceRepository;
     private final PlayerCombatRepository playerCombatRepository;
     private final CorpseRepository corpseRepository;
+    private final AbilityTimersRepository abilityTimersRepository;
+    private final TechniqueRepository techniqueRepository;
+    private final CharacterTechniqueRepository characterTechniqueRepository;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
     private final List<Client> clients = new ArrayList<>();
     private @Nullable Long entranceId;
@@ -153,7 +161,10 @@ class GameWebSocketIntegrationTest {
             GameTicker gameTicker,
             MobInstanceRepository mobInstanceRepository,
             PlayerCombatRepository playerCombatRepository,
-            CorpseRepository corpseRepository
+            CorpseRepository corpseRepository,
+            AbilityTimersRepository abilityTimersRepository,
+            TechniqueRepository techniqueRepository,
+            CharacterTechniqueRepository characterTechniqueRepository
     ) {
         this.port = port;
         this.zoneEditor = zoneEditor;
@@ -177,6 +188,9 @@ class GameWebSocketIntegrationTest {
         this.mobInstanceRepository = mobInstanceRepository;
         this.playerCombatRepository = playerCombatRepository;
         this.corpseRepository = corpseRepository;
+        this.abilityTimersRepository = abilityTimersRepository;
+        this.techniqueRepository = techniqueRepository;
+        this.characterTechniqueRepository = characterTechniqueRepository;
     }
 
     @BeforeEach
@@ -218,6 +232,7 @@ class GameWebSocketIntegrationTest {
         mobInstanceRepository.deleteAll();
         playerCombatRepository.deleteAll();
         corpseRepository.deleteAll();
+        abilityTimersRepository.deleteAll();
     }
 
     @Test
@@ -459,6 +474,37 @@ class GameWebSocketIntegrationTest {
         JsonNode collected = client.next();
         assertThat(collected.get("tone").asString()).isEqualTo("item");
         assertThat(collected.get("text").asString()).startsWith("들토끼의 시체를 수습했습니다: 토끼 가죽 1");
+    }
+
+    /**
+     * 커밋되는 DB·실제 난수라 이펙트 문장은 화탄술 셋 가운데 하나로만 본다. 연기 1층 한백(영력 5)의 화탄술 위력
+     * (2 + 5 × 1.2) × 1.5 = 12 → 들토끼(육신 7) 피해 12 − 3.5 = 8.5 → 9. 틱을 한 번 직접 불러 들토끼를 나타나게 한다
+     */
+    @Test
+    void abilityOverWebSocket() throws Exception {
+        TechniqueView changchun = techniqueEditor.create(changchunRequest("장춘공"));
+        MobTypeView rabbit = mobTypeEditor.create(MobFixture.request(MobFixture.rabbit()));
+        mobPlacementEditor.create(requireNonNull(entranceId), new MobPlacementSaveRequest(rabbit.id(), 1));
+        gameTicker.tick();
+        Login login = login("hanbai@example.com");
+        PlayerCharacter character = characterCreator.create(login.accountId(), "한백", spiritRoot());
+        characterTechniqueRepository.save(CharacterTechnique.learn(character,
+                techniqueRepository.findById(changchun.id()).orElseThrow()));
+        characterRealmEditor.designate(requireNonNull(character.getId()), Realm.QI_1);
+        Client client = connect(login.cookie(), ALLOWED_ORIGIN);
+        client.awaitRoom();
+
+        client.command("화탄술 들토끼");
+
+        assertThat(client.next()).isEqualTo(json("""
+                {"type":"system","text":"들토끼와 싸움이 벌어진다.","tone":"combat"}"""));
+        JsonNode effect = client.next();
+        assertThat(effect.get("type").asString()).isEqualTo("system");
+        assertThat(effect.get("tone").asString()).isEqualTo("combat");
+        assertThat(effect.get("text").asString()).isIn(
+                "손끝에서 붉은 불덩이가 피어올라 들토끼를 덮친다! (피해 9, 법력 20/25)",
+                "한백의 손바닥에서 화탄이 튀어 나가 들토끼에게 터진다! (피해 9, 법력 20/25)",
+                "작은 불덩이가 꼬리를 그으며 들토끼에게 날아든다! (피해 9, 법력 20/25)");
     }
 
     /** 관리 툴 경지 지정은 커밋 뒤(AFTER_COMMIT) 접속 중인 그 캐릭터에게만 알린다 */

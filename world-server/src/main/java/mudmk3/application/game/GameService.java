@@ -8,6 +8,7 @@ import mudmk3.application.cultivation.provided.CultivationFinder;
 import mudmk3.application.floor.provided.RoomFloor;
 import mudmk3.application.game.provided.GameConnector;
 import mudmk3.application.game.provided.GameTicker;
+import mudmk3.application.game.required.AbilityTimersRepository;
 import mudmk3.application.game.required.GameCloseReason;
 import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.NoticeMessage;
@@ -88,7 +89,7 @@ public class GameService implements GameConnector, GameTicker {
     static final String SAY_TOO_LONG = "말은 200자 이내로 하십시오.";
     static final String HELP =
             "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말]"
-                    + " · 공격 <대상> · 수습 <시체> · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건>"
+                    + " · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건>"
                     + " · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량]"
                     + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건>"
                     + " · 확인 · 취소 · 누구 · 도움말 · 종료";
@@ -114,6 +115,7 @@ public class GameService implements GameConnector, GameTicker {
     private final CombatEngine combatEngine;
     private final CombatCommandHandler combatCommandHandler;
     private final AbilityCommandHandler abilityCommandHandler;
+    private final AbilityTimersRepository abilityTimersRepository;
     private final Clock clock;
     private final GameMessageSender sender;
     private final TransactionTemplate transactionTemplate;
@@ -140,6 +142,7 @@ public class GameService implements GameConnector, GameTicker {
             CombatEngine combatEngine,
             CombatCommandHandler combatCommandHandler,
             AbilityCommandHandler abilityCommandHandler,
+            AbilityTimersRepository abilityTimersRepository,
             Clock clock,
             GameMessageSender sender,
             PlatformTransactionManager transactionManager
@@ -159,6 +162,7 @@ public class GameService implements GameConnector, GameTicker {
         this.combatEngine = combatEngine;
         this.combatCommandHandler = combatCommandHandler;
         this.abilityCommandHandler = abilityCommandHandler;
+        this.abilityTimersRepository = abilityTimersRepository;
         this.clock = clock;
         this.sender = sender;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -493,16 +497,17 @@ public class GameService implements GameConnector, GameTicker {
                     characterFinder.find(player.getCharacterId()).getRealm(),
                     cultivationFinder.findLearned(player.getCharacterId()),
                     cultivationFinder.insight(player.getCharacterId()))));
-            case Command.Abilities _ -> send(sessionId, SystemMessage.info(
-                    cultivationTexts.abilities(cultivationFinder.findLearned(player.getCharacterId()))));
+            case Command.Abilities _ -> send(sessionId, SystemMessage.info(cultivationTexts.abilities(
+                    cultivationFinder.findLearned(player.getCharacterId()),
+                    abilityTimersRepository.find(player.getCharacterId()).orElse(null), clock.instant())));
             case Command.Who _ -> who(sessionId);
             case Command.Help _ -> send(sessionId, SystemMessage.info(HELP));
             case Command.Quit _ -> quit(sessionId, player);
             case Command.Empty _ -> {
             }
             case Command.UseAbility useAbility -> abilityCommandHandler.use(player, useAbility, clock.instant(), this::send);
-            // 중지는 아직 게임에 잇지 않아 4차 '모르는 명령' 응답이다(Task 7)
-            case Command.Unknown _, Command.Stop _ -> send(sessionId, SystemMessage.error(UNKNOWN));
+            case Command.Stop _ -> abilityCommandHandler.stop(player, this::send);
+            case Command.Unknown _ -> send(sessionId, SystemMessage.error(UNKNOWN));
         }
     }
 
@@ -527,9 +532,14 @@ public class GameService implements GameConnector, GameTicker {
         send(sessionId, roomView(roomFinder.find(player.getRoomId()), false, player.getCharacterId()));
     }
 
+    /** 교전 중이면 5차 문구가 먼저, 아니고 시전 중이면 시전 문구로 막는다(D113) */
     private void move(String sessionId, GameSession session, OnlinePlayer player, Direction direction) {
         if (combatEngine.isFighting(player.getCharacterId())) {
             send(sessionId, SystemMessage.error(CombatTexts.CANNOT_MOVE));
+            return;
+        }
+        if (abilityCommandHandler.isCasting(player.getCharacterId())) {
+            send(sessionId, SystemMessage.error(AbilityTexts.CASTING));
             return;
         }
         Room from = roomFinder.find(player.getRoomId());

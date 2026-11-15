@@ -10,7 +10,8 @@ import java.math.BigDecimal;
 import java.time.Duration;
 
 /**
- * 신통 쓰기의 거절 문구와 신통 교전 줄을 그린다(command.md {@code ### 신통 쓰기}·{@code ### 신통 교전 메시지}).
+ * 신통 쓰기의 거절 문구와 신통 교전 줄, 시전·{@code 중지} 문구를 그린다(command.md {@code ### 신통 쓰기}·
+ * {@code ### 시전과 `중지`}·{@code ### 신통 교전 메시지}).
  * 문구만 맡고 상태를 바꾸지 않는다
  */
 @Component
@@ -18,6 +19,10 @@ class AbilityTexts {
 
     static final String NO_SPIRIT = "영력이 없어 술법을 펼칠 수 없습니다.";
     static final String INSIGHT_CAPPED = "같은 상대에게서는 더 깨닫는 것이 없습니다.";
+    static final String CASTING = "술법을 펼치는 중입니다. (끊으려면 '중지')";
+    static final String SCATTERED = "펼치던 술법이 갈 곳을 잃고 흩어진다.";
+    static final String STOPPED = "펼치던 술법을 거두었습니다.";
+    static final String NOT_CASTING = "펼치는 술법이 없습니다.";
 
     private static final long NANOS_PER_TENTH = 100_000_000L;
     private static final long NANOS_PER_SECOND = 1_000_000_000L;
@@ -63,6 +68,11 @@ class AbilityTexts {
     /** {@code 법력이 모자랍니다. (필요 5, 남은 것 3)} — 필요는 소모량 그대로(L6-3), 남은 것은 게이지 정수 */
     String notEnoughMana(BigDecimal cost, double manaCurrent) {
         return "법력이 모자랍니다. (필요 " + Numbers.decimal(cost) + ", 남은 것 " + Damage.gauge(manaCurrent) + ")";
+    }
+
+    /** 시전 시작 줄: {@code 화탄술을 펼치기 시작한다… (2초)} */
+    String castStarted(String abilityName, BigDecimal castSeconds) {
+        return Josa.withEulReul(abilityName) + " 펼치기 시작한다… (" + Durations.korean(castSeconds) + ")";
     }
 
     /** 법력을 쓰지 않은 이펙트 줄의 꼬리: {@code (피해 8)} */

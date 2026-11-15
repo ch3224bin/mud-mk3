@@ -47,8 +47,6 @@ import java.util.random.RandomGenerator;
 @RequiredArgsConstructor
 class AbilityCaster {
 
-    static final String SCATTERED = "펼치던 술법이 갈 곳을 잃고 흩어진다.";
-
     private final CombatActions combatActions;
     private final AbilityResolver abilityResolver;
     private final PlayerCombatRepository playerCombatRepository;
@@ -112,14 +110,17 @@ class AbilityCaster {
     }
 
     /**
-     * 시전이 끝난 신통을 발동한다(D113): 시전을 지우고, 세계에 없으면 조용히 끝, 신통·대상이 없어졌거나 쓸 수 없으면
-     * {@code 펼치던 술법이 갈 곳을 잃고 흩어진다.}, 법력이 모자라면 거절 문구, 아니면 {@link #cast}(공통 대기는 시작 때 걸림)
+     * 시전이 끝난 신통을 발동한다(D113). 그 캐릭터가 아직 이 시전 중일 때만(그 틱에 앞서 지워졌으면 아무것도 하지 않음):
+     * 시전을 지우고, 세계에 없으면 조용히 끝, 신통이 없어졌거나 쓸 수 없는 꼴·단계별 값 없음, 대상이 없음·쓰러짐·다른 방이면
+     * {@code 펼치던 술법이 갈 곳을 잃고 흩어진다.}, 법력이 모자라면 거절 문구 — 모두 소모·재사용 대기 없음.
+     * 아니면 {@link #cast}(공통 대기는 시작 때 걸렸으므로 다시 걸지 않음, 발휘 비율은 발동 순간의 법력)
      */
     void fire(Long characterId, Casting casting, Instant now, BiConsumer<String, GameMessage> send) {
-        abilityTimersRepository.find(characterId).ifPresent(timers -> {
-            timers.clearCasting();
-            abilityTimersRepository.save(timers);
-        });
+        Optional<AbilityTimers> timers = abilityTimersRepository.find(characterId)
+                .filter(t -> t.casting().filter(casting::equals).isPresent());
+        if (timers.isEmpty()) return;
+        timers.get().clearCasting();
+        abilityTimersRepository.save(timers.get());
         Optional<OnlinePlayer> found = presenceRepository.findByCharacterId(characterId);
         if (found.isEmpty()) return;
         OnlinePlayer caster = found.get();
@@ -129,7 +130,7 @@ class AbilityCaster {
         Optional<MobInstance> target = mobInstanceRepository.findById(casting.mobId())
                 .filter(mob -> mob.isAlive() && mob.getRoomId().equals(caster.getRoomId()));
         if (learned.isEmpty() || target.isEmpty()) {
-            send.accept(caster.getSessionId(), SystemMessage.combat(SCATTERED));
+            send.accept(caster.getSessionId(), SystemMessage.combat(AbilityTexts.SCATTERED));
             return;
         }
         Ability ability = learned.get().ability();

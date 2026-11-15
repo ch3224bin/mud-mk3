@@ -54,4 +54,11 @@ class AbilityTimersTest {
         assertThat(timers.casting()).isEmpty();
         assertThat(timers.getCharacterId()).isEqualTo(7L);
     }
+
+    @Test
+    void castingStart() {
+        Casting casting = Casting.start(BOLT, 3, new BigDecimal("2.5"), T, 4);
+
+        assertThat(casting).isEqualTo(new Casting(1L, "낙뢰술", 3, T.plusMillis(2500), 4));
+    }
 }

@@ -3,6 +3,8 @@ package mudmk3.application.game;
 import mudmk3.application.cultivation.provided.ReadResult;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
+import mudmk3.domain.combat.AbilityKey;
+import mudmk3.domain.combat.AbilityTimers;
 import mudmk3.domain.combat.Damage;
 import mudmk3.domain.cultivation.CharacterTechnique;
 import mudmk3.domain.cultivation.Insight;
@@ -17,8 +19,10 @@ import mudmk3.domain.technique.Ability;
 import mudmk3.domain.technique.CostStat;
 import mudmk3.domain.technique.Technique;
 import mudmk3.domain.technique.TechniqueStage;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalInt;
@@ -84,15 +88,19 @@ class CultivationTexts {
 
     /**
      * 익힌 공법마다 머리 {@code [장춘공 1성]}, 그 아래 두 칸 들여 배운 신통(정의 순서)
-     * {@code 화탄술  공격·화  법력 5  대기 3초}
+     * {@code 화탄술  공격·화  법력 5  대기 3초}. 재사용 대기시간이 남은 신통은 끝에 두 칸 띄고 {@code (1.8초 남음)}(D112 올림, D114).
+     * 공통 대기는 보이지 않는다
      */
-    String abilities(List<CharacterTechnique> learned) {
+    String abilities(List<CharacterTechnique> learned, @Nullable AbilityTimers timers, Instant now) {
         List<String> lines = new ArrayList<>();
         for (CharacterTechnique each : learned) {
-            List<Ability> abilities = each.getTechnique().abilitiesUpTo(each.getStage());
+            Technique technique = each.getTechnique();
+            List<Ability> abilities = technique.abilitiesUpTo(each.getStage());
             if (abilities.isEmpty()) continue;
-            lines.add("[" + each.getTechnique().getName() + " " + each.getStage() + "성]");
-            abilities.forEach(ability -> lines.add(GAP + abilityLine(ability)));
+            lines.add("[" + technique.getName() + " " + each.getStage() + "성]");
+            for (Ability ability : abilities) {
+                lines.add(GAP + abilityLine(ability) + cooldownTail(technique, ability, timers, now));
+            }
         }
         return lines.isEmpty() ? NO_ABILITIES : String.join("\n", lines);
     }
@@ -229,6 +237,15 @@ class CultivationTexts {
     private static String insightPart(InsightKind kind, int required, Insight insight) {
         return kind.koreanName() + " 깨달음 " + Numbers.count(required)
                 + " (지금 " + Numbers.count(insight.floor(kind)) + ")";
+    }
+
+    /** 재사용 대기시간이 남았으면 {@code   (1.8초 남음)}, 아니면 빈 문자열 */
+    private static String cooldownTail(Technique technique, Ability ability, @Nullable AbilityTimers timers, Instant now) {
+        Long techniqueId = technique.getId();
+        if (timers == null || techniqueId == null) return "";
+        return timers.cooldownRemaining(new AbilityKey(techniqueId, ability.getName()), now)
+                .map(remaining -> GAP + "(" + AbilityTexts.remaining(remaining) + " 남음)")
+                .orElse("");
     }
 
     private static String abilityLine(Ability ability) {

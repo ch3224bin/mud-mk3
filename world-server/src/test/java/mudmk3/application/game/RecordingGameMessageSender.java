@@ -38,6 +38,11 @@ public class RecordingGameMessageSender implements GameMessageSender {
                 .toList();
     }
 
+    /** 보낸 차례대로 모든 메시지(세션 사이의 순서를 볼 때) */
+    public synchronized List<Sent> sent() {
+        return List.copyOf(sent);
+    }
+
     public <T extends GameMessage> List<T> messagesTo(String sessionId, Class<T> type) {
         return messagesTo(sessionId).stream()
                 .filter(type::isInstance)
