@@ -2,6 +2,7 @@ package mudmk3.application.cultivation;
 
 import lombok.RequiredArgsConstructor;
 import mudmk3.application.character.provided.CharacterFinder;
+import mudmk3.application.character.provided.CharacterVitalsEditor;
 import mudmk3.application.cultivation.provided.CharacterSummary;
 import mudmk3.application.cultivation.provided.CultivationFinder;
 import mudmk3.application.cultivation.provided.CultivationProfile;
@@ -26,6 +27,7 @@ import static java.util.Objects.requireNonNull;
 public class CultivationQueryService implements CultivationFinder {
 
     private final CharacterFinder characterFinder;
+    private final CharacterVitalsEditor characterVitalsEditor;
     private final CharacterTechniqueRepository characterTechniqueRepository;
 
     @Override
@@ -65,8 +67,10 @@ public class CultivationQueryService implements CultivationFinder {
                 .toList();
     }
 
-    private static StatSheet stats(PlayerCharacter character, List<CharacterTechnique> learned) {
-        return StatSheet.of(character.getRealm(), character.findSpiritRoot().orElse(null), learned);
+    /** 깎인 기혈은 엔티티 값이 아니라 전용 쿼리로 읽는다 */
+    private StatSheet stats(PlayerCharacter character, List<CharacterTechnique> learned) {
+        double qiBloodLost = characterVitalsEditor.qiBloodLost(requireNonNull(character.getId()));
+        return StatSheet.of(character.getRealm(), character.findSpiritRoot().orElse(null), learned, qiBloodLost);
     }
 
     private static LearnedTechniqueView toView(CharacterTechnique learned) {

@@ -37,7 +37,7 @@ record CultivationFinderTest(CultivationFinder cultivationFinder, EntityManager 
         flushAndClear();
 
         assertThat(cultivationFinder.stats(han.getId()))
-                .isEqualTo(new StatSheet(60, 25, 20, 20, 5, 6, 3,
+                .isEqualTo(new StatSheet(60, 60.0, 25, 20, 20, 5, 6, 3,
                         Map.of(Element.WOOD, 50.0, Element.FIRE, 50.0)));
     }
 

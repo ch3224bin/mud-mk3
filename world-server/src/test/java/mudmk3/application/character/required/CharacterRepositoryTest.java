@@ -145,6 +145,45 @@ record CharacterRepositoryTest(CharacterRepository characterRepository, EntityMa
         }).isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    void legacyNullIsFull() {
+        PlayerCharacter character = characterRepository.save(createCharacter(1L, "한백", 10L));
+        entityManager.flush();
+        entityManager.createNativeQuery("update player_character set qi_blood_lost = null").executeUpdate();
+        entityManager.clear();
+
+        assertThat(characterRepository.readQiBloodLost(character.getId())).contains(0.0);
+        assertThat(characterRepository.findById(character.getId()).orElseThrow().getQiBloodLostAtLoad()).isNull();
+    }
+
+    @Test
+    void qiBloodLostRoundTrip() {
+        PlayerCharacter character = characterRepository.save(createCharacter(1L, "한백", 10L));
+
+        assertThat(characterRepository.writeQiBloodLost(character.getId(), 12.5)).isEqualTo(1);
+        flushAndClear();
+
+        assertThat(characterRepository.readQiBloodLost(character.getId())).contains(12.5);
+        assertThat(characterRepository.findById(character.getId()).orElseThrow().getQiBloodLostAtLoad()).isEqualTo(12.5);
+        assertThat(characterRepository.readQiBloodLost(999L)).isEmpty();
+        assertThat(characterRepository.writeQiBloodLost(999L, 1)).isZero();
+    }
+
+    @Test
+    void entitySaveDoesNotWriteQiBloodLost() {
+        PlayerCharacter saved = characterRepository.save(createCharacter(1L, "한백", 10L));
+        flushAndClear();
+        PlayerCharacter character = characterRepository.findById(saved.getId()).orElseThrow();
+
+        characterRepository.writeQiBloodLost(character.getId(), 30);
+        character.moveTo(20L);
+        characterRepository.save(character);
+        flushAndClear();
+
+        assertThat(characterRepository.findById(saved.getId()).orElseThrow().getRoomId()).isEqualTo(20L);
+        assertThat(characterRepository.readQiBloodLost(saved.getId())).contains(30.0);
+    }
+
     private void flushAndClear() {
         entityManager.flush();
         entityManager.clear();

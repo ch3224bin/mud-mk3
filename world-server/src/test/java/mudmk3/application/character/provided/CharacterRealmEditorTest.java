@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ApplicationServiceTest
 @RecordApplicationEvents
 record CharacterRealmEditorTest(CharacterRealmEditor characterRealmEditor, CharacterFinder characterFinder,
-                                EntityManager entityManager) {
+                                CharacterVitalsEditor characterVitalsEditor, EntityManager entityManager) {
 
     @Test
     void designatePublishesEvent(ApplicationEvents events) {
@@ -39,6 +39,19 @@ record CharacterRealmEditorTest(CharacterRealmEditor characterRealmEditor, Chara
 
         assertThat(characterFinder.find(han).getRealm()).isEqualTo(Realm.QI_1);
         assertThat(events.stream(RealmChangedEvent.class)).isEmpty();
+    }
+
+    /** 연기 7층(최대 120)에서 100 깎여 현재 20 → 연기 1층(최대 60): 최대가 준 60만큼 깎인 양을 줄여 40(현재 20 그대로) */
+    @Test
+    void designateDownReducesLost() {
+        Long han = prepareCharacter(Realm.QI_7);
+        characterVitalsEditor.takeDamage(han, 100, 120);
+
+        characterRealmEditor.designate(han, Realm.QI_1);
+        flushAndClear();
+
+        assertThat(characterFinder.find(han).getRealm()).isEqualTo(Realm.QI_1);
+        assertThat(characterVitalsEditor.qiBloodLost(han)).isEqualTo(40);
     }
 
     @Test

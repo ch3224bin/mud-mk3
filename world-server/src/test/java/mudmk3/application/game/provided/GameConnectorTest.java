@@ -8,6 +8,7 @@ import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
 import mudmk3.application.character.provided.CharacterRealmEditor;
+import mudmk3.application.character.provided.CharacterVitalsEditor;
 import mudmk3.application.character.required.CharacterRepository;
 import mudmk3.application.faction.provided.FactionEditor;
 import mudmk3.application.floor.provided.FloorPlacementEditor;
@@ -109,6 +110,7 @@ class GameConnectorTest extends BaseGameTest {
     private final PresenceFinder presenceFinder;
     private final TechniqueEditor techniqueEditor;
     private final TechniqueReader techniqueReader;
+    private final CharacterVitalsEditor characterVitalsEditor;
 
     GameConnectorTest(
             GameConnector gameConnector,
@@ -129,6 +131,7 @@ class GameConnectorTest extends BaseGameTest {
             PresenceFinder presenceFinder,
             TechniqueEditor techniqueEditor,
             TechniqueReader techniqueReader,
+            CharacterVitalsEditor characterVitalsEditor,
             ItemTypeEditor itemTypeEditor,
             ItemTypeFinder itemTypeFinder,
             FloorPlacementEditor floorPlacementEditor,
@@ -144,6 +147,7 @@ class GameConnectorTest extends BaseGameTest {
         this.presenceFinder = presenceFinder;
         this.techniqueEditor = techniqueEditor;
         this.techniqueReader = techniqueReader;
+        this.characterVitalsEditor = characterVitalsEditor;
     }
 
     @Test
@@ -2135,6 +2139,22 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(status.stats().qiBlood()).isEqualTo(new GaugeView(60, 60));
         assertThat(status.stats().mana()).isEqualTo(new GaugeView(25, 25));
         assertThat(status.text().lines().toList()).contains("수위  0 / 190");
+    }
+
+    @Test
+    void statusShowsCurrentQiBlood() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        setRealm(han, Realm.QI_1);
+        characterVitalsEditor.takeDamage(characterIdOf(han), 12.5, 60);
+        sender.clear();
+
+        gameConnector.handle("a", "상태");
+
+        StatusMessage status = sender.lastTo("a", StatusMessage.class);
+        assertThat(status.stats().qiBlood()).isEqualTo(new GaugeView(47, 60));
+        assertThat(status.stats().mana()).isEqualTo(new GaugeView(25, 25));
+        assertThat(status.text().lines().toList()).contains("기혈  47 / 60     법력  25 / 25");
     }
 
     @Test

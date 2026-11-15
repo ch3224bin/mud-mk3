@@ -20,7 +20,8 @@ import static org.springframework.util.Assert.state;
  * 플레이어 캐릭터: 계정 하나에 하나. 이름은 세계에서 하나뿐이다.
  * 지금 서 있는 방은 id로만 갖는다(방을 지우면 캐릭터를 다른 방으로 옮기므로 FK를 두지 않는다).
  * 경지는 새 캐릭터면 범인이다. 경지 열이 비어 있는 기존 행은 서버가 뜰 때 채운다.
- * 영근은 비어 있으면 아직 정하지 않은 것이고, 한 번 정하면 바꾸지 않는다
+ * 영근은 비어 있으면 아직 정하지 않은 것이고, 한 번 정하면 바꾸지 않는다.
+ * 깎인 기혈은 전용 쿼리로만 읽고 쓴다(엔티티 저장은 그 열을 쓰지 않아 경지 지정·이동과 서로 되돌리지 않는다)
  */
 @Entity
 @Getter
@@ -36,6 +37,9 @@ public class PlayerCharacter extends AbstractEntity {
 
     @Getter(AccessLevel.NONE)
     private @Nullable Realm realm;
+
+    @Getter(AccessLevel.NONE)
+    private @Nullable Double qiBloodLost;
 
     @Getter(AccessLevel.NONE)
     private List<SpiritRootEntry> spiritRoots = new ArrayList<>();
@@ -58,6 +62,11 @@ public class PlayerCharacter extends AbstractEntity {
     public Realm getRealm() {
         state(realm != null, "캐릭터의 경지가 비어 있습니다");
         return requireNonNull(realm);
+    }
+
+    /** 엔티티를 읽은 때의 깎인 기혈(비어 있으면 null). 테스트만 쓴다 — 게임·관리 코드는 전용 쿼리로 읽는다 */
+    public @Nullable Double getQiBloodLostAtLoad() {
+        return qiBloodLost;
     }
 
     /** 영근. 아직 정하지 않았으면 비어 있다 */

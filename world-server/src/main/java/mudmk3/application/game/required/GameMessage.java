@@ -2,6 +2,7 @@ package mudmk3.application.game.required;
 
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
+import mudmk3.domain.combat.Damage;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.shared.Realm;
 import org.jspecify.annotations.Nullable;
@@ -120,7 +121,8 @@ public sealed interface GameMessage {
 
     /**
      * 상태(묻는 사람에게만). realm·spiritRoot·stats 는 구조, cultivation 은 수위(범인이면 null), text 는 그린 줄들
-     * ({@code \n} 으로 나뉨). 4차에는 현재 수치 = 최대치다
+     * ({@code \n} 으로 나뉨). 기혈 현재 값은 깎인 기혈을 뺀 값을 {@link Damage#gauge} 로
+     * 보이고, 나머지는 현재 수치 = 최대치다
      */
     record StatusMessage(
             String characterName,
@@ -146,7 +148,8 @@ public sealed interface GameMessage {
                     character.getName().value(),
                     new RealmView(realm.name(), realm.koreanName()),
                     new SpiritRootView(root.name(), roots),
-                    new StatsView(GaugeView.full(stats.qiBlood()), GaugeView.full(stats.mana()),
+                    new StatsView(new GaugeView(Damage.gauge(stats.qiBloodCurrent()), stats.qiBlood()),
+                            GaugeView.full(stats.mana()),
                             GaugeView.full(stats.sense()), GaugeView.full(stats.essence()),
                             GaugeView.full(stats.spirit()), stats.body(), stats.strength()),
                     required.isPresent() ? new CultivationView(0, required.getAsInt()) : null,

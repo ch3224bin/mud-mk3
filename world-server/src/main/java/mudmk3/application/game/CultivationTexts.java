@@ -3,6 +3,7 @@ package mudmk3.application.game;
 import mudmk3.application.cultivation.provided.ReadResult;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
+import mudmk3.domain.combat.Damage;
 import mudmk3.domain.cultivation.CharacterTechnique;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.shared.Durations;
@@ -42,7 +43,8 @@ class CultivationTexts {
     private static final String BODY_REFINING = "연체";
 
     /**
-     * 이름·경지·영근 → 소모 스탯 → 포인트 스탯 → 수위(범인은 없음) → 깨달음. 현재 수치 = 최대치, 수위·깨달음은 4차에 늘 0
+     * 이름·경지·영근 → 소모 스탯 → 포인트 스탯 → 수위(범인은 없음) → 깨달음. 기혈은 현재 값(깎인 기혈을 뺌),
+     * 나머지 현재 수치 = 최대치, 수위·깨달음은 4차에 늘 0
      */
     String status(PlayerCharacter character, StatSheet stats) {
         Realm realm = character.getRealm();
@@ -54,7 +56,8 @@ class CultivationTexts {
 
         List<String> lines = new ArrayList<>();
         lines.add(character.getName().value() + " · " + realm.koreanName() + " · " + root.name() + " (" + aptitudes + ")");
-        lines.add(gauge("기혈", stats.qiBlood()) + GAUGE_GAP + gauge("법력", stats.mana()));
+        lines.add(gauge("기혈", Damage.gauge(stats.qiBloodCurrent()), stats.qiBlood())
+                + GAUGE_GAP + gauge("법력", stats.mana()));
         lines.add(gauge("의식", stats.sense()) + GAUGE_GAP + gauge("정혈", stats.essence()));
         lines.add("육신" + GAP + Numbers.count(stats.body()) + POINT_GAP + "근력" + GAP + Numbers.count(stats.strength())
                 + POINT_GAP + gauge("영력", stats.spirit()));
@@ -172,7 +175,11 @@ class CultivationTexts {
     }
 
     private static String gauge(String label, int max) {
-        return label + GAP + Numbers.count(max) + " / " + Numbers.count(max);
+        return gauge(label, max, max);
+    }
+
+    private static String gauge(String label, int current, int max) {
+        return label + GAP + Numbers.count(current) + " / " + Numbers.count(max);
     }
 
     private static String insightLine() {

@@ -137,6 +137,10 @@
                 <column name="realm" length="32" nullable="true" column-definition="varchar(32)"/>
                 <enumerated>STRING</enumerated>
             </basic>
+            <!-- 깎인 기혈(5차). 비어 있으면 0(기존 행). 전용 네이티브 쿼리로만 쓰고 엔티티 저장은 이 열을 쓰지 않는다 -->
+            <basic name="qiBloodLost">
+                <column name="qi_blood_lost" nullable="true" insertable="false" updatable="false"/>
+            </basic>
             <embedded name="name"/>
             <!-- 비어 있으면 영근을 아직 정하지 않은 것이다. 오행 순서는 도메인이 정렬한다 -->
             <element-collection name="spiritRoots">

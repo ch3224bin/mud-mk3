@@ -7,6 +7,7 @@ import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
 import mudmk3.application.character.provided.CharacterRealmEditor;
+import mudmk3.application.character.provided.CharacterVitalsEditor;
 import mudmk3.application.character.provided.RealmChangedEvent;
 import mudmk3.application.character.provided.WorldNotReadyException;
 import mudmk3.application.character.required.CharacterRepository;
@@ -17,6 +18,7 @@ import mudmk3.domain.character.CharacterCreateInfo;
 import mudmk3.domain.character.CharacterName;
 import mudmk3.domain.character.DuplicateCharacterNameException;
 import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.character.QiBlood;
 import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.room.Room;
 import mudmk3.domain.shared.Josa;
@@ -35,7 +37,8 @@ import static java.util.Objects.requireNonNull;
 @Slf4j
 @ApplicationService
 @RequiredArgsConstructor
-public class CharacterModifyService implements CharacterCreator, CharacterMover, CharacterRealmEditor {
+public class CharacterModifyService implements CharacterCreator, CharacterMover, CharacterRealmEditor,
+        CharacterVitalsEditor {
 
     private final CharacterFinder characterFinder;
     private final CharacterRepository characterRepository;
@@ -82,6 +85,8 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
         }
         character.changeRealm(realm);
         characterRepository.save(character);
+        // 엔티티 저장은 깎인 기혈 열을 쓰지 않으므로 그 열만 따로 맞춘다(경지를 내리면 최대가 준 만큼 줄임)
+        writeQiBloodLost(characterId, QiBlood.lostAfterDemotion(qiBloodLost(characterId), from, realm));
         eventPublisher.publishEvent(new RealmChangedEvent(characterId, from, realm));
     }
 
@@ -121,5 +126,38 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
                     return requireNonNull(characterRepository.save(character).getId());
                 })
                 .toList();
+    }
+
+    @Override
+    public double qiBloodLost(Long characterId) {
+        return characterRepository.readQiBloodLost(characterId)
+                .orElseThrow(() -> new IllegalArgumentException("캐릭터를 찾을 수 없습니다. id: " + characterId));
+    }
+
+    @Override
+    public double takeDamage(Long characterId, double damage, int maxQiBlood) {
+        double lost = QiBlood.lostAfterDamage(qiBloodLost(characterId), damage, maxQiBlood);
+        writeQiBloodLost(characterId, lost);
+        return QiBlood.current(lost, maxQiBlood);
+    }
+
+    @Override
+    public void setQiBlood(Long characterId, double current, int maxQiBlood) {
+        writeQiBloodLost(characterId, QiBlood.lostFor(current, maxQiBlood));
+    }
+
+    @Override
+    public boolean restoreQiBlood(Long characterId) {
+        if (qiBloodLost(characterId) <= 0) {
+            return false;
+        }
+        writeQiBloodLost(characterId, 0);
+        return true;
+    }
+
+    private void writeQiBloodLost(Long characterId, double lost) {
+        if (characterRepository.writeQiBloodLost(characterId, lost) == 0) {
+            throw new IllegalArgumentException("캐릭터를 찾을 수 없습니다. id: " + characterId);
+        }
     }
 }

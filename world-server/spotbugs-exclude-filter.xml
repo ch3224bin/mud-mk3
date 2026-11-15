@@ -7,4 +7,10 @@
     <Match>
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
+    <!-- 깎인 기혈은 JPA가 읽어 채우기만 하고(insertable·updatable false) 코드는 전용 쿼리로 쓴다 -->
+    <Match>
+        <Class name="mudmk3.domain.character.PlayerCharacter"/>
+        <Field name="qiBloodLost"/>
+        <Bug pattern="UWF_UNWRITTEN_FIELD"/>
+    </Match>
 </FindBugsFilter>
