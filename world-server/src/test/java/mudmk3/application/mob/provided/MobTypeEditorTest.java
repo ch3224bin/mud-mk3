@@ -3,6 +3,8 @@ package mudmk3.application.mob.provided;
 import jakarta.persistence.EntityManager;
 import mudmk3.ApplicationServiceTest;
 import mudmk3.application.item.provided.ItemTypeEditor;
+import mudmk3.application.room.provided.RoomEditor;
+import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.mob.DropTier;
@@ -13,6 +15,7 @@ import mudmk3.domain.mob.MobKind;
 import mudmk3.domain.mob.MobStats;
 import mudmk3.domain.mob.MobTier;
 import mudmk3.domain.mob.MobTierDrop;
+import mudmk3.domain.room.Room;
 import mudmk3.domain.shared.Realm;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Propagation;
@@ -28,11 +31,15 @@ import static mudmk3.domain.mob.MobFixture.rabbit;
 import static mudmk3.domain.mob.MobFixture.request;
 import static mudmk3.domain.mob.MobFixture.withDrops;
 import static mudmk3.domain.mob.MobFixture.wolf;
+import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
+import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 @ApplicationServiceTest
 record MobTypeEditorTest(MobTypeEditor mobTypeEditor, MobTypeFinder mobTypeFinder, ItemTypeEditor itemTypeEditor,
+                         MobPlacementEditor mobPlacementEditor, ZoneEditor zoneEditor, RoomEditor roomEditor,
                          EntityManager entityManager) {
 
     @Test
@@ -238,6 +245,50 @@ record MobTypeEditorTest(MobTypeEditor mobTypeEditor, MobTypeFinder mobTypeFinde
     }
 
     @Test
+    void deletePlacedFail() {
+        Room room = prepareRoom("샘터");
+        MobTypeView wolf = mobTypeEditor.create(request(wolf()));
+        MobPlacementView placement = mobPlacementEditor.create(room.getId(), new MobPlacementSaveRequest(wolf.id(), 2));
+        flushAndClear();
+
+        assertThatThrownBy(() -> mobTypeEditor.delete(wolf.id()))
+                .isInstanceOf(MobTypeInUseException.class)
+                .hasMessage("배치된 몹은 지울 수 없습니다: 청모랑");
+
+        mobPlacementEditor.delete(placement.id());
+        flushAndClear();
+        mobTypeEditor.delete(wolf.id());
+        flushAndClear();
+        assertThatThrownBy(() -> mobTypeFinder.find(wolf.id())).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void viewListsPlacements() {
+        Room spring = prepareRoom("샘터");
+        Room path = prepareRoom("오솔길");
+        MobTypeView wolf = mobTypeEditor.create(request(wolf()));
+        MobTypeView rabbit = mobTypeEditor.create(request(rabbit()));
+        MobPlacementView first = mobPlacementEditor.create(path.getId(), new MobPlacementSaveRequest(wolf.id(), 3));
+        MobPlacementView second = mobPlacementEditor.create(spring.getId(), new MobPlacementSaveRequest(wolf.id(), 1));
+        mobPlacementEditor.create(spring.getId(), new MobPlacementSaveRequest(rabbit.id(), 2));
+        flushAndClear();
+
+        // 배치 id 순, 방 이름까지
+        MobTypeView view = mobTypeFinder.view(wolf.id());
+        assertThat(view.placements()).containsExactly(
+                new MobTypeView.PlacementView(first.id(), path.getId(), "오솔길", 3),
+                new MobTypeView.PlacementView(second.id(), spring.getId(), "샘터", 1));
+        assertThat(view.placementCount()).isEqualTo(2);
+        assertThat(mobTypeFinder.viewAll()).extracting(MobTypeView::name, MobTypeView::placementCount)
+                .containsExactly(tuple("들토끼", 1), tuple("청모랑", 2));
+        assertThat(mobPlacementEditor.update(second.id(), new MobPlacementSaveRequest(rabbit.id(), 1)).mobName())
+                .isEqualTo("들토끼");
+        flushAndClear();
+        assertThat(mobTypeFinder.view(wolf.id()).placements()).extracting(MobTypeView.PlacementView::roomName)
+                .containsExactly("오솔길");
+    }
+
+    @Test
     void unknownIdFail() {
         assertThatThrownBy(() -> mobTypeFinder.find(999L))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -255,6 +306,11 @@ record MobTypeEditorTest(MobTypeEditor mobTypeEditor, MobTypeFinder mobTypeFinde
         flushAndClear();
 
         assertThat(mobTypeFinder.view(view.id()).attackCoefficient()).isEqualTo(new BigDecimal("0.6"));
+    }
+
+    private Room prepareRoom(String name) {
+        Long zoneId = zoneEditor.create(createZoneSaveRequest(name + " 지역")).getId();
+        return roomEditor.create(createRoomSaveRequest(zoneId, name));
     }
 
     private ItemType item(String name) {

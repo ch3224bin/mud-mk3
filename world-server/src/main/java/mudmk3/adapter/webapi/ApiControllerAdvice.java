@@ -5,12 +5,14 @@ import lombok.extern.slf4j.Slf4j;
 import mudmk3.application.faction.provided.FactionInUseException;
 import mudmk3.application.item.provided.ItemTypeInUseException;
 import mudmk3.application.item.provided.SpiritStoneChangeException;
+import mudmk3.application.mob.provided.MobTypeInUseException;
 import mudmk3.application.room.provided.ExitConflictException;
 import mudmk3.application.room.provided.StartRoomDeletionException;
 import mudmk3.application.technique.provided.TechniqueInUseException;
 import mudmk3.application.zone.provided.ZoneNotEmptyException;
 import mudmk3.domain.faction.DuplicateFactionNameException;
 import mudmk3.domain.item.DuplicateItemTypeNameException;
+import mudmk3.domain.mob.DuplicateMobNameException;
 import mudmk3.domain.npc.DuplicateNpcNameException;
 import mudmk3.domain.technique.DuplicateTechniqueNameException;
 import mudmk3.domain.zone.DuplicateZoneNameException;
@@ -53,7 +55,9 @@ public class ApiControllerAdvice extends ResponseEntityExceptionHandler {
             ItemTypeInUseException.class,
             SpiritStoneChangeException.class,
             DuplicateTechniqueNameException.class,
-            TechniqueInUseException.class
+            TechniqueInUseException.class,
+            DuplicateMobNameException.class,
+            MobTypeInUseException.class
     })
     public ProblemDetail handleConflict(RuntimeException exception) {
         return problem(HttpStatus.CONFLICT, exception.getMessage(), exception);

@@ -400,6 +400,74 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
                 .hasStatus(HttpStatus.NO_CONTENT);
     }
 
+    @Test
+    void manageMobs() {
+        long hideId = id(post("/api/admin/item-types", """
+                {"name":"푸른 이리 가죽","category":"MATERIAL","baseValue":2}"""));
+        long pillId = id(post("/api/admin/item-types", """
+                {"name":"이리 요단","category":"PILL","baseValue":5}"""));
+        long mobId = id(post("/api/admin/mobs", ("{\"name\":\"푸른 이리\",\"kind\":\"BEAST\",\"realm\":\"QI_2\","
+                + "\"tier\":\"NORMAL\",\"attackName\":\"물어뜯기\",\"fixedDrops\":[{\"itemTypeId\":%d,\"count\":1}],"
+                + "\"tierDrops\":[{\"tier\":\"ADVANCED\",\"itemTypeId\":%d}]}").formatted(hideId, pillId)));
+        long zoneId = id(post("/api/admin/zones", """
+                {"name":"이리 숲"}"""));
+        long roomId = id(post("/api/admin/rooms", """
+                {"zoneId":%d,"name":"이리 굴","description":"이리 냄새가 짙다."}""".formatted(zoneId)));
+
+        var placed = assertThat(post("/api/admin/rooms/%d/mobs".formatted(roomId), """
+                {"mobId":%d,"count":2}""".formatted(mobId))).hasStatus(HttpStatus.CREATED).bodyJson();
+        placed.extractingPath("$.mobName").isEqualTo("푸른 이리");
+        long placementId = ((Number) placed.extractingPath("$.id").actual()).longValue();
+        assertThat(post("/api/admin/rooms/%d/mobs".formatted(roomId), """
+                {"mobId":%d,"count":11}""".formatted(mobId)))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson().extractingPath("$.detail").isEqualTo("몹 수는 1~10으로 정하십시오.");
+
+        // 트랜잭션 밖에서 응답을 만들어도 몹·물건·방 이름을 낸다
+        var room = assertThat(mvc.get().with(admin()).uri("/api/admin/rooms/%d".formatted(roomId))).hasStatusOk().bodyJson();
+        room.extractingPath("$.mobs[0].mobName").isEqualTo("푸른 이리");
+        room.extractingPath("$.mobs[0].count").isEqualTo(2);
+        var detail = assertThat(mvc.get().with(admin()).uri("/api/admin/mobs/%d".formatted(mobId))).hasStatusOk().bodyJson();
+        detail.extractingPath("$.rankName").isEqualTo("1급");
+        detail.extractingPath("$.stats.qiBlood").isEqualTo(49);
+        detail.extractingPath("$.fixedDrops[0].itemTypeName").isEqualTo("푸른 이리 가죽");
+        detail.extractingPath("$.tierDrops[0].itemTypeName").isEqualTo("이리 요단");
+        detail.extractingPath("$.placements[0].roomName").isEqualTo("이리 굴");
+        assertThat(mvc.get().with(admin()).uri("/api/admin/mobs")).hasStatusOk().bodyJson()
+                .extractingPath("$[?(@.id==%d)].placementCount".formatted(mobId)).asArray().containsExactly(1);
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/mobs/%d".formatted(mobId)))
+                .hasStatus(HttpStatus.CONFLICT)
+                .bodyJson().extractingPath("$.detail").isEqualTo("배치된 몹은 지울 수 없습니다: 푸른 이리");
+        // 드롭 표에 든 물건 종류는 실제 DB에서도 지울 수 없다
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(hideId)))
+                .hasStatus(HttpStatus.CONFLICT)
+                .bodyJson().extractingPath("$.detail").isEqualTo("쓰이는 물건은 지울 수 없습니다: 푸른 이리 가죽");
+
+        assertThat(put("/api/admin/mob-placements/%d".formatted(placementId), """
+                {"mobId":%d,"count":3}""".formatted(mobId))).hasStatusOk().bodyJson()
+                .extractingPath("$.count").isEqualTo(3);
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/mob-placements/%d".formatted(placementId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.get().with(admin()).uri("/api/admin/rooms/%d".formatted(roomId))).hasStatusOk().bodyJson()
+                .extractingPath("$.mobs").asArray().isEmpty();
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/mobs/%d".formatted(mobId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.get().with(admin()).uri("/api/admin/mobs/%d".formatted(mobId)))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson().extractingPath("$.detail").isEqualTo("몹을 찾을 수 없습니다. id: " + mobId);
+
+        // 같은 DB를 쓰는 다른 테스트를 흐리지 않게 지운다
+        for (long itemTypeId : new long[]{hideId, pillId}) {
+            assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(itemTypeId)))
+                    .hasStatus(HttpStatus.NO_CONTENT);
+        }
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/rooms/%d".formatted(roomId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/zones/%d".formatted(zoneId)))
+                .hasStatus(HttpStatus.NO_CONTENT);
+    }
+
     private MvcTestResult post(String uri, String json) {
         return mvc.post().with(admin()).with(clientHeader()).uri(uri).contentType(MediaType.APPLICATION_JSON).content(json).exchange();
     }

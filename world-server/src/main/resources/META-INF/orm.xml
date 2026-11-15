@@ -483,6 +483,23 @@
         </attributes>
     </entity>
 
+    <entity class="mudmk3.domain.mob.MobPlacement">
+        <table name="mob_placement"/>
+        <attributes>
+            <!-- 방을 지우면 서비스가 그 방의 배치를 함께 지우므로 FK를 두지 않는다(NPC·바닥 배치와 같은 까닭) -->
+            <basic name="roomId">
+                <column name="room_id" nullable="false"/>
+            </basic>
+            <basic name="count">
+                <column name="count" nullable="false"/>
+            </basic>
+            <!-- 배치된 몹은 지울 수 없게 서비스가 막고, FK가 한 번 더 지킨다 -->
+            <many-to-one name="mobType" fetch="EAGER" optional="false">
+                <join-column name="mob_type_id" nullable="false"/>
+            </many-to-one>
+        </attributes>
+    </entity>
+
     <embeddable class="mudmk3.domain.character.CharacterName">
         <attributes>
             <basic name="value">

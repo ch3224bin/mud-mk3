@@ -2,6 +2,8 @@ package mudmk3.adapter.webapi;
 
 import mudmk3.adapter.security.WebMvcSecurityTestConfiguration;
 import mudmk3.application.floor.provided.FloorPlacementFinder;
+import mudmk3.application.mob.provided.MobPlacementFinder;
+import mudmk3.application.mob.provided.MobPlacementView;
 import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.room.provided.ExitConflictException;
 import mudmk3.application.room.provided.ExitSaveRequest;
@@ -39,10 +41,11 @@ import static org.mockito.Mockito.when;
 
 @WebMvcTest(RoomApi.class)
 @Import({WebMvcSecurityTestConfiguration.class, ClockConfig.class})
-@MockitoBean(types = {RoomFinder.class, RoomEditor.class, WorldSettingsFinder.class, NpcFinder.class, FloorPlacementFinder.class})
+@MockitoBean(types = {RoomFinder.class, RoomEditor.class, WorldSettingsFinder.class, NpcFinder.class, FloorPlacementFinder.class,
+        MobPlacementFinder.class})
 record RoomApiWebMvcTest(MockMvcTester mvc, RoomFinder roomFinder, RoomEditor roomEditor,
                          WorldSettingsFinder worldSettingsFinder, NpcFinder npcFinder,
-                         FloorPlacementFinder floorPlacementFinder) {
+                         FloorPlacementFinder floorPlacementFinder, MobPlacementFinder mobPlacementFinder) {
 
     @Test
     void get() {
@@ -61,7 +64,7 @@ record RoomApiWebMvcTest(MockMvcTester mvc, RoomFinder roomFinder, RoomEditor ro
                    {"direction":"NORTH","directionName":"북","targetRoomId":11,"targetRoomName":"오솔길","targetZoneName":"청석숲"},
                    {"direction":"UP","directionName":"위","targetRoomId":12,"targetRoomName":"바람 언덕","targetZoneName":"황풍곡"}
                  ],
-                 "npcs":[],"floorItems":[]}""");
+                 "npcs":[],"floorItems":[],"mobs":[]}""");
         json.extractingPath("$.exits[0].directionName").isEqualTo("북");
     }
 
@@ -86,6 +89,18 @@ record RoomApiWebMvcTest(MockMvcTester mvc, RoomFinder roomFinder, RoomEditor ro
         json.extractingPath("$.floorItems[0].itemName").isEqualTo("늑대 가죽");
         json.isLenientlyEqualTo("""
                 {"floorItems":[{"id":3,"roomId":10,"itemTypeId":5,"count":2,"respawnMinutes":10,"remaining":2}]}""");
+    }
+
+    @Test
+    void getWithMobs() {
+        when(roomFinder.find(10L)).thenReturn(room(zone(1L, "청석숲"), 10L, "샘터"));
+        when(mobPlacementFinder.findAllInRoom(10L)).thenReturn(List.of(
+                new MobPlacementView(3L, 10L, 1L, "청모랑", 2), new MobPlacementView(4L, 10L, 2L, "들토끼", 1)));
+
+        assertThat(mvc.get().with(admin()).uri("/api/admin/rooms/10")).hasStatusOk().bodyJson()
+                .isLenientlyEqualTo("""
+                        {"mobs":[{"id":3,"roomId":10,"mobId":1,"mobName":"청모랑","count":2},
+                                 {"id":4,"roomId":10,"mobId":2,"mobName":"들토끼","count":1}]}""");
     }
 
     @Test

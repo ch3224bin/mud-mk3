@@ -4,8 +4,10 @@ import lombok.RequiredArgsConstructor;
 import mudmk3.application.item.provided.ItemTypeFinder;
 import mudmk3.application.mob.provided.MobTypeEditor;
 import mudmk3.application.mob.provided.MobTypeFinder;
+import mudmk3.application.mob.provided.MobTypeInUseException;
 import mudmk3.application.mob.provided.MobTypeSaveRequest;
 import mudmk3.application.mob.provided.MobTypeView;
+import mudmk3.application.mob.required.MobPlacementRepository;
 import mudmk3.application.mob.required.MobTypeRepository;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.mob.DuplicateMobNameException;
@@ -29,6 +31,7 @@ public class MobTypeModifyService implements MobTypeEditor {
 
     private final MobTypeFinder mobTypeFinder;
     private final MobTypeRepository mobTypeRepository;
+    private final MobPlacementRepository mobPlacementRepository;
     private final ItemTypeFinder itemTypeFinder;
 
     @Override
@@ -62,9 +65,11 @@ public class MobTypeModifyService implements MobTypeEditor {
         mobTypeRepository.delete(mobType);
     }
 
-    /** 배치된 몹이면 {@code MobTypeInUseException}(409). 몹 배치가 생기는 태스크가 배치 수 검사를 채운다 */
+    /** 배치된 몹이면 {@code MobTypeInUseException}(409) */
     private void checkDeletable(MobType mobType) {
-        requireNonNull(mobType.getId());
+        if (mobPlacementRepository.countByMobTypeId(requireNonNull(mobType.getId())) > 0) {
+            throw new MobTypeInUseException("배치된 몹은 지울 수 없습니다: " + mobType.getName());
+        }
     }
 
     /**
