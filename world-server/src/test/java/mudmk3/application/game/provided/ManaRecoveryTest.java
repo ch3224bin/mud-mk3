@@ -162,6 +162,19 @@ class ManaRecoveryTest extends BaseGameTest {
         assertThat(stored).isNull();
     }
 
+    /** 깎인 법력이 없는 동안에도 회복 기준 시각은 틱마다 앞으로 간다(F16): 깎인 직후 0.5초 틱은 0.5초 몫(0.0625)만 채운다 */
+    @Test
+    void regenClockAdvancesWhileFull() {
+        prepareMap();
+        Long han = enterAs("a", "한백", Realm.QI_1);
+        advanceAndTick(3);
+        setManaLost(han, 10);
+
+        advanceAndTick(0.5);
+
+        assertThat(manaLost(han)).isEqualTo(10 - 25 * 0.005 * 0.5);
+    }
+
     /** 끊긴 동안 흐른 시간은 셈하지 않는다: 다시 들어온 직후 0.5초 틱 하나는 0.5초 몫(0.0625)만 채운다 */
     @Test
     void enterStartsRegenClock() {
