@@ -1,4 +1,4 @@
-import type { Corpse, Mob, RoomMessage, ServerMessage } from "./protocol";
+import type { Mob, RoomMessage, ServerMessage } from "./protocol";
 
 /**
  * 출력 로그 한 줄. style 은 화면 CSS 클래스 `line-<style>` 이 된다.
