@@ -101,6 +101,21 @@
 
 **리드 판정 (확정, 2026-11-16)** — L-D1~L-D4 모두 위 후보대로 한다. 근거: 모두 기술 처리이고 게임 규칙·창호 결정을 바꾸지 않는다. L-D3 은 기존 (제안) '드롭 표는 쓰러지는 순간의 표' 와 맞는 쪽이다(유형이 지워졌으면 표가 없음). Flyway 도입 시점은 창호 확인 항목으로 넘긴다.
 
+**사전 점검 판정 (리드, 2026-11-16)** — 태스크 본문보다 앞선다. 근거·자세한 내용은 사전 점검 보고(.superpowers 작업 폴더 preflight.md)의 같은 번호.
+- P1 (T1·T13): enum CHECK 판정은 정규식으로 한다. PostgreSQL 실제 꼴 `((col)::text = ANY ((ARRAY['A'::character varying, …])::text[]))` 와 H2 꼴 `col IN (…)` 을 잡고, `IS NOT NULL`·숫자 비교 CHECK 는 잡지 않음을 단위 테스트로 고정한다. T13 은 실제 pgdata 에서 enum CHECK 가 0개가 되고 다른 제약(PK·FK·UK·NOT NULL·숫자 CHECK)은 남는지 psql 로 확인한다.
+- P2 (T2): `CharacterRepositoryTest.entitySaveDoesNotWriteQiBloodLost`·`entitySaveDoesNotWriteManaLost` 와 `BaseGameTest.setRealm` 을 Files 에 넣는다. `setRealm` 은 열 단위 쓰기(`writeRealm`)로 바꾼다. 이 리포지토리 테스트들의 기대값 변경은 리드가 승인한 예외다.
+- P3 (T1): 스펙 고칠 줄은 admin-tool.md 83·84·85행과 platform.md 319행 근처(같은 'CHECK 를 이름으로 지우는 정리' 설명) 전부.
+- P4 (T2·T4): 확인 grep 은 `grep -rn` 으로 한다. `GameService` 의 `notifyOthers`(약 724행)도 `RoomNotifier` 로 옮긴다.
+- P5 (T4): 완료 기준 'CombatEngine 300줄 아래' 를 '350줄 아래' 로 바꾼다.
+- P6 (T9): 아이템 목록 정렬은 `ItemTypeQueryService.LIST_ORDER` Comparator 를 고친다(영석 먼저 유지, 이름 대소문자 무시, 같으면 id). DB 정렬로 옮기지 않는다.
+- P7 (T14): 계획이 기존 테스트를 바꾸라고 적은 태스크(T2·T3·T7·T10 등)의 테스트 변경은 결함이 아니다. 최종 리뷰는 '계획에 적힌 변경인지' 로 본다.
+- P8 (T3): main 코드가 `recoverMana` 를 쓰지 않으면 `recoverMana` 와 그 뒤로 죽는 `Mana.lostAfterRecover` 를 함께 지우고 테스트 5곳을 새 API 로 옮긴다. main 이 쓰면 둘 다 남긴다.
+- P9 (T11): 빈 기준가(null) 를 보냈을 때 서버 동작(400 인지 0 저장인지)을 world-server WebMvc/통합 테스트로 고정하고, admin-console 테스트는 그 실제 동작에 맞춘다. 0 으로 저장되면 그것은 버그이므로 서버가 400 을 내게 고친다(문구는 기존 공통 400).
+- P10 (T2): `updatable=false` 열의 JPQL 일괄 갱신이 막히면 네이티브 쿼리로 쓴다(구현자 판단, 보고에 적음).
+- P11 (T5): `relocateFrom` 의 시작 방 없음 조기 반환 경로에서도 정리를 한다. `deleteAllInRoom` 은 쓰러진 몹도 지운다.
+- P12~P14: 낡은 위치(MobType.java:60)·'새' 표시 없는 새 테스트 파일·요약 표의 T12/T13 표시는 문구 오류다. 실제 코드를 기준으로 한다. T6 의 새 행 타입이 webapi 까지 가지 않게 하고(T7 ArchUnit 기대 그대로) 필요하면 `ScrollItem` 을 다시 쓴다.
+- P15 (T3): #20 은 계획대로 고치고 닫기 댓글에 '두 번 읽기를 남긴 근거' 를 적는다.
+
 ## Global Constraints
 
 모든 태스크의 요구 사항에 이 절이 포함된다. 구현자는 이 절과 자기 태스크, `## 이슈 분류` 를 먼저 읽는다.
