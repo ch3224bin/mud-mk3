@@ -19,9 +19,9 @@ describe("Completer", () => {
     expect(new Completer().complete("소", [])).toBe("소지품");
   });
 
-  it("COMMANDS 는 D76 순서", () => {
+  it("COMMANDS 는 D92 순서", () => {
     expect(COMMANDS).toEqual([
-      "보기", "말하기", "대화", "상태", "공법", "신통", "읽기", "소지품", "줍기", "버리기", "주기", "목록", "사기",
+      "보기", "말하기", "대화", "공격", "수습", "상태", "공법", "신통", "읽기", "소지품", "줍기", "버리기", "주기", "목록", "사기",
       "팔기", "값", "확인", "취소", "누구", "도움말", "종료",
       "동", "서", "남", "북", "북동", "북서", "남동", "남서", "위", "아래",
     ]);
@@ -30,8 +30,37 @@ describe("Completer", () => {
   it("4차 명령을 채운다", () => {
     expect(new Completer().complete("읽", [])).toBe("읽기");
     expect(new Completer().complete("상", [])).toBe("상태");
-    expect(new Completer().complete("공", [])).toBe("공법");
     expect(new Completer().complete("신", [])).toBe("신통");
+  });
+
+  it("5차 명령을 채운다: '공' 은 공격이 먼저, 거듭 부르면 공법", () => {
+    const completer = new Completer();
+
+    const first = completer.complete("공", []);
+    const second = completer.complete(first, []);
+
+    expect([first, second]).toEqual(["공격", "공법"]);
+    expect(new Completer().complete("수", [])).toBe("수습");
+  });
+
+  it("공격 뒤 낱말은 몹 이름, 수습 뒤 낱말은 시체 이름에서 채운다", () => {
+    const names = nameCandidates(["한립", "왕씨", "청모랑", "청모랑의 시체", "늑대 가죽"], ["비검"]);
+
+    expect(new Completer().complete("공격 청", names)).toBe("공격 청모랑");
+    const completer = new Completer();
+    const first = completer.complete("수습 청", names);
+    expect([first, completer.complete(first, names)]).toEqual(["수습 청모랑", "수습 청모랑의 시체"]);
+  });
+
+  it("5차 이름 후보 순서는 사람·NPC → 몹 → 시체 → 바닥 물건 → 소지품, 겹치면 앞 것만", () => {
+    expect(nameCandidates(["한립", "왕씨", "청모랑", "청모랑의 시체", "늑대 가죽"], ["늑대 가죽", "비검"])).toEqual([
+      "한립",
+      "왕씨",
+      "청모랑",
+      "청모랑의 시체",
+      "늑대 가죽",
+      "비검",
+    ]);
   });
 
   it("읽기 뒤 낱말은 마지막 inventory 의 물건 이름에서 채운다", () => {

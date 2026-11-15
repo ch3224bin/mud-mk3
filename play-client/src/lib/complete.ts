@@ -1,8 +1,10 @@
-/** 명령어(1차 D6 + 2차 대화 + 3차 물건 + 4차 상태·공법·신통·읽기, D76). 자동완성 후보 순서이기도 하다. */
+/** 명령어(1차 D6 + 2차 대화 + 3차 물건 + 4차 상태·공법·신통·읽기 + 5차 공격·수습, D92). 자동완성 후보 순서이기도 하다. */
 export const COMMANDS = [
   "보기",
   "말하기",
   "대화",
+  "공격",
+  "수습",
   "상태",
   "공법",
   "신통",
@@ -33,7 +35,7 @@ export const COMMANDS = [
 ];
 
 /**
- * 이름 후보(D74): 방 이름(occupants → 바닥 물건) 다음 마지막 inventory 의 물건 이름.
+ * 이름 후보(D74·D92): 방 이름(occupants → 몹 → 시체 → 바닥 물건) 다음 마지막 inventory 의 물건 이름.
  * 겹치면 앞에 나온 것만 남긴다.
  */
 export function nameCandidates(roomNames: string[], inventoryNames: string[]): string[] {

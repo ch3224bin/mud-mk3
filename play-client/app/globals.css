@@ -18,6 +18,8 @@
   --echo: #6f786c;
   --status: #c8d3f5;
   --growth: #f0c674;
+  --mob: #e5a46b;
+  --combat: #f28b82;
   --accent: #6fb3a8;
   color-scheme: dark;
   font-family: "D2Coding", "Nanum Gothic Coding", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -191,6 +193,14 @@ button.small {
 
 .line-growth {
   color: var(--growth);
+}
+
+.line-mob {
+  color: var(--mob);
+}
+
+.line-combat {
+  color: var(--combat);
 }
 
 .reconnect {

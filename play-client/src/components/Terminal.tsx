@@ -31,7 +31,7 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
 
   const nextId = useRef(0);
   const connection = useRef<GameConnection | null>(null);
-  /** 지금 방 사람·NPC·바닥 물건 이름(자동완성 후보, D18·D29·D51) */
+  /** 지금 방 사람·NPC·몹·시체·바닥 물건 이름(자동완성 후보, D18·D29·D51·D92) */
   const names = useRef<string[]>([]);
   /** 마지막 inventory 의 물건 이름(자동완성 후보, D74) */
   const inventoryNames = useRef<string[]>([]);
@@ -179,13 +179,15 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
 }
 
 /**
- * D18·D29·D51: 이름 후보는 마지막 room 의 occupants 전부(사람 + NPC) 다음 바닥 물건으로 정하고,
- * 이동 notice(arrive·appear·leave·disappear)로 사람만 더하고 뺀다. 물건 notice(pick·drop·give)는 바꾸지 않는다.
+ * D18·D29·D51·D92: 이름 후보는 마지막 room 의 occupants 전부(사람 + NPC) → 몹 → 시체 → 바닥 물건으로 정하고,
+ * 이동 notice(arrive·appear·leave·disappear)로 사람만 더하고 뺀다. 물건·교전 notice 는 바꾸지 않는다.
  */
 function updateNames(names: { current: string[] }, message: ServerMessage) {
   if (message.type === "room") {
     names.current = [
       ...message.occupants.map((occupant) => occupant.name),
+      ...message.mobs.map((mob) => mob.name),
+      ...message.corpses.map((corpse) => corpse.name),
       ...message.items.map((item) => item.name),
     ];
   } else if (message.type === "notice") {

@@ -46,6 +46,8 @@ const room: ServerMessage = {
   owner: null,
   exits: ["북"],
   occupants: [{ name: "한립", kind: "player" }],
+  mobs: [],
+  corpses: [],
   items: [],
 };
 
@@ -165,6 +167,46 @@ describe("Terminal", () => {
     await user.type(input, "보기 늑");
     await user.keyboard("{Tab}");
     expect(input).toHaveValue("보기 늑대 가죽");
+  });
+
+  it("Tab 이름 후보에 room 의 몹·시체가 NPC 다음, 바닥 물건 앞으로 들고, 새 room 이 오면 바뀐다", async () => {
+    const user = userEvent.setup();
+    const { connection, input } = renderTerminal();
+    connection.receive({
+      ...room,
+      occupants: [{ name: "청송", kind: "npc" }],
+      mobs: [{ name: "청모랑", rank: "1급", tier: null, count: 2, fighting: false }],
+      corpses: [{ name: "청모랑의 시체", collectible: true }],
+      items: [{ name: "청석", count: 1 }],
+    });
+    expect(screen.getByText("청모랑 (1급) ×2")).toHaveClass("line-mob");
+    expect(screen.getByText("청모랑의 시체 (수습 가능)")).toHaveClass("line-mob");
+
+    await user.type(input, "공격 청");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("공격 청송");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("공격 청모랑");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("공격 청모랑의 시체");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("공격 청석");
+
+    connection.receive({
+      ...room,
+      zoneEntered: false,
+      occupants: [],
+      mobs: [{ name: "적안 독사", rank: "1급", tier: "강적", count: 1, fighting: true }],
+      corpses: [],
+    });
+    await user.clear(input);
+    await user.type(input, "공격 적");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("공격 적안 독사");
+    await user.clear(input);
+    await user.type(input, "공격 청");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("공격 청");
   });
 
   it("Tab 이름 후보에 마지막 inventory 의 물건 이름이 방 이름 다음으로 들고, 새 inventory 가 오면 바뀐다", async () => {

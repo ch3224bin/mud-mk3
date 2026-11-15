@@ -28,6 +28,15 @@ export type RoomOwner = { kind: "castle" | "sect"; name: string };
 /** 방 바닥의 물건 한 묶음(3차 D40·D48) */
 export type FloorItem = { name: string; count: number };
 
+/**
+ * 방의 몹 한 묶음(5차 D89). rank 는 `1급`·`연기 10층`·`헤아릴 수 없음`, tier 는 체급 표시(일반이면 null),
+ * count 는 묶인 수, fighting 은 교전 중인지
+ */
+export type Mob = { name: string; rank: string; tier: "강적" | "정예" | "두목" | null; count: number; fighting: boolean };
+
+/** 방의 시체(5차 D89). collectible 은 보는 사람이 지금 수습할 수 있는지 */
+export type Corpse = { name: string; collectible: boolean };
+
 export type RoomMessage = {
   type: "room";
   zone: { id: number; name: string };
@@ -39,20 +48,39 @@ export type RoomMessage = {
   exits: string[];
   /** 나를 뺀 사람(들어온 순서) 다음 그 방의 NPC(만든 순서) */
   occupants: Occupant[];
+  /** 살아 있는 몹(같은 유형·같은 교전 상태를 묶은 한 줄씩, 묶음이 처음 나온 순서), 없으면 [] */
+  mobs: Mob[];
+  /** 시체(쓰러진 순), 없으면 [] */
+  corpses: Corpse[];
   /** 바닥 물건(D40 순서), 없으면 [] */
   items: FloorItem[];
 };
 
-/** tone growth 는 읽기 성공·관리 툴 경지 지정 알림(4차 D71) */
-export type SystemMessage = { type: "system"; text: string; tone: "info" | "error" | "item" | "growth" };
+/** tone growth 는 읽기 성공·관리 툴 경지 지정 알림(4차 D71), combat 은 교전 시작·침·맞음·처치·질 때(5차 D90) */
+export type SystemMessage = { type: "system"; text: string; tone: "info" | "error" | "item" | "growth" | "combat" };
 
-/** 이동 이벤트(arrive·leave·appear·disappear)와 물건 이벤트(pick·drop·give, 3차 D47) */
-export type NoticeEvent = "arrive" | "leave" | "appear" | "disappear" | "pick" | "drop" | "give";
+/**
+ * 이동 이벤트(arrive·leave·appear·disappear), 물건 이벤트(pick·drop·give, 3차 D47, 5차 collect),
+ * 교전 이벤트(engage·kill·defeated·respawn, 5차 D90)
+ */
+export type NoticeEvent =
+  | "arrive"
+  | "leave"
+  | "appear"
+  | "disappear"
+  | "pick"
+  | "drop"
+  | "give"
+  | "collect"
+  | "engage"
+  | "kill"
+  | "defeated"
+  | "respawn";
 
 export type NoticeMessage = {
   type: "notice";
   text: string;
-  tone: "movement" | "item";
+  tone: "movement" | "item" | "combat";
   actor: string;
   event: NoticeEvent;
 };

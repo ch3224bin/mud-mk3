@@ -11,6 +11,8 @@ function roomMessage(overrides: Partial<RoomMessage> = {}): RoomMessage {
     owner: null,
     exits: ["북", "남동"],
     occupants: [{ name: "한립", kind: "player" }],
+    mobs: [],
+    corpses: [],
     items: [],
     ...overrides,
   };
@@ -106,6 +108,69 @@ describe("renderMessage", () => {
       { text: "왕씨", style: "npc" },
       { text: "하품 영석 3개", style: "item" },
       { text: "비검", style: "item" },
+    ]);
+  });
+
+  it("room: 몹 줄은 NPC 다음, 시체 줄은 몹 다음, 바닥 물건은 시체 다음(5차 D89)", () => {
+    const lines = renderMessage(
+      roomMessage({
+        zoneEntered: false,
+        occupants: [
+          { name: "한립", kind: "player" },
+          { name: "왕씨", kind: "npc" },
+        ],
+        mobs: [{ name: "청모랑", rank: "1급", tier: null, count: 2, fighting: false }],
+        corpses: [{ name: "청모랑의 시체", collectible: true }],
+        items: [{ name: "늑대 가죽", count: 2 }],
+      }),
+    );
+
+    expect(lines.slice(-5)).toEqual([
+      { text: "한립", style: "occupant" },
+      { text: "왕씨", style: "npc" },
+      { text: "청모랑 (1급) ×2", style: "mob" },
+      { text: "청모랑의 시체 (수습 가능)", style: "mob" },
+      { text: "늑대 가죽 2개", style: "item" },
+    ]);
+  });
+
+  it("room: 몹 줄은 '이름 (급[, 전투 중])' 에 체급 ' [강적]', 2마리 이상이면 ' ×N'(D90)", () => {
+    const lines = renderMessage(
+      roomMessage({
+        zoneEntered: false,
+        occupants: [],
+        mobs: [
+          { name: "적안 독사", rank: "1급", tier: "강적", count: 1, fighting: false },
+          { name: "청모랑", rank: "1급", tier: null, count: 1, fighting: true },
+          { name: "흑망", rank: "헤아릴 수 없음", tier: "두목", count: 1, fighting: false },
+          { name: "떠도는 음혼", rank: "연기 10층", tier: "정예", count: 3, fighting: true },
+        ],
+      }),
+    );
+
+    expect(lines.slice(-4)).toEqual([
+      { text: "적안 독사 (1급) [강적]", style: "mob" },
+      { text: "청모랑 (1급, 전투 중)", style: "mob" },
+      { text: "흑망 (헤아릴 수 없음) [두목]", style: "mob" },
+      { text: "떠도는 음혼 (연기 10층, 전투 중) [정예] ×3", style: "mob" },
+    ]);
+  });
+
+  it("room: 지금 수습할 수 없는 시체는 이름만", () => {
+    const lines = renderMessage(
+      roomMessage({
+        zoneEntered: false,
+        occupants: [],
+        corpses: [
+          { name: "청모랑의 시체", collectible: false },
+          { name: "들토끼의 시체", collectible: true },
+        ],
+      }),
+    );
+
+    expect(lines.slice(-2)).toEqual([
+      { text: "청모랑의 시체", style: "mob" },
+      { text: "들토끼의 시체 (수습 가능)", style: "mob" },
     ]);
   });
 
@@ -245,6 +310,24 @@ describe("renderMessage", () => {
     });
 
     expect(lines).toEqual([{ text: "한백이 늑대 가죽 2개를 줍는다.", style: "item" }]);
+  });
+
+  it("system: tone combat 은 style combat", () => {
+    expect(renderMessage({ type: "system", text: "청모랑을 친다. (피해 4)", tone: "combat" })).toEqual([
+      { text: "청모랑을 친다. (피해 4)", style: "combat" },
+    ]);
+  });
+
+  it("notice: tone combat 은 style combat", () => {
+    const lines = renderMessage({
+      type: "notice",
+      text: "한백이 청모랑을 쓰러뜨린다.",
+      tone: "combat",
+      actor: "한백",
+      event: "kill",
+    });
+
+    expect(lines).toEqual([{ text: "한백이 청모랑을 쓰러뜨린다.", style: "combat" }]);
   });
 
   it("talk: text 를 줄마다 나누고 style 은 talk", () => {
