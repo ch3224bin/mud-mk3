@@ -33,5 +33,8 @@ mud:
     admin-console-url: ${MUD_ADMIN_CONSOLE_URL:http://localhost:3001/}
     dev-login:
       enabled: false
+  game:
+    # 서버 틱(1초)을 돌린다. 테스트는 끄고 틱을 직접 부른다
+    tick-enabled: true
   cors:
     allowed-origins: ${MUD_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001}

@@ -17,6 +17,7 @@ import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.technique.provided.TechniqueFinder;
 import mudmk3.application.technique.provided.TechniqueView;
+import mudmk3.domain.combat.MobInstance;
 import mudmk3.domain.floor.FloorStack;
 import mudmk3.domain.game.Amount;
 import mudmk3.domain.game.Command;
@@ -84,6 +85,8 @@ class ItemCommandHandler {
     private final TechniqueReader techniqueReader;
     private final TechniqueFinder techniqueFinder;
     private final CultivationTexts cultivationTexts;
+    private final CombatEngine combatEngine;
+    private final CombatTexts combatTexts;
 
     /** 물건 명령(주기·읽기 포함)과 인자 있는 {@code 보기} 를 처리한다. send 는 (연결 id, 메시지)로 보낼 것을 모은다 */
     void handle(Command command, OnlinePlayer player, BiConsumer<String, GameMessage> send) {
@@ -259,8 +262,8 @@ class ItemCommandHandler {
     // ---- 보기
 
     /**
-     * 방의 대상(같은 방 플레이어 → NPC → 바닥 물건)에서 먼저 고르고, 없으면 내 소지품에서 고른다(D45).
-     * 물건이면 이름과 묘사, 사람·NPC면 아직 자세히 볼 수 없다
+     * 방의 대상(같은 방 플레이어 → NPC → 몹(방 보기 순서) → 시체 → 바닥 물건)에서 먼저 고르고, 없으면 내 소지품에서 고른다
+     * (D45·D89). 물건이면 이름과 묘사, 몹이면 급·체급·묘사·기혈 상태, 사람·NPC·시체면 아직 자세히 볼 수 없다
      */
     private void look(OnlinePlayer player, String argument, BiConsumer<String, GameMessage> send) {
         String sessionId = player.getSessionId();
@@ -270,14 +273,23 @@ class ItemCommandHandler {
         List<LookTarget> targets = new ArrayList<>();
         presenceRepository.findAllInRoom(roomId).stream()
                 .filter(other -> !other.getCharacterId().equals(player.getCharacterId()))
-                .forEach(other -> targets.add(new LookTarget(other.getName(), null)));
-        npcFinder.findAllInRoom(roomId).forEach(npc -> targets.add(new LookTarget(npc.getName(), null)));
-        roomFloor.look(roomId).forEach(stack -> targets.add(new LookTarget(stack.itemType().getName(), stack.itemType())));
+                .forEach(other -> targets.add(LookTarget.other(other.getName())));
+        npcFinder.findAllInRoom(roomId).forEach(npc -> targets.add(LookTarget.other(npc.getName())));
+        combatEngine.mobsInRoom(roomId).forEach(mob -> targets.add(LookTarget.mob(mob)));
+        combatEngine.corpsesInRoom(roomId).forEach(corpse -> targets.add(LookTarget.other(corpse.name())));
+        roomFloor.look(roomId).forEach(stack -> targets.add(LookTarget.item(stack.itemType())));
 
         Optional<LookTarget> inRoom = ItemNames.select(targets, LookTarget::name, query);
         if (inRoom.isPresent()) {
-            ItemType itemType = inRoom.get().itemType();
-            send.accept(sessionId, itemType == null ? SystemMessage.info(NO_DETAILED_LOOK) : describe(itemType));
+            LookTarget target = inRoom.get();
+            ItemType itemType = target.itemType();
+            MobInstance mob = target.mob();
+            if (mob != null) {
+                Realm viewerRealm = characterFinder.find(player.getCharacterId()).getRealm();
+                send.accept(sessionId, SystemMessage.info(combatTexts.lookMob(mob, viewerRealm)));
+            } else {
+                send.accept(sessionId, itemType == null ? SystemMessage.info(NO_DETAILED_LOOK) : describe(itemType));
+            }
             return;
         }
         Optional<InventoryEntry> held = selectHeld(inventoryFinder.find(player.getCharacterId()), query);
@@ -301,8 +313,19 @@ class ItemCommandHandler {
                 + technique.stageCount() + "성 · " + technique.startRealmName() + "부터)";
     }
 
-    /** 보기 대상 하나. 물건이 아니면(사람·NPC) itemType 이 null */
-    private record LookTarget(String name, @Nullable ItemType itemType) {
+    /** 보기 대상 하나. 물건이면 itemType, 몹이면 mob, 자세히 볼 수 없는 것(사람·NPC·시체)은 둘 다 null */
+    private record LookTarget(String name, @Nullable ItemType itemType, @Nullable MobInstance mob) {
+        static LookTarget other(String name) {
+            return new LookTarget(name, null, null);
+        }
+
+        static LookTarget item(ItemType itemType) {
+            return new LookTarget(itemType.getName(), itemType, null);
+        }
+
+        static LookTarget mob(MobInstance mob) {
+            return new LookTarget(mob.getProfile().name(), null, mob);
+        }
     }
 
     // ---- 읽기

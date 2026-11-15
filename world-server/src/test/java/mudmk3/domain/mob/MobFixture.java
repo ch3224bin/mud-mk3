@@ -31,6 +31,16 @@ public final class MobFixture {
         return info("쌍두 흑망", MobKind.BEAST, Realm.QI_12, MobTier.BOSS, "두 머리 물기", new BigDecimal("0.6"), 2_700);
     }
 
+    /** 적안 독사: 요수 강적 연기 3층, 독니, 재등장 체급 기준, 드롭 표 없음 */
+    public static MobTypeSaveInfo snake() {
+        return info("적안 독사", MobKind.BEAST, Realm.QI_3, MobTier.STRONG, "독니", null, null);
+    }
+
+    /** 철갑 거북: 요수 일반 축기 초기(3급), 박치기, 재등장 체급 기준, 드롭 표 없음 */
+    public static MobTypeSaveInfo turtle() {
+        return info("철갑 거북", MobKind.BEAST, Realm.FOUNDATION_EARLY, MobTier.NORMAL, "박치기", null, null);
+    }
+
     /** 드롭 표 없는 몹 입력. 묘사는 {@code {이름}의 묘사다.} */
     public static MobTypeSaveInfo info(String name, MobKind kind, Realm realm, MobTier tier, String attackName,
                                        @Nullable BigDecimal attackCoefficient, @Nullable Integer respawnSeconds) {
@@ -43,6 +53,20 @@ public final class MobFixture {
                                             List<MobTierDrop> tierDrops) {
         return new MobTypeSaveInfo(info.name(), info.description(), info.kind(), info.realm(), info.tier(),
                 info.attackName(), info.attackCoefficient(), info.respawnSeconds(), fixedDrops, tierDrops);
+    }
+
+    /** 같은 몹의 묘사만 바꾼다 */
+    public static MobTypeSaveInfo described(MobTypeSaveInfo info, String description) {
+        return new MobTypeSaveInfo(info.name(), description, info.kind(), info.realm(), info.tier(),
+                info.attackName(), info.attackCoefficient(), info.respawnSeconds(), info.fixedDrops(),
+                info.tierDrops());
+    }
+
+    /** 같은 몹의 기준 경지만 바꾼다 */
+    public static MobTypeSaveInfo atRealm(MobTypeSaveInfo info, Realm realm) {
+        return new MobTypeSaveInfo(info.name(), info.description(), info.kind(), realm, info.tier(),
+                info.attackName(), info.attackCoefficient(), info.respawnSeconds(), info.fixedDrops(),
+                info.tierDrops());
     }
 
     /** 같은 몹의 이름만 바꾼다 */

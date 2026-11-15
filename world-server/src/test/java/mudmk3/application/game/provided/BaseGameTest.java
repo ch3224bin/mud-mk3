@@ -20,6 +20,11 @@ import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.item.provided.ItemTypeEditor;
 import mudmk3.application.item.provided.ItemTypeFinder;
 import mudmk3.application.item.provided.ItemTypeSaveRequest;
+import mudmk3.application.mob.provided.MobPlacementEditor;
+import mudmk3.application.mob.provided.MobPlacementSaveRequest;
+import mudmk3.application.mob.provided.MobPlacementView;
+import mudmk3.application.mob.provided.MobTypeEditor;
+import mudmk3.application.mob.provided.MobTypeView;
 import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.npc.provided.NpcSaveRequest;
 import mudmk3.application.npc.provided.NpcTopicRequest;
@@ -38,6 +43,8 @@ import mudmk3.domain.item.BagGrade;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.item.SpiritStoneGrade;
+import mudmk3.domain.mob.MobFixture;
+import mudmk3.domain.mob.MobTypeSaveInfo;
 import mudmk3.domain.npc.Npc;
 import mudmk3.domain.npc.ShopKind;
 import mudmk3.domain.room.Direction;
@@ -50,6 +57,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -61,7 +69,7 @@ import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 
 /**
  * 게임 포트 테스트의 기반. 접속 상태(presence, 세션)는 메모리 싱글턴이라 테스트 롤백으로 지워지지 않으므로
- * 테스트가 연 세션을 끝날 때 모두 끊는다.
+ * 테스트가 연 세션을 끝날 때 모두 끊는다. 서버 틱은 테스트에서 돌지 않으므로 {@link #tick()} 으로 직접 부른다.
  */
 @RecordApplicationEvents
 abstract class BaseGameTest {
@@ -86,8 +94,12 @@ abstract class BaseGameTest {
     protected final FloorPlacementEditor floorPlacementEditor;
     protected final InventoryFinder inventoryFinder;
     protected final InventoryEditor inventoryEditor;
+    protected final MobTypeEditor mobTypeEditor;
+    protected final MobPlacementEditor mobPlacementEditor;
     protected final MutableClock clock;
     protected final EntityManager entityManager;
+
+    private static final long TICK_STEP_MILLIS = 500;
 
     private final List<String> openedSessions = new ArrayList<>();
     private @Nullable ApplicationEvents events;
@@ -112,6 +124,8 @@ abstract class BaseGameTest {
             FloorPlacementEditor floorPlacementEditor,
             InventoryFinder inventoryFinder,
             InventoryEditor inventoryEditor,
+            MobTypeEditor mobTypeEditor,
+            MobPlacementEditor mobPlacementEditor,
             MutableClock clock,
             EntityManager entityManager
     ) {
@@ -134,6 +148,8 @@ abstract class BaseGameTest {
         this.floorPlacementEditor = floorPlacementEditor;
         this.inventoryFinder = inventoryFinder;
         this.inventoryEditor = inventoryEditor;
+        this.mobTypeEditor = mobTypeEditor;
+        this.mobPlacementEditor = mobPlacementEditor;
         this.clock = clock;
         this.entityManager = entityManager;
     }
@@ -263,6 +279,45 @@ abstract class BaseGameTest {
         recorded.stream(RealmChangedEvent.class).skip(before).toList().forEach(gameService::onRealmChanged);
     }
 
+    // ---- 서버 틱과 몹
+
+    /** 서버 틱 하나({@link GameTicker#tick()}) */
+    protected void tick() {
+        gameService.tick();
+    }
+
+    /** 시계만 움직인다(틱 없음) */
+    protected void advance(double seconds) {
+        clock.advance(Duration.ofMillis(Math.round(seconds * 1000)));
+    }
+
+    /**
+     * 0.5초씩 시계를 움직이며 그때마다 틱을 부른다(마지막 조각은 남은 만큼). 실제 1초 틱보다 촘촘해 줄이 나오는 시각은 조금
+     * 이를 수 있으나 최종 상태는 같다 — 테스트는 그 시간까지 나온 줄로만 단언한다
+     */
+    protected void advanceAndTick(double seconds) {
+        long remaining = Math.round(seconds * 1000);
+        while (remaining > 0) {
+            long step = Math.min(TICK_STEP_MILLIS, remaining);
+            clock.advance(Duration.ofMillis(step));
+            tick();
+            remaining -= step;
+        }
+    }
+
+    /** 몹을 만들어 그 방에 배치하고 틱 한 번으로 나타나게 한다. 틱 전 상태를 보려면 편집기를 직접 부른다 */
+    protected PlacedMob placeMob(Long roomId, MobTypeSaveInfo info, int count) {
+        MobTypeView mobType = mobTypeEditor.create(MobFixture.request(info));
+        MobPlacementView placement = mobPlacementEditor.create(roomId, new MobPlacementSaveRequest(mobType.id(), count));
+        tick();
+        return new PlacedMob(mobType.id(), placement.id());
+    }
+
+    /** 시작 방(마을 어귀)에 {@link #placeMob(Long, MobTypeSaveInfo, int)} */
+    protected PlacedMob placeMob(GameMap map, MobTypeSaveInfo info, int count) {
+        return placeMob(map.entranceId(), info, count);
+    }
+
     protected Long characterIdOf(Long accountId) {
         return id(characterFinder.findByAccountId(accountId).orElseThrow().getId());
     }
@@ -314,6 +369,10 @@ abstract class BaseGameTest {
 
     protected record Items(Long pill, Long energyPill, Long hide, Long fang, Long sword, Long bag, Long quest,
                            Long lowStone) {
+    }
+
+    /** 배치한 몹: 몹 유형 id 와 배치 id */
+    protected record PlacedMob(Long mobTypeId, Long placementId) {
     }
 
     protected record NpcMap(Long castleId, Long castleZoneId, Long southGateId, Long wangId) {

@@ -17,3 +17,5 @@ spring:
 mud:
   auth:
     admin-emails: admin@example.com
+  game:
+    tick-enabled: false

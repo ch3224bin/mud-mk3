@@ -38,7 +38,8 @@ public sealed interface GameMessage {
 
     /**
      * 방 보기. owner는 지역을 소유한 성·종문(없으면 null), exits는 방위 한글 이름(방위 순서),
-     * occupants는 나를 뺀 사람(들어온 순서) 다음 그 방의 NPC(만든 순서), items는 바닥 물건(같은 종류를 묶은 한 줄씩, D40 순서)
+     * occupants는 나를 뺀 사람(들어온 순서) 다음 그 방의 NPC(만든 순서), mobs는 살아 있는 몹(같은 유형·같은 교전 상태를 묶은 한 줄씩,
+     * 묶음이 처음 나온 순서), corpses는 시체(쓰러진 순), items는 바닥 물건(같은 종류를 묶은 한 줄씩, D40 순서)
      */
     record RoomMessage(
             ZoneView zone,
@@ -47,11 +48,15 @@ public sealed interface GameMessage {
             @Nullable OwnerView owner,
             List<String> exits,
             List<OccupantView> occupants,
+            List<MobView> mobs,
+            List<CorpseView> corpses,
             List<FloorItemView> items
     ) implements GameMessage {
         public RoomMessage {
             exits = List.copyOf(exits);
             occupants = List.copyOf(occupants);
+            mobs = List.copyOf(mobs);
+            corpses = List.copyOf(corpses);
             items = List.copyOf(items);
         }
 
@@ -79,6 +84,17 @@ public sealed interface GameMessage {
             public static OccupantView npc(String name) {
                 return new OccupantView(name, "npc");
             }
+        }
+
+        /**
+         * 몹 한 줄. rank 는 {@code 1급}·{@code 연기 10층}·{@code 헤아릴 수 없음}, tier 는 체급 표시(일반이면 null, {@code 강적}·{@code 정예}·{@code 두목}),
+         * count 는 묶인 수, fighting 은 교전 중인지
+         */
+        public record MobView(String name, String rank, @Nullable String tier, int count, boolean fighting) {
+        }
+
+        /** 시체 한 줄. collectible 은 보는 사람이 지금 수습할 수 있는지 */
+        public record CorpseView(String name, boolean collectible) {
         }
 
         /** 바닥 물건 한 줄: 이름과 합친 수 */
@@ -191,7 +207,10 @@ public sealed interface GameMessage {
         }
     }
 
-    /** 안내·결과·거절. tone: {@code info} | {@code error} | {@code item}(물건 명령의 결과) | {@code growth}(성장) */
+    /**
+     * 안내·결과·거절. tone: {@code info} | {@code error} | {@code item}(물건 명령의 결과) | {@code growth}(성장) |
+     * {@code combat}(교전)
+     */
     record SystemMessage(String text, String tone) implements GameMessage {
         public static SystemMessage info(String text) {
             return new SystemMessage(text, "info");
@@ -210,6 +229,11 @@ public sealed interface GameMessage {
             return new SystemMessage(text, "growth");
         }
 
+        /** 교전 시작·침·맞음·처치·질 때 */
+        public static SystemMessage combat(String text) {
+            return new SystemMessage(text, "combat");
+        }
+
         @Override
         public String type() {
             return "system";
@@ -217,8 +241,9 @@ public sealed interface GameMessage {
     }
 
     /**
-     * 같은 방에서 일어난 일. tone: {@code movement} | {@code item},
-     * event: {@code arrive} | {@code leave} | {@code appear} | {@code disappear} | {@code pick} | {@code drop} | {@code give}
+     * 같은 방에서 일어난 일. tone: {@code movement} | {@code item} | {@code combat},
+     * event: {@code arrive} | {@code leave} | {@code appear} | {@code disappear} | {@code pick} | {@code drop} | {@code give} |
+     * {@code engage} | {@code kill} | {@code defeated} | {@code respawn} | {@code collect}
      */
     record NoticeMessage(String text, String tone, String actor, String event) implements GameMessage {
         public static NoticeMessage movement(String text, String actor, String event) {
@@ -227,6 +252,11 @@ public sealed interface GameMessage {
 
         public static NoticeMessage item(String text, String actor, String event) {
             return new NoticeMessage(requireNonNull(text), "item", actor, event);
+        }
+
+        /** 교전 시작·처치·질 때·몹이 나타남 */
+        public static NoticeMessage combat(String text, String actor, String event) {
+            return new NoticeMessage(requireNonNull(text), "combat", actor, event);
         }
 
         @Override

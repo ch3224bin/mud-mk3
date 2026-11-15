@@ -11,13 +11,16 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** provided 포트 테스트: 실제 빈과 H2로 돌리고 테스트마다 롤백한다. 테스트 시계는 테스트마다 시작 시각에서 시작한다 */
+/**
+ * provided 포트 테스트: 실제 빈과 H2로 돌리고 테스트마다 롤백한다. 테스트 시계는 테스트마다 시작 시각에서 시작하고,
+ * 몹·교전·시체 메모리와 가짜 난수는 테스트마다 비운다
+ */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 @SpringBootTest
 @Transactional
 @Import(TestFakesConfiguration.class)
-@ExtendWith(MutableClockReset.class)
+@ExtendWith({MutableClockReset.class, CombatMemoryReset.class})
 public @interface ApplicationServiceTest {
 }

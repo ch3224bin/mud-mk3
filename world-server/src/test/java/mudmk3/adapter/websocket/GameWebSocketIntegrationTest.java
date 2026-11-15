@@ -215,6 +215,8 @@ class GameWebSocketIntegrationTest {
         assertThat(room.get("room").get("name").asString()).isEqualTo("마을 어귀");
         assertThat(room.get("exits")).isEqualTo(json("[\"북\"]"));
         assertThat(room.get("occupants")).isEqualTo(json("[]"));
+        assertThat(room.get("mobs")).isEqualTo(json("[]"));
+        assertThat(room.get("corpses")).isEqualTo(json("[]"));
     }
 
     @Test

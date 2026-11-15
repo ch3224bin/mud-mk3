@@ -7,6 +7,7 @@ import mudmk3.application.character.provided.RealmChangedEvent;
 import mudmk3.application.cultivation.provided.CultivationFinder;
 import mudmk3.application.floor.provided.RoomFloor;
 import mudmk3.application.game.provided.GameConnector;
+import mudmk3.application.game.provided.GameTicker;
 import mudmk3.application.game.required.GameCloseReason;
 import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.NoticeMessage;
@@ -43,6 +44,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -55,12 +57,12 @@ import java.util.stream.Collectors;
 import static java.util.Objects.requireNonNull;
 
 /**
- * 게임 접속과 명령 처리. 서버 전체의 게임 처리(접속·입력·끊김·방 삭제 반영)를 공정한 락 하나로 직렬화한다.
+ * 게임 접속과 명령 처리, 서버 틱. 서버 전체의 게임 처리(접속·입력·끊김·방 삭제 반영·틱)를 공정한 락 하나로 직렬화한다.
  * 트랜잭션은 락 안에서 열고 닫는다(커밋이 끝난 뒤에 다음 처리가 DB를 읽게 — 예: 같은 이름 동시 생성).
  * 그래서 포트 메서드 자체는 트랜잭션을 열지 않고({@code SUPPORTS}) 락을 잡은 뒤 {@link TransactionTemplate} 으로 연다.
  */
 @ApplicationService
-public class GameService implements GameConnector {
+public class GameService implements GameConnector, GameTicker {
 
     static final int MAX_COMMAND_LENGTH = 500;
     static final int MAX_SAY_LENGTH = 200;
@@ -108,6 +110,8 @@ public class GameService implements GameConnector {
     private final ShopCommandHandler shopCommandHandler;
     private final CultivationFinder cultivationFinder;
     private final CultivationTexts cultivationTexts;
+    private final CombatEngine combatEngine;
+    private final Clock clock;
     private final GameMessageSender sender;
     private final TransactionTemplate transactionTemplate;
 
@@ -130,6 +134,8 @@ public class GameService implements GameConnector {
             ShopCommandHandler shopCommandHandler,
             CultivationFinder cultivationFinder,
             CultivationTexts cultivationTexts,
+            CombatEngine combatEngine,
+            Clock clock,
             GameMessageSender sender,
             PlatformTransactionManager transactionManager
     ) {
@@ -145,6 +151,8 @@ public class GameService implements GameConnector {
         this.shopCommandHandler = shopCommandHandler;
         this.cultivationFinder = cultivationFinder;
         this.cultivationTexts = cultivationTexts;
+        this.combatEngine = combatEngine;
+        this.clock = clock;
         this.sender = sender;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
@@ -165,6 +173,13 @@ public class GameService implements GameConnector {
     @Transactional(propagation = Propagation.SUPPORTS)
     public void disconnect(String sessionId) {
         serialized(() -> doDisconnect(sessionId));
+    }
+
+    /** 서버 틱 하나(D85). 명령처럼 락 안에서 트랜잭션 하나로 처리하고, 보낼 것은 커밋 뒤 보낸다 */
+    @Override
+    @Transactional(propagation = Propagation.SUPPORTS)
+    public void tick() {
+        serialized(() -> combatEngine.tick(clock.instant(), this::send));
     }
 
     /**
@@ -623,11 +638,13 @@ public class GameService implements GameConnector {
         send(sessionId, roomView(room, zoneEntered, session.requireCharacterId()));
     }
 
-    /** 방 보기: 그 방의 사람(나 빼고)·배치된 NPC·바닥 물건을 지금 읽어 넣는다 */
+    /** 방 보기: 그 방의 사람(나 빼고)·배치된 NPC·몹·시체·바닥 물건을 지금 읽어 넣는다 */
     private GameMessage roomView(Room room, boolean zoneEntered, Long viewerCharacterId) {
         Long roomId = requireNonNull(room.getId());
         return RoomViewAssembler.assemble(room, zoneEntered, presenceRepository.findAllInRoom(roomId),
-                npcFinder.findAllInRoom(roomId), roomFloor.look(roomId), viewerCharacterId);
+                npcFinder.findAllInRoom(roomId), roomFloor.look(roomId), viewerCharacterId,
+                combatEngine.mobsInRoom(roomId), combatEngine.corpsesInRoom(roomId),
+                characterFinder.find(viewerCharacterId).getRealm(), clock.instant());
     }
 
     private void notifyOthers(OnlinePlayer actor, Long roomId, String text, String event) {

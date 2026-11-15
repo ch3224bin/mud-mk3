@@ -42,6 +42,8 @@ import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.item.provided.ItemTypeEditor;
 import mudmk3.application.item.provided.ItemTypeFinder;
+import mudmk3.application.mob.provided.MobPlacementEditor;
+import mudmk3.application.mob.provided.MobTypeEditor;
 import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.npc.provided.NpcFinder;
@@ -137,12 +139,15 @@ class GameConnectorTest extends BaseGameTest {
             FloorPlacementEditor floorPlacementEditor,
             InventoryFinder inventoryFinder,
             InventoryEditor inventoryEditor,
+            MobTypeEditor mobTypeEditor,
+            MobPlacementEditor mobPlacementEditor,
             MutableClock clock,
             EntityManager entityManager
     ) {
         super(gameConnector, gameService, sender, accountLogin, characterCreator, characterFinder, characterMover,
                 characterRepository, characterRealmEditor, zoneEditor, roomEditor, worldSettingsEditor, factionEditor, npcEditor,
-                itemTypeEditor, itemTypeFinder, floorPlacementEditor, inventoryFinder, inventoryEditor, clock, entityManager);
+                itemTypeEditor, itemTypeFinder, floorPlacementEditor, inventoryFinder, inventoryEditor, mobTypeEditor, mobPlacementEditor, clock,
+                entityManager);
         this.npcFinder = npcFinder;
         this.presenceFinder = presenceFinder;
         this.techniqueEditor = techniqueEditor;
@@ -159,6 +164,21 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(sender.messagesTo("s1")).containsExactly(new SystemMessage(
                 "아직 세계가 열리지 않았습니다. 관리자가 시작 방을 정해야 합니다.", "error"));
         assertThat(sender.closeReasonOf("s1")).contains(GameCloseReason.WORLD_NOT_READY);
+    }
+
+    @Test
+    void tickWithoutPlacementsKeepsRoomEmpty() {
+        prepareMap();
+        enter("s1", "한백");
+        sender.clear();
+
+        tick();
+
+        assertThat(sender.messagesTo("s1")).isEmpty();
+        gameConnector.handle("s1", "보기");
+        RoomMessage room = sender.lastTo("s1", RoomMessage.class);
+        assertThat(room.mobs()).isEmpty();
+        assertThat(room.corpses()).isEmpty();
     }
 
     @Test
