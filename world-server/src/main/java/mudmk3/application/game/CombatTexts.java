@@ -4,10 +4,14 @@ import mudmk3.domain.combat.Condition;
 import mudmk3.domain.combat.Damage;
 import mudmk3.domain.combat.MobInstance;
 import mudmk3.domain.combat.MobProfile;
+import mudmk3.domain.shared.Durations;
 import mudmk3.domain.shared.Josa;
+import mudmk3.domain.shared.Numbers;
 import mudmk3.domain.shared.Realm;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,6 +30,7 @@ class CombatTexts {
     static final String CANNOT_QUIT = "싸우는 중에는 떠날 수 없습니다.";
     static final String CANNOT_DO = "싸우는 중에는 할 수 없습니다.";
     static final String DEFEATED = "기혈이 다했습니다. 눈앞이 캄캄해진다…";
+    static final String COLLECT_NO_ARGUMENT = "무엇을 수습하시겠습니까? (예: 수습 늑대)";
     private static final String STATUS_PREFIX = "[전투 중] 상대: ";
     private static final int UNKNOWABLE_MAJOR_GAP = 2;
 
@@ -139,5 +144,50 @@ class CombatTexts {
             names.add(entry.toString());
         }
         return STATUS_PREFIX + String.join(", ", names);
+    }
+
+    // ---- 수습
+
+    /** 드롭 한 줄: {@code 늑대 이빨 1} */
+    static String dropPart(String itemName, int count) {
+        return itemName + " " + Numbers.count(count);
+    }
+
+    /** 다른 사람 몫: {@code 그 시체는 아직 다른 사람의 몫입니다. (34초 뒤 수습할 수 있습니다)} — 남은 시간은 올림한 초 */
+    String otherShare(Duration lockedFor) {
+        long seconds = (lockedFor.toMillis() + 999) / 1000;
+        return "그 시체는 아직 다른 사람의 몫입니다. (" + Durations.korean(BigDecimal.valueOf(seconds)) + " 뒤 수습할 수 있습니다)";
+    }
+
+    /** 거둠: {@code 청모랑의 시체를 수습했습니다: 청모랑 가죽 1, 늑대 이빨 1} */
+    String collected(String corpseName, List<String> parts) {
+        return Josa.withEulReul(corpseName) + " 수습했습니다: " + String.join(", ", parts);
+    }
+
+    /** 다 넣지 못함: {@code 저물대에 자리가 없습니다. 남은 것: 늑대 이빨 1} */
+    String noRoomLeft(List<String> parts) {
+        return "저물대에 자리가 없습니다. 남은 것: " + String.join(", ", parts);
+    }
+
+    /** 빈 시체: {@code 청모랑의 시체에는 거둘 것이 없습니다.} */
+    String emptyCorpse(String corpseName) {
+        return corpseName + "에는 거둘 것이 없습니다.";
+    }
+
+    /** 수습, 같은 방 다른 사람: {@code 한립이 청모랑의 시체를 수습한다.} */
+    String collectNotice(String playerName, String corpseName) {
+        return Josa.withIGa(playerName) + " " + Josa.withEulReul(corpseName) + " 수습한다.";
+    }
+
+    // ---- 질 때·교전 뒤 기혈
+
+    /** 질 때 둘째 줄: {@code 태초 객잔에서 깨어났습니다. (기혈 1/120)} */
+    static String wokeUp(String roomName, int maxQiBlood) {
+        return roomName + "에서 깨어났습니다. (기혈 1/" + maxQiBlood + ")";
+    }
+
+    /** 교전 뒤 다시 참: {@code 숨을 고르자 기운이 돌아온다. (기혈 120/120)} */
+    String refilled(int maxQiBlood) {
+        return "숨을 고르자 기운이 돌아온다. (기혈 " + maxQiBlood + "/" + maxQiBlood + ")";
     }
 }

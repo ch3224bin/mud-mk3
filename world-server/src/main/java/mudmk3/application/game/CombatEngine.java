@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterVitalsEditor;
 import mudmk3.application.cultivation.provided.CultivationFinder;
-import mudmk3.application.game.required.CorpseRepository;
 import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.NoticeMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
@@ -61,7 +60,7 @@ class CombatEngine {
     private final MobPlacementFinder mobPlacementFinder;
     private final MobInstanceRepository mobInstanceRepository;
     private final PlayerCombatRepository playerCombatRepository;
-    private final CorpseRepository corpseRepository;
+    private final CorpseHandler corpseHandler;
     private final PresenceRepository presenceRepository;
     private final NpcFinder npcFinder;
     private final CharacterFinder characterFinder;
@@ -83,6 +82,8 @@ class CombatEngine {
         List<Long> defeated = new ArrayList<>();
         act(now, send, defeated);
         refillMobs(now);
+        refillPlayers(now, send);
+        corpseHandler.removeExpired(now);
         respawnMobs(placements, now, send);
         return new CombatOutcome(defeated);
     }
@@ -222,7 +223,7 @@ class CombatEngine {
 
     /** 그 방의 시체(쓰러진 순) */
     List<Corpse> corpsesInRoom(Long roomId) {
-        return corpseRepository.findAllInRoom(roomId);
+        return corpseHandler.inRoom(roomId);
     }
 
     // ---- 1. 배치 맞추기
@@ -329,14 +330,16 @@ class CombatEngine {
     }
 
     /**
-     * 몹이 쓰러졌다: 처치자 {@code 청모랑을 쓰러뜨렸습니다.}, 교전하던 다른 사람 {@code 청모랑이 쓰러졌다.}, 같은 방의 교전하지 않은
-     * 사람 {@code 한백이 청모랑을 쓰러뜨렸다.}(event {@code kill}) → 교전하던 플레이어마다 그 몹과의 교전을 끝낸다.
+     * 몹이 쓰러졌다: 그 자리에 시체를 남기고(드롭은 지금 굴림, D87) 처치자 {@code 청모랑을 쓰러뜨렸습니다.},
+     * 교전하던 다른 사람 {@code 청모랑이 쓰러졌다.}, 같은 방의 교전하지 않은 사람 {@code 한백이 청모랑을 쓰러뜨렸다.}
+     * (event {@code kill}) → 교전하던 플레이어마다 그 몹과의 교전을 끝낸다.
      * 처치자는 피해가 가장 많은 사람이라 마지막 일격을 한 사람과 다를 수 있다
      */
     private void onMobKilled(MobInstance mob, Set<Long> opponents, Long strikerId, Instant now,
                              BiConsumer<String, GameMessage> send) {
         String mobName = mob.getProfile().name();
         Long killerId = mob.killer().orElse(strikerId);
+        corpseHandler.leaveCorpse(mob, killerId, now);
         String killerName = presenceRepository.findByCharacterId(killerId).map(OnlinePlayer::getName)
                 .orElseGet(() -> characterFinder.find(killerId).getName().value());
         NoticeMessage killedNotice = NoticeMessage.combat(combatTexts.killedNotice(killerName, mobName), killerName, "kill");
@@ -431,6 +434,25 @@ class CombatEngine {
             }
         }
     }
+
+    /**
+     * 교전 상대가 모두 사라진 지 10초가 된 플레이어는 기혈이 다 찬다(command.md {@code ### 교전 뒤 기혈}). 깎인 것이 있었을 때만
+     * {@code 숨을 고르자 기운이 돌아온다. (기혈 60/60)}. 세계에 없으면 채우지 않는다(들어올 때 다시 예약)
+     */
+    private void refillPlayers(Instant now, BiConsumer<String, GameMessage> send) {
+        for (PlayerCombat combat : playerCombatRepository.findAll()) {
+            if (!combat.refillDue(now)) continue;
+            combat.clearRefill();
+            playerCombatRepository.save(combat);
+            Long characterId = combat.getCharacterId();
+            Optional<OnlinePlayer> player = presenceRepository.findByCharacterId(characterId);
+            if (player.isEmpty() || !characterVitalsEditor.restoreQiBlood(characterId)) continue;
+            int max = cultivationFinder.stats(characterId).qiBlood();
+            send.accept(player.get().getSessionId(), SystemMessage.info(combatTexts.refilled(max)));
+        }
+    }
+
+    // ---- 4. 시체 사라짐은 CorpseHandler.removeExpired
 
     // ---- 5. 재등장
 

@@ -19,15 +19,24 @@ import java.util.function.BiConsumer;
 class CombatCommandHandler {
 
     private final CombatEngine combatEngine;
+    private final CorpseHandler corpseHandler;
     private final Clock clock;
 
     /** 전투 명령을 처리한다. send 는 (연결 id, 메시지)로 보낼 것을 모은다 */
     void handle(Command command, OnlinePlayer player, BiConsumer<String, GameMessage> send) {
         switch (command) {
             case Command.Attack attack -> combatEngine.attack(player, attack.target(), clock.instant(), send);
-            // 수습은 아직 없다: sealed switch 를 채우는 임시 자리(D86). 시체·수습이 생기면 바꾼다
-            case Command.Collect _ -> send.accept(player.getSessionId(), SystemMessage.error(GameService.UNKNOWN));
+            case Command.Collect collect -> collect(player, collect, send);
             default -> throw new IllegalArgumentException("전투 명령이 아닙니다: " + command);
         }
+    }
+
+    /** {@code 수습 <시체>}: 교전 중이면 {@code 싸우는 중에는 할 수 없습니다.} */
+    private void collect(OnlinePlayer player, Command.Collect collect, BiConsumer<String, GameMessage> send) {
+        if (combatEngine.isFighting(player.getCharacterId())) {
+            send.accept(player.getSessionId(), SystemMessage.error(CombatTexts.CANNOT_DO));
+            return;
+        }
+        corpseHandler.collect(player, collect.corpse(), clock.instant(), send);
     }
 }

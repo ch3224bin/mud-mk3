@@ -389,7 +389,8 @@ class CombatTest extends BaseGameTest {
 
         assertThat(combatLines("a")).containsExactly(
                 "쌍두 흑망이 두 머리 물기로 덮친다! (피해 16, 기혈 0/60)",
-                "기혈이 다했습니다. 눈앞이 캄캄해진다…");
+                "기혈이 다했습니다. 눈앞이 캄캄해진다…",
+                "마을 어귀에서 깨어났습니다. (기혈 1/60)");
         assertThat(sender.messagesTo("b")).containsExactly(NoticeMessage.combat("한백이 쓰러진다.", "한백", "defeated"));
         assertThat(sender.messagesTo("c")).containsExactly(NoticeMessage.combat("한백이 쓰러진다.", "한백", "defeated"));
         assertThat(characterVitalsEditor.qiBloodLost(characterIdOf(hanbaek))).isEqualTo(59);
@@ -532,7 +533,8 @@ class CombatTest extends BaseGameTest {
 
         assertThat(combatLines("a")).containsExactly(
                 "쌍두 흑망이 두 머리 물기로 덮친다! (피해 16, 기혈 0/60)",
-                "기혈이 다했습니다. 눈앞이 캄캄해진다…");
+                "기혈이 다했습니다. 눈앞이 캄캄해진다…",
+                "마을 어귀에서 깨어났습니다. (기혈 1/60)");
         assertThat(characterVitalsEditor.qiBloodLost(characterIdOf(hanbaek))).isEqualTo(59);
         MobInstance mob = onlyMob(map.entranceId());
         assertThat(mob.isFighting()).isFalse();

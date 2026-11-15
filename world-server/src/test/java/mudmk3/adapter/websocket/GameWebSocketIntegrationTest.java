@@ -6,10 +6,18 @@ import mudmk3.application.character.required.CharacterRepository;
 import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.floor.provided.FloorPlacementSaveRequest;
 import mudmk3.application.game.provided.GameConnector;
+import mudmk3.application.game.provided.GameTicker;
+import mudmk3.application.game.required.CorpseRepository;
+import mudmk3.application.game.required.MobInstanceRepository;
+import mudmk3.application.game.required.PlayerCombatRepository;
 import mudmk3.application.game.required.PresenceRepository;
 import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.item.provided.ItemTypeEditor;
 import mudmk3.application.item.provided.ItemTypeSaveRequest;
+import mudmk3.application.mob.provided.MobPlacementEditor;
+import mudmk3.application.mob.provided.MobPlacementSaveRequest;
+import mudmk3.application.mob.provided.MobTypeEditor;
+import mudmk3.application.mob.provided.MobTypeView;
 import mudmk3.application.npc.provided.NpcEditor;
 import mudmk3.application.room.provided.ExitSaveRequest;
 import mudmk3.application.room.provided.RoomEditor;
@@ -19,6 +27,8 @@ import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
+import mudmk3.domain.mob.MobFixedDrop;
+import mudmk3.domain.mob.MobFixture;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.room.Room;
 import mudmk3.domain.shared.Realm;
@@ -111,6 +121,12 @@ class GameWebSocketIntegrationTest {
     private final InventoryEditor inventoryEditor;
     private final WebSocketGameMessageSender sender;
     private final JdbcTemplate jdbcTemplate;
+    private final MobTypeEditor mobTypeEditor;
+    private final MobPlacementEditor mobPlacementEditor;
+    private final GameTicker gameTicker;
+    private final MobInstanceRepository mobInstanceRepository;
+    private final PlayerCombatRepository playerCombatRepository;
+    private final CorpseRepository corpseRepository;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
     private final List<Client> clients = new ArrayList<>();
     private @Nullable Long entranceId;
@@ -131,7 +147,13 @@ class GameWebSocketIntegrationTest {
             GameConnector gameConnector,
             InventoryEditor inventoryEditor,
             WebSocketGameMessageSender sender,
-            JdbcTemplate jdbcTemplate
+            JdbcTemplate jdbcTemplate,
+            MobTypeEditor mobTypeEditor,
+            MobPlacementEditor mobPlacementEditor,
+            GameTicker gameTicker,
+            MobInstanceRepository mobInstanceRepository,
+            PlayerCombatRepository playerCombatRepository,
+            CorpseRepository corpseRepository
     ) {
         this.port = port;
         this.zoneEditor = zoneEditor;
@@ -149,6 +171,12 @@ class GameWebSocketIntegrationTest {
         this.inventoryEditor = inventoryEditor;
         this.sender = sender;
         this.jdbcTemplate = jdbcTemplate;
+        this.mobTypeEditor = mobTypeEditor;
+        this.mobPlacementEditor = mobPlacementEditor;
+        this.gameTicker = gameTicker;
+        this.mobInstanceRepository = mobInstanceRepository;
+        this.playerCombatRepository = playerCombatRepository;
+        this.corpseRepository = corpseRepository;
     }
 
     @BeforeEach
@@ -186,6 +214,10 @@ class GameWebSocketIntegrationTest {
                 .forEach(table -> jdbcTemplate.execute("TRUNCATE TABLE " + table + " RESTART IDENTITY"));
         jdbcTemplate.execute("DELETE FROM item_type WHERE spirit_stone_grade IS NULL");
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
+        // 몹·교전·시체 메모리는 스프링 싱글턴이라 표와 함께 비운다
+        mobInstanceRepository.deleteAll();
+        playerCombatRepository.deleteAll();
+        corpseRepository.deleteAll();
     }
 
     @Test
@@ -391,6 +423,42 @@ class GameWebSocketIntegrationTest {
 
         assertThat(client.next()).isEqualTo(json("""
                 {"type":"system","text":"옥간을 이마에 대자 구결이 머릿속으로 흘러든다. 장춘공 1성에 이르렀습니다!\\n단전에 따뜻한 기운이 맺힌다. 연기 1층이 되었습니다. 새 신통: 화탄술","tone":"growth"}"""));
+    }
+
+    /**
+     * 실제 시계·난수·커밋되는 DB 라 시간·난수에 기대지 않는다: 틱을 한 번 직접 불러 들토끼(기혈 42·육신 7)를 나타나게 하고,
+     * 축기 초기(위력 64.2)로 {@code 공격} 한 번에 쓰러뜨린다(몹 행동 1.5초 전). 수습 줄은 고정 재료로 시작하는지만 본다(영석은 난수)
+     */
+    @Test
+    void attackOverWebSocket() throws Exception {
+        ItemType hide = itemTypeEditor.create(
+                new ItemTypeSaveRequest("토끼 가죽", "", ItemCategory.MATERIAL, 1, null, null));
+        MobTypeView rabbit = mobTypeEditor.create(MobFixture.request(MobFixture.withDrops(MobFixture.rabbit(),
+                List.of(new MobFixedDrop(requireNonNull(hide.getId()), 1)), List.of())));
+        mobPlacementEditor.create(requireNonNull(entranceId), new MobPlacementSaveRequest(rabbit.id(), 1));
+        gameTicker.tick();
+        Login login = login("hanbai@example.com");
+        Long characterId = requireNonNull(characterCreator.create(login.accountId(), "한백", spiritRoot()).getId());
+        characterRealmEditor.designate(characterId, Realm.FOUNDATION_EARLY);
+        Client client = connect(login.cookie(), ALLOWED_ORIGIN);
+        client.awaitRoom();
+        assertThat(client.lastRoom().get("mobs")).isEqualTo(json("""
+                [{"name":"들토끼","rank":"1급","tier":null,"count":1,"fighting":false}]"""));
+
+        client.command("공격 들토끼");
+
+        assertThat(client.next()).isEqualTo(json("""
+                {"type":"system","text":"들토끼와 싸움이 벌어진다.","tone":"combat"}"""));
+        assertThat(client.next()).isEqualTo(json("""
+                {"type":"system","text":"들토끼에게 일격을 날린다. (피해 61)","tone":"combat"}"""));
+        assertThat(client.next()).isEqualTo(json("""
+                {"type":"system","text":"들토끼를 쓰러뜨렸습니다.","tone":"combat"}"""));
+
+        client.command("수습 들토끼");
+
+        JsonNode collected = client.next();
+        assertThat(collected.get("tone").asString()).isEqualTo("item");
+        assertThat(collected.get("text").asString()).startsWith("들토끼의 시체를 수습했습니다: 토끼 가죽 1");
     }
 
     /** 관리 툴 경지 지정은 커밋 뒤(AFTER_COMMIT) 접속 중인 그 캐릭터에게만 알린다 */

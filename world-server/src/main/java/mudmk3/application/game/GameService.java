@@ -87,7 +87,7 @@ public class GameService implements GameConnector, GameTicker {
     static final String SAY_TOO_LONG = "말은 200자 이내로 하십시오.";
     static final String HELP =
             "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말]"
-                    + " · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건>"
+                    + " · 공격 <대상> · 수습 <시체> · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건>"
                     + " · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량]"
                     + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건>"
                     + " · 확인 · 취소 · 누구 · 도움말 · 종료";
@@ -180,12 +180,13 @@ public class GameService implements GameConnector, GameTicker {
 
     /**
      * 서버 틱 하나(D85). 명령처럼 락 안에서 트랜잭션 하나로 처리하고, 보낼 것은 커밋 뒤 보낸다.
-     * 진 캐릭터({@link CombatOutcome})는 그 자리에 기혈 1로 남는다 — 시작 방에서 깨어나기(D88)는 아직 없다
+     * 이번 틱에 진 캐릭터({@link CombatOutcome})는 진 순서대로 시작 방에서 깨어난다(D88)
      */
     @Override
     @Transactional(propagation = Propagation.SUPPORTS)
     public void tick() {
-        serialized(() -> combatEngine.tick(clock.instant(), this::send));
+        serialized(() -> combatEngine.tick(clock.instant(), this::send).defeatedCharacterIds()
+                .forEach(this::wakeAtStart));
     }
 
     /**
@@ -614,6 +615,33 @@ public class GameService implements GameConnector, GameTicker {
         leaveWorld(player);
         close(sessionId, GameCloseReason.QUIT);
         sessions.remove(sessionId);
+    }
+
+    // ---- 질 때
+
+    /**
+     * 진 캐릭터가 깨어난다(D88·D96): 시작 방이 지금 방과 다르면 옮기고 시작 방 사람에게 {@code 한백이 나타난다.} →
+     * {@code 마을 어귀에서 깨어났습니다. (기혈 1/60)}(tone {@code combat}) → 지금 방 보기. 시작 방이 없으면 그 방에서 깨어난다.
+     * 세션이 없으면 옮기기만 한다
+     */
+    private void wakeAtStart(Long characterId) {
+        Optional<OnlinePlayer> found = presenceRepository.findByCharacterId(characterId);
+        if (found.isEmpty()) return;
+        OnlinePlayer player = found.get();
+        Room room = worldSettingsFinder.findStartRoom().orElseGet(() -> roomFinder.find(player.getRoomId()));
+        Long roomId = requireNonNull(room.getId());
+        if (!roomId.equals(player.getRoomId())) {
+            characterMover.moveTo(characterId, roomId);
+            player.moveTo(roomId);
+            presenceRepository.save(player);
+            notifyOthers(player, roomId, Josa.withIGa(player.getName()) + " 나타난다.", "appear");
+        }
+        String sessionId = player.getSessionId();
+        GameSession session = sessions.get(sessionId);
+        if (session == null) return;
+        int maxQiBlood = cultivationFinder.stats(characterId).qiBlood();
+        send(sessionId, SystemMessage.combat(CombatTexts.wokeUp(room.getName(), maxQiBlood)));
+        sendRoom(sessionId, session, room);
     }
 
     // ---- 방 삭제 반영
