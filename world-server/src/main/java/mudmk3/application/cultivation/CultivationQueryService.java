@@ -7,11 +7,14 @@ import mudmk3.application.cultivation.provided.CharacterSummary;
 import mudmk3.application.cultivation.provided.CultivationFinder;
 import mudmk3.application.cultivation.provided.CultivationProfile;
 import mudmk3.application.cultivation.provided.LearnedTechniqueView;
+import mudmk3.application.cultivation.required.CharacterInsightRepository;
 import mudmk3.application.cultivation.required.CharacterTechniqueRepository;
 import mudmk3.application.cultivation.required.LearnedCount;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
+import mudmk3.domain.cultivation.CharacterInsight;
 import mudmk3.domain.cultivation.CharacterTechnique;
+import mudmk3.domain.cultivation.Insight;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.technique.Technique;
 import mudmk3.support.stereotype.ApplicationService;
@@ -29,6 +32,7 @@ public class CultivationQueryService implements CultivationFinder {
     private final CharacterFinder characterFinder;
     private final CharacterVitalsEditor characterVitalsEditor;
     private final CharacterTechniqueRepository characterTechniqueRepository;
+    private final CharacterInsightRepository characterInsightRepository;
 
     @Override
     public StatSheet stats(Long characterId) {
@@ -41,6 +45,12 @@ public class CultivationQueryService implements CultivationFinder {
     }
 
     @Override
+    public Insight insight(Long characterId) {
+        return new Insight(characterInsightRepository.findAllByCharacterId(characterId).stream()
+                .collect(Collectors.toMap(CharacterInsight::getKind, CharacterInsight::getAmount)));
+    }
+
+    @Override
     public CultivationProfile profile(Long characterId) {
         PlayerCharacter character = characterFinder.find(characterId);
         List<CharacterTechnique> learned = findLearned(characterId);
@@ -50,7 +60,8 @@ public class CultivationQueryService implements CultivationFinder {
                 character.getRealm(),
                 character.findSpiritRoot().orElse(null),
                 stats(character, learned),
-                learned.stream().map(CultivationQueryService::toView).toList());
+                learned.stream().map(CultivationQueryService::toView).toList(),
+                insight(characterId));
     }
 
     @Override

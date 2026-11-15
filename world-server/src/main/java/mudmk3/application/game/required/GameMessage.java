@@ -3,10 +3,13 @@ package mudmk3.application.game.required;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.combat.Damage;
+import mudmk3.domain.cultivation.Insight;
+import mudmk3.domain.cultivation.InsightKind;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.shared.Realm;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.OptionalInt;
 
@@ -137,8 +140,8 @@ public sealed interface GameMessage {
 
     /**
      * 상태(묻는 사람에게만). realm·spiritRoot·stats 는 구조, cultivation 은 수위(범인이면 null), text 는 그린 줄들
-     * ({@code \n} 으로 나뉨). 기혈 현재 값은 깎인 기혈을 뺀 값을 {@link Damage#gauge} 로
-     * 보이고, 나머지는 현재 수치 = 최대치다
+     * ({@code \n} 으로 나뉨), insight 는 깨달음 여섯 갈래(금·목·수·화·토·연체 순, 소수점을 버린 양).
+     * 기혈·법력 현재 값은 깎인 양을 뺀 값을 {@link Damage#gauge} 로 보이고, 나머지는 현재 수치 = 최대치다
      */
     record StatusMessage(
             String characterName,
@@ -146,12 +149,13 @@ public sealed interface GameMessage {
             SpiritRootView spiritRoot,
             StatsView stats,
             @Nullable CultivationView cultivation,
+            List<InsightView> insight,
             String text,
             String tone
     ) implements GameMessage {
 
         /** 영근을 정한 캐릭터의 상태. 수위는 4차에 쌓는 길이 없어 늘 0 이다 */
-        public static StatusMessage of(PlayerCharacter character, StatSheet stats, String text) {
+        public static StatusMessage of(PlayerCharacter character, StatSheet stats, Insight insight, String text) {
             Realm realm = character.getRealm();
             SpiritRoot root = character.findSpiritRoot()
                     .orElseThrow(() -> new IllegalStateException("영근을 아직 정하지 않은 캐릭터입니다. id: " + character.getId()));
@@ -169,6 +173,9 @@ public sealed interface GameMessage {
                             GaugeView.full(stats.sense()), GaugeView.full(stats.essence()),
                             GaugeView.full(stats.spirit()), stats.body(), stats.strength()),
                     required.isPresent() ? new CultivationView(0, required.getAsInt()) : null,
+                    Arrays.stream(InsightKind.values())
+                            .map(kind -> new InsightView(kind.name(), kind.koreanName(), insight.floor(kind)))
+                            .toList(),
                     requireNonNull(text),
                     "status");
         }
@@ -204,6 +211,10 @@ public sealed interface GameMessage {
         }
 
         public record CultivationView(int current, int required) {
+        }
+
+        /** kind 는 갈래 enum 이름({@code FIRE}), name 은 한글 이름({@code 화}), amount 는 소수점을 버린 양 */
+        public record InsightView(String kind, String name, int amount) {
         }
     }
 

@@ -26,6 +26,7 @@ import mudmk3.application.world.provided.WorldSettingsFinder;
 import mudmk3.domain.character.CharacterName;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
+import mudmk3.domain.cultivation.Insight;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.game.Command;
 import mudmk3.domain.game.CommandParser;
@@ -487,7 +488,8 @@ public class GameService implements GameConnector, GameTicker {
             case Command.Status _ -> status(sessionId, player);
             case Command.Techniques _ -> send(sessionId, SystemMessage.info(cultivationTexts.techniques(
                     characterFinder.find(player.getCharacterId()).getRealm(),
-                    cultivationFinder.findLearned(player.getCharacterId()))));
+                    cultivationFinder.findLearned(player.getCharacterId()),
+                    cultivationFinder.insight(player.getCharacterId()))));
             case Command.Abilities _ -> send(sessionId, SystemMessage.info(
                     cultivationTexts.abilities(cultivationFinder.findLearned(player.getCharacterId()))));
             case Command.Who _ -> who(sessionId);
@@ -503,12 +505,13 @@ public class GameService implements GameConnector, GameTicker {
     private void status(String sessionId, OnlinePlayer player) {
         PlayerCharacter character = characterFinder.find(player.getCharacterId());
         StatSheet stats = cultivationFinder.stats(player.getCharacterId());
-        String text = cultivationTexts.status(character, stats);
+        Insight insight = cultivationFinder.insight(player.getCharacterId());
+        String text = cultivationTexts.status(character, stats, insight);
         String combatLine = combatEngine.statusLine(player.getCharacterId());
         if (!combatLine.isEmpty()) {
             text = text + "\n" + combatLine;
         }
-        send(sessionId, StatusMessage.of(character, stats, text));
+        send(sessionId, StatusMessage.of(character, stats, insight, text));
     }
 
     private void look(String sessionId, OnlinePlayer player, Command.Look look) {

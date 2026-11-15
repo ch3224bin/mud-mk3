@@ -4,7 +4,10 @@ import jakarta.persistence.EntityManager;
 import mudmk3.ApplicationServiceTest;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
+import mudmk3.domain.cultivation.CharacterInsight;
 import mudmk3.domain.cultivation.CharacterTechnique;
+import mudmk3.domain.cultivation.Insight;
+import mudmk3.domain.cultivation.InsightKind;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
@@ -71,6 +74,39 @@ record CultivationFinderTest(CultivationFinder cultivationFinder, EntityManager 
                 entityManager.remove(entityManager.find(PlayerCharacter.class, ids[0]));
                 entityManager.remove(entityManager.find(Technique.class, ids[1]));
                 entityManager.remove(entityManager.find(Technique.class, ids[2]));
+            });
+        }
+    }
+
+    @Test
+    void insightEmptyIsZero() {
+        PlayerCharacter han = character(1L, "한백", "목 화", Realm.QI_1);
+        flushAndClear();
+
+        assertThat(cultivationFinder.insight(han.getId())).isEqualTo(Insight.empty());
+    }
+
+    /** 깨달음도 트랜잭션 안에서 값으로 만들어 트랜잭션 밖에서 읽는다 */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void profileHasInsight() {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        Long id = requireNonNull(tx.execute(status -> {
+            PlayerCharacter han = character(1L, "한백", "목 화", Realm.QI_1);
+            entityManager.persist(CharacterInsight.create(han.getId(), InsightKind.FIRE, 230.9));
+            entityManager.persist(CharacterInsight.create(han.getId(), InsightKind.WOOD, 112.2));
+            return han.getId();
+        }));
+        try {
+            Insight insight = cultivationFinder.profile(id).insight();
+
+            assertThat(insight.amount(InsightKind.FIRE)).isEqualTo(230.9);
+            assertThat(insight.amount(InsightKind.WOOD)).isEqualTo(112.2);
+            assertThat(insight.amount(InsightKind.BODY)).isZero();
+        } finally {
+            tx.executeWithoutResult(status -> {
+                entityManager.createQuery("delete from CharacterInsight").executeUpdate();
+                entityManager.remove(entityManager.find(PlayerCharacter.class, id));
             });
         }
     }

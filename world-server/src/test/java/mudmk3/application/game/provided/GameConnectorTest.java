@@ -30,6 +30,7 @@ import mudmk3.application.game.required.GameMessage.SessionMessage;
 import mudmk3.application.game.required.GameMessage.StatusMessage;
 import mudmk3.application.game.required.GameMessage.StatusMessage.CultivationView;
 import mudmk3.application.game.required.GameMessage.StatusMessage.GaugeView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.InsightView;
 import mudmk3.application.game.required.GameMessage.StatusMessage.RealmView;
 import mudmk3.application.game.required.GameMessage.StatusMessage.RootView;
 import mudmk3.application.game.required.GameMessage.StatusMessage.SpiritRootView;
@@ -38,6 +39,7 @@ import mudmk3.application.game.required.GameMessage.SystemMessage;
 import mudmk3.application.game.required.GameMessage.TalkMessage;
 import mudmk3.application.cultivation.provided.ReadResult;
 import mudmk3.application.cultivation.provided.TechniqueReader;
+import mudmk3.application.cultivation.provided.InsightEditor;
 import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.item.provided.ItemTypeEditor;
@@ -62,6 +64,7 @@ import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.application.zone.provided.ZoneSaveRequest;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
+import mudmk3.domain.cultivation.InsightKind;
 import mudmk3.domain.faction.Faction;
 import mudmk3.domain.faction.FactionKind;
 import mudmk3.domain.item.BagGrade;
@@ -75,6 +78,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import static mudmk3.application.technique.provided.TechniqueRequestFixture.changchunRequest;
 import static mudmk3.application.technique.provided.TechniqueRequestFixture.requestOf;
@@ -114,6 +118,7 @@ class GameConnectorTest extends BaseGameTest {
     private final TechniqueEditor techniqueEditor;
     private final TechniqueReader techniqueReader;
     private final CharacterVitalsEditor characterVitalsEditor;
+    private final InsightEditor insightEditor;
 
     GameConnectorTest(
             GameConnector gameConnector,
@@ -135,6 +140,7 @@ class GameConnectorTest extends BaseGameTest {
             TechniqueEditor techniqueEditor,
             TechniqueReader techniqueReader,
             CharacterVitalsEditor characterVitalsEditor,
+            InsightEditor insightEditor,
             ItemTypeEditor itemTypeEditor,
             ItemTypeFinder itemTypeFinder,
             FloorPlacementEditor floorPlacementEditor,
@@ -154,6 +160,7 @@ class GameConnectorTest extends BaseGameTest {
         this.techniqueEditor = techniqueEditor;
         this.techniqueReader = techniqueReader;
         this.characterVitalsEditor = characterVitalsEditor;
+        this.insightEditor = insightEditor;
     }
 
     @Test
@@ -2441,6 +2448,75 @@ class GameConnectorTest extends BaseGameTest {
 
         assertOnly("a", "보기 장춘공 옥간", SystemMessage.item("장춘공 옥간\n담긴 공법: 장춘공 (목 · 오행 · 9성 · 범인부터)"));
         assertOnly("a", "보기 강체결 옥간", SystemMessage.item("강체결 옥간\n담긴 공법: 강체결 (연체술 · 9성 · 범인부터)"));
+    }
+
+    // ---- 깨달음 보기 (6차)
+
+    @Test
+    void statusInsightLine() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        insightEditor.add(characterIdOf(han), Map.of(InsightKind.FIRE, 230.9, InsightKind.WOOD, 112.2));
+        entityManager.flush();
+        entityManager.clear();
+        sender.clear();
+
+        gameConnector.handle("a", "상태");
+
+        StatusMessage status = sender.lastTo("a", StatusMessage.class);
+        assertThat(status.text().lines().toList()).last()
+                .isEqualTo("깨달음  금 0 · 목 112 · 수 0 · 화 230 · 토 0 · 연체 0");
+        assertThat(status.insight()).containsExactly(
+                new InsightView("METAL", "금", 0), new InsightView("WOOD", "목", 112),
+                new InsightView("WATER", "수", 0), new InsightView("FIRE", "화", 230),
+                new InsightView("EARTH", "토", 0), new InsightView("BODY", "연체", 0));
+    }
+
+    @Test
+    void statusInsightEmptyIsZero() {
+        prepareMap();
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "상태");
+
+        assertThat(sender.lastTo("a", StatusMessage.class).insight())
+                .hasSize(6)
+                .allSatisfy(view -> assertThat(view.amount()).isZero());
+    }
+
+    @Test
+    void techniquesShowCurrentInsight() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        learnChangchun(han);
+        insightEditor.add(characterIdOf(han), Map.of(InsightKind.WOOD, 2.5));
+        entityManager.flush();
+        entityManager.clear();
+        sender.clear();
+
+        gameConnector.handle("a", "공법");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                SystemMessage.info("장춘공  1/9성 · 목 · 오행  다음 2성: 목 깨달음 120 (지금 2)"));
+    }
+
+    @Test
+    void bodyRefiningTechniqueShowsBodyInsight() {
+        prepareMap();
+        Long han = enter("a", "한백");
+        Long scrollId = scrollOf(requestOf(ironBodyInfo()), "강체결 옥간");
+        give(han, scrollId, 1);
+        assertThat(techniqueReader.read(characterIdOf(han), scrollId)).isInstanceOf(ReadResult.Learned.class);
+        insightEditor.add(characterIdOf(han), Map.of(InsightKind.BODY, 6.67));
+        entityManager.flush();
+        entityManager.clear();
+        sender.clear();
+
+        gameConnector.handle("a", "공법");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                SystemMessage.info("강체결  1/9성 · 연체  다음 2성: 연체 깨달음 530 (지금 6)"));
     }
 
     // ---- 범인의 상점 막힘·경지 알림 (4차)

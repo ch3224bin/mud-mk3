@@ -4,6 +4,8 @@ import mudmk3.application.cultivation.provided.ReadResult;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.cultivation.CharacterTechnique;
+import mudmk3.domain.cultivation.Insight;
+import mudmk3.domain.cultivation.InsightKind;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import static mudmk3.domain.character.CharacterFixture.createCharacter;
 import static mudmk3.domain.cultivation.CharacterTechniqueFixture.learned;
@@ -40,7 +43,7 @@ class CultivationTextsTest {
         PlayerCharacter han = character("목 화", Realm.QI_1);
         StatSheet stats = StatSheet.of(Realm.QI_1, han.findSpiritRoot().orElseThrow(), List.of(learned(changchun())), 0, 0);
 
-        assertThat(texts.status(han, stats)).isEqualTo("""
+        assertThat(texts.status(han, stats, Insight.empty())).isEqualTo("""
                 한백 · 연기 1층 · 목·화 진영근 (목 50, 화 50)
                 기혈  60 / 60     법력  25 / 25
                 의식  20 / 20     정혈  20 / 20
@@ -54,7 +57,7 @@ class CultivationTextsTest {
         PlayerCharacter han = character("화", Realm.MORTAL);
         StatSheet stats = StatSheet.of(Realm.MORTAL, han.findSpiritRoot().orElseThrow(), List.of(), 0, 0);
 
-        assertThat(texts.status(han, stats)).isEqualTo("""
+        assertThat(texts.status(han, stats, Insight.empty())).isEqualTo("""
                 한백 · 범인 · 화 천영근 (화 100)
                 기혈  10 / 10     법력  0 / 0
                 의식  10 / 10     정혈  10 / 10
@@ -67,7 +70,7 @@ class CultivationTextsTest {
         PlayerCharacter han = character("목 화", Realm.QI_13);
         StatSheet stats = StatSheet.of(Realm.QI_13, han.findSpiritRoot().orElseThrow(), List.of(), 0, 0);
 
-        assertThat(texts.status(han, stats).lines().toList()).contains("수위  0 / 11,000");
+        assertThat(texts.status(han, stats, Insight.empty()).lines().toList()).contains("수위  0 / 11,000");
     }
 
     @Test
@@ -76,25 +79,26 @@ class CultivationTextsTest {
         StatSheet stats = StatSheet.of(Realm.QI_3, han.findSpiritRoot().orElseThrow(),
                 List.of(learned(changchun(), 5)), 0, 0);
 
-        assertThat(texts.status(han, stats).lines().findFirst().orElseThrow())
+        assertThat(texts.status(han, stats, Insight.empty()).lines().findFirst().orElseThrow())
                 .isEqualTo("한백 · 연기 3층 · 금·목·화 진영근 (금 33, 목 37, 화 33)");
     }
 
     @Test
     void techniquesLine() {
-        assertThat(texts.techniques(Realm.QI_1, List.of(learned(changchun()))))
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(changchun())), Insight.empty()))
                 .isEqualTo("장춘공  1/9성 · 목 · 오행  다음 2성: 목 깨달음 120 (지금 0)");
     }
 
     @Test
     void bodyRefiningLine() {
-        assertThat(texts.techniques(Realm.QI_1, List.of(learned(ironBody()))))
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(ironBody())), Insight.empty()))
                 .isEqualTo("강체결  1/9성 · 연체  다음 2성: 연체 깨달음 530 (지금 0)");
     }
 
     @Test
     void techniquesInLearningOrder() {
-        assertThat(texts.techniques(Realm.QI_1, List.of(learned(changchun()), learned(ironBody())))).isEqualTo("""
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(changchun()), learned(ironBody())), Insight.empty()))
+                .isEqualTo("""
                 장춘공  1/9성 · 목 · 오행  다음 2성: 목 깨달음 120 (지금 0)
                 강체결  1/9성 · 연체  다음 2성: 연체 깨달음 530 (지금 0)""");
     }
@@ -105,7 +109,7 @@ class CultivationTextsTest {
                 Realm.MORTAL, List.of(stage(0, 0, 0, 0, 0, 0), stage(400, 0, 0, 0, 0, 0)),
                 List.of(TechniqueFixture.upToStage(fireBall(), 2))));
 
-        assertThat(texts.techniques(Realm.QI_1, List.of(learned(fireEarth))))
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(fireEarth)), Insight.empty()))
                 .isEqualTo("화토공  1/2성 · 화·토 · 오행  다음 2성: 화 깨달음 200 (지금 0) · 토 깨달음 200 (지금 0)");
     }
 
@@ -114,21 +118,52 @@ class CultivationTextsTest {
         Technique single = Technique.create(new TechniqueSaveInfo("목령공", "", List.of(Element.WOOD), Realm.MORTAL,
                 List.of(stage(0, 0, 0, 0, 0, 0)), List.of(TechniqueFixture.upToStage(fireBall(), 1))));
 
-        assertThat(texts.techniques(Realm.QI_1, List.of(learned(single))))
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(single)), Insight.empty()))
                 .isEqualTo("목령공  1/1성 · 끝에 이름 · 목 · 오행");
     }
 
     @Test
     void realmTooLowSuffix() {
-        assertThat(texts.techniques(Realm.QI_3, List.of(learned(greenWood()))))
+        assertThat(texts.techniques(Realm.QI_3, List.of(learned(greenWood())), Insight.empty()))
                 .isEqualTo("청목결  1/8성 · 목 · 오행  다음 2성: 목 깨달음 1,800 (지금 0)  (연기 7층 필요)");
-        assertThat(texts.techniques(Realm.QI_7, List.of(learned(greenWood()))))
+        assertThat(texts.techniques(Realm.QI_7, List.of(learned(greenWood())), Insight.empty()))
                 .doesNotContain("필요");
     }
 
     @Test
+    void statusInsightFloored() {
+        PlayerCharacter han = character("목 화", Realm.QI_1);
+        StatSheet stats = StatSheet.of(Realm.QI_1, han.findSpiritRoot().orElseThrow(), List.of(), 0, 0);
+        Insight insight = new Insight(Map.of(InsightKind.FIRE, 230.9, InsightKind.WOOD, 112.2));
+
+        assertThat(texts.status(han, stats, insight).lines().toList())
+                .last().isEqualTo("깨달음  금 0 · 목 112 · 수 0 · 화 230 · 토 0 · 연체 0");
+    }
+
+    @Test
+    void techniquesShowCurrentInsight() {
+        Insight insight = new Insight(Map.of(InsightKind.WOOD, 2.5, InsightKind.BODY, 6.67));
+
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(changchun()), learned(ironBody())), insight))
+                .isEqualTo("""
+                        장춘공  1/9성 · 목 · 오행  다음 2성: 목 깨달음 120 (지금 2)
+                        강체결  1/9성 · 연체  다음 2성: 연체 깨달음 530 (지금 6)""");
+    }
+
+    @Test
+    void multiElementShowsEachInsight() {
+        Technique fireEarth = Technique.create(new TechniqueSaveInfo("화토공", "", List.of(Element.EARTH, Element.FIRE),
+                Realm.MORTAL, List.of(stage(0, 0, 0, 0, 0, 0), stage(400, 0, 0, 0, 0, 0)),
+                List.of(TechniqueFixture.upToStage(fireBall(), 2))));
+        Insight insight = new Insight(Map.of(InsightKind.FIRE, 5.0, InsightKind.EARTH, 2.5));
+
+        assertThat(texts.techniques(Realm.QI_1, List.of(learned(fireEarth)), insight))
+                .isEqualTo("화토공  1/2성 · 화·토 · 오행  다음 2성: 화 깨달음 200 (지금 5) · 토 깨달음 200 (지금 2)");
+    }
+
+    @Test
     void noTechniques() {
-        assertThat(texts.techniques(Realm.QI_1, List.of())).isEqualTo("익힌 공법이 없습니다.");
+        assertThat(texts.techniques(Realm.QI_1, List.of(), Insight.empty())).isEqualTo("익힌 공법이 없습니다.");
     }
 
     @Test

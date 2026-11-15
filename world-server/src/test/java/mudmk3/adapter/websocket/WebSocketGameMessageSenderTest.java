@@ -20,6 +20,7 @@ import mudmk3.application.game.required.GameMessage.SessionMessage;
 import mudmk3.application.game.required.GameMessage.StatusMessage;
 import mudmk3.application.game.required.GameMessage.StatusMessage.CultivationView;
 import mudmk3.application.game.required.GameMessage.StatusMessage.GaugeView;
+import mudmk3.application.game.required.GameMessage.StatusMessage.InsightView;
 import mudmk3.application.game.required.GameMessage.StatusMessage.RealmView;
 import mudmk3.application.game.required.GameMessage.StatusMessage.RootView;
 import mudmk3.application.game.required.GameMessage.StatusMessage.SpiritRootView;
@@ -143,7 +144,7 @@ class WebSocketGameMessageSenderTest {
                 new SpiritRootView("목·화 진영근", List.of(new RootView("WOOD", "목", 50), new RootView("FIRE", "화", 50))),
                 new StatsView(new GaugeView(60, 60), new GaugeView(25, 25), new GaugeView(20, 20), new GaugeView(20, 20),
                         new GaugeView(5, 5), 6, 3),
-                new CultivationView(0, 190), "한백 · 연기 1층\n수위  0 / 190", "status");
+                new CultivationView(0, 190), insight(), "한백 · 연기 1층\n수위  0 / 190", "status");
 
         assertJson(status, """
                 {"type":"status","characterName":"한백","realm":{"code":"QI_1","name":"연기 1층"},
@@ -153,9 +154,12 @@ class WebSocketGameMessageSenderTest {
                           "sense":{"current":20,"max":20},"essence":{"current":20,"max":20},
                           "spirit":{"current":5,"max":5},"body":6,"strength":3},
                  "cultivation":{"current":0,"required":190},
+                 "insight":[{"kind":"METAL","name":"금","amount":0},{"kind":"WOOD","name":"목","amount":2},
+                            {"kind":"WATER","name":"수","amount":0},{"kind":"FIRE","name":"화","amount":5},
+                            {"kind":"EARTH","name":"토","amount":0},{"kind":"BODY","name":"연체","amount":0}],
                  "text":"한백 · 연기 1층\\n수위  0 / 190","tone":"status"}""");
         assertThat(propertyNames(status)).containsExactly(
-                "type", "characterName", "realm", "spiritRoot", "stats", "cultivation", "text", "tone");
+                "type", "characterName", "realm", "spiritRoot", "stats", "cultivation", "insight", "text", "tone");
         JsonNode tree = jsonMapper.readTree(sender.toJson(status));
         assertThat(tree.get("spiritRoot").get("roots").get(0)).isEqualTo(jsonMapper.readTree("""
                 {"element":"WOOD","elementName":"목","aptitude":50}"""));
@@ -169,9 +173,15 @@ class WebSocketGameMessageSenderTest {
                 new SpiritRootView("화 천영근", List.of(new RootView("FIRE", "화", 100))),
                 new StatsView(new GaugeView(10, 10), new GaugeView(0, 0), new GaugeView(10, 10), new GaugeView(10, 10),
                         new GaugeView(0, 0), 1, 1),
-                null, "한백 · 범인", "status");
+                null, insight(), "한백 · 범인", "status");
 
         assertThat(sender.toJson(status)).contains("\"cultivation\":null");
+    }
+
+    private static List<InsightView> insight() {
+        return List.of(new InsightView("METAL", "금", 0), new InsightView("WOOD", "목", 2),
+                new InsightView("WATER", "수", 0), new InsightView("FIRE", "화", 5),
+                new InsightView("EARTH", "토", 0), new InsightView("BODY", "연체", 0));
     }
 
     @Test

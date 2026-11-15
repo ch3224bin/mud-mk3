@@ -105,6 +105,18 @@ class RealmTest {
     }
 
     @Test
+    void minorIndex() {
+        assertThat(Realm.MORTAL.minorIndex()).isZero();
+        assertThat(Realm.QI_1.minorIndex()).isEqualTo(1);
+        assertThat(Realm.QI_7.minorIndex()).isEqualTo(7);
+        assertThat(Realm.QI_13.minorIndex()).isEqualTo(13);
+        assertThat(Realm.FOUNDATION_EARLY.minorIndex()).isEqualTo(1);
+        assertThat(Realm.FOUNDATION_MIDDLE.minorIndex()).isEqualTo(2);
+        assertThat(Realm.FOUNDATION_LATE.minorIndex()).isEqualTo(3);
+        assertThat(Realm.FOUNDATION_PEAK.minorIndex()).isEqualTo(4);
+    }
+
+    @Test
     void beastGrade() {
         assertThat(Realm.QI_1.beastGrade()).isEqualTo(1);
         assertThat(Realm.QI_7.beastGrade()).isEqualTo(1);

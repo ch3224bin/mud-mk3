@@ -4,16 +4,19 @@ import mudmk3.application.cultivation.provided.CultivationProfile;
 import mudmk3.application.cultivation.provided.LearnedTechniqueView;
 import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.character.SpiritRootEntry;
+import mudmk3.domain.cultivation.Insight;
+import mudmk3.domain.cultivation.InsightKind;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * 캐릭터 상세. 영근을 정하지 않았으면 {@code spiritRoot} 는 null. 영근 자질은 처음 자질 + 공법 증가(소수),
- * 스탯은 최대치, 공법은 익힌 순서
+ * 스탯은 최대치, 공법은 익힌 순서, 깨달음은 여섯 갈래(금·목·수·화·토·연체 순, 소수점을 버린 양)
  */
 public record CharacterDetailResponse(
         Long id,
@@ -22,7 +25,8 @@ public record CharacterDetailResponse(
         String realmName,
         @Nullable SpiritRootResponse spiritRoot,
         StatsResponse stats,
-        List<TechniqueResponse> techniques
+        List<TechniqueResponse> techniques,
+        List<InsightResponse> insight
 ) {
 
     public static CharacterDetailResponse of(CultivationProfile profile) {
@@ -31,7 +35,8 @@ public record CharacterDetailResponse(
                 profile.realm().koreanName(),
                 root == null ? null : SpiritRootResponse.of(root, profile.stats()),
                 StatsResponse.of(profile.stats()),
-                profile.techniques().stream().map(TechniqueResponse::of).toList());
+                profile.techniques().stream().map(TechniqueResponse::of).toList(),
+                InsightResponse.of(profile.insight()));
     }
 
     public record SpiritRootResponse(String name, List<RootResponse> roots) {
@@ -59,6 +64,15 @@ public record CharacterDetailResponse(
 
         static TechniqueResponse of(LearnedTechniqueView view) {
             return new TechniqueResponse(view.techniqueId(), view.name(), view.stage(), view.stageCount());
+        }
+    }
+
+    public record InsightResponse(String kind, String name, int amount) {
+
+        static List<InsightResponse> of(Insight insight) {
+            return Arrays.stream(InsightKind.values())
+                    .map(kind -> new InsightResponse(kind.name(), kind.koreanName(), insight.floor(kind)))
+                    .toList();
         }
     }
 }

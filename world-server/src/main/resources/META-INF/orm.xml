@@ -454,6 +454,28 @@
         </attributes>
     </entity>
 
+    <entity class="mudmk3.domain.cultivation.CharacterInsight">
+        <table name="character_insight">
+            <unique-constraint name="UK_CHARACTER_INSIGHT_CHARACTER_ID_KIND">
+                <column-name>character_id</column-name>
+                <column-name>kind</column-name>
+            </unique-constraint>
+        </table>
+        <attributes>
+            <!-- 캐릭터 행을 읽지 않고 id 로만 쓴다(배치와 같은 관례로 FK를 두지 않는다) -->
+            <basic name="characterId">
+                <column name="character_id" nullable="false"/>
+            </basic>
+            <basic name="kind">
+                <column name="kind" length="16" nullable="false" column-definition="varchar(16)"/>
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="amount">
+                <column name="amount" nullable="false" column-definition="double precision"/>
+            </basic>
+        </attributes>
+    </entity>
+
     <entity class="mudmk3.domain.mob.MobType">
         <table name="mob_type">
             <unique-constraint name="UK_MOB_TYPE_NAME">

@@ -5,6 +5,8 @@ import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.SpiritRoot;
 import mudmk3.domain.combat.Damage;
 import mudmk3.domain.cultivation.CharacterTechnique;
+import mudmk3.domain.cultivation.Insight;
+import mudmk3.domain.cultivation.InsightKind;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.shared.Durations;
 import mudmk3.domain.shared.Element;
@@ -44,9 +46,9 @@ class CultivationTexts {
 
     /**
      * 이름·경지·영근 → 소모 스탯 → 포인트 스탯 → 수위(범인은 없음) → 깨달음. 기혈·법력은 현재 값(깎인 양을 뺌),
-     * 나머지 현재 수치 = 최대치, 수위·깨달음은 4차에 늘 0
+     * 나머지 현재 수치 = 최대치, 수위는 늘 0, 깨달음은 갈래마다 소수점을 버린 쌓인 양
      */
-    String status(PlayerCharacter character, StatSheet stats) {
+    String status(PlayerCharacter character, StatSheet stats, Insight insight) {
         Realm realm = character.getRealm();
         SpiritRoot root = character.findSpiritRoot()
                 .orElseThrow(() -> new IllegalStateException("영근을 아직 정하지 않은 캐릭터입니다. id: " + character.getId()));
@@ -65,18 +67,18 @@ class CultivationTexts {
         if (required.isPresent()) {
             lines.add("수위" + GAP + "0 / " + Numbers.count(required.getAsInt()));
         }
-        lines.add(insightLine());
+        lines.add(insightLine(insight));
         return String.join("\n", lines);
     }
 
     /**
-     * 익힌 순서로 한 줄씩: {@code 장춘공  1/9성 · 목 · 오행  다음 2성: 목 깨달음 120 (지금 0)}.
-     * 끝 단계면 성 뒤에 {@code  · 끝에 이름}, 지금 경지가 시작 경지보다 낮으면 끝에 {@code   (연기 7층 필요)}
+     * 익힌 순서로 한 줄씩: {@code 장춘공  1/9성 · 목 · 오행  다음 2성: 목 깨달음 120 (지금 2)}.
+     * {@code 지금} 은 그 속성(연체술 공법은 연체)의 소수점을 버린 깨달음. 끝 단계면 성 뒤에 {@code  · 끝에 이름}, 지금 경지가 시작 경지보다 낮으면 끝에 {@code   (연기 7층 필요)}
      */
-    String techniques(Realm current, List<CharacterTechnique> learned) {
+    String techniques(Realm current, List<CharacterTechnique> learned, Insight insight) {
         if (learned.isEmpty()) return NO_TECHNIQUES;
         return learned.stream()
-                .map(each -> techniqueLine(current, each))
+                .map(each -> techniqueLine(current, each, insight))
                 .collect(Collectors.joining("\n"));
     }
 
@@ -182,16 +184,15 @@ class CultivationTexts {
         return label + GAP + Numbers.count(current) + " / " + Numbers.count(max);
     }
 
-    private static String insightLine() {
+    private static String insightLine(Insight insight) {
         List<String> parts = new ArrayList<>();
-        for (Element element : Element.values()) {
-            parts.add(element.koreanName() + " 0");
+        for (InsightKind kind : InsightKind.values()) {
+            parts.add(kind.koreanName() + " " + Numbers.count(insight.floor(kind)));
         }
-        parts.add(BODY_REFINING + " 0");
         return "깨달음" + GAP + String.join(" · ", parts);
     }
 
-    private static String techniqueLine(Realm current, CharacterTechnique learned) {
+    private static String techniqueLine(Realm current, CharacterTechnique learned, Insight insight) {
         Technique technique = learned.getTechnique();
         int stage = learned.getStage();
         int stageCount = technique.stageCount();
@@ -205,7 +206,7 @@ class CultivationTexts {
                 .orElse(" · " + BODY_REFINING));
         if (!last) {
             line.append(GAP).append("다음 ").append(stage + 1).append("성: ")
-                    .append(nextInsight(technique, technique.stage(stage + 1).insightRequired()));
+                    .append(nextInsight(technique, technique.stage(stage + 1).insightRequired(), insight));
         }
         if (current.isBelow(technique.getStartRealm())) {
             line.append(GAP).append('(').append(technique.getStartRealm().koreanName()).append(" 필요)");
@@ -214,19 +215,20 @@ class CultivationTexts {
     }
 
     /** 여러 속성이면 필요 깨달음을 속성 수로 똑같이 나눈다(관리 툴이 나누어떨어지게 막는다) */
-    private static String nextInsight(Technique technique, int insightRequired) {
+    private static String nextInsight(Technique technique, int insightRequired, Insight insight) {
         List<Element> elements = technique.getElements();
         if (elements.isEmpty()) {
-            return insightPart(BODY_REFINING, insightRequired);
+            return insightPart(InsightKind.BODY, insightRequired, insight);
         }
         int share = insightRequired / elements.size();
         return elements.stream()
-                .map(element -> insightPart(element.koreanName(), share))
+                .map(element -> insightPart(InsightKind.of(element), share, insight))
                 .collect(Collectors.joining(" · "));
     }
 
-    private static String insightPart(String attribute, int required) {
-        return attribute + " 깨달음 " + Numbers.count(required) + " (지금 0)";
+    private static String insightPart(InsightKind kind, int required, Insight insight) {
+        return kind.koreanName() + " 깨달음 " + Numbers.count(required)
+                + " (지금 " + Numbers.count(insight.floor(kind)) + ")";
     }
 
     private static String abilityLine(Ability ability) {

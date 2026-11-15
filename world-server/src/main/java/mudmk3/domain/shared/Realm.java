@@ -89,6 +89,15 @@ public enum Realm {
         return isBelow(FOUNDATION_EARLY) ? 1 : 2;
     }
 
+    /** 대경지 안의 소경지 차례: 범인 0, 연기 n층 n, 축기 초기 1·중기 2·후기 3·대원만 4 */
+    public int minorIndex() {
+        return switch (majorIndex()) {
+            case 0 -> 0;
+            case 1 -> ordinal() - QI_1.ordinal() + 1;
+            default -> ordinal() - FOUNDATION_EARLY.ordinal() + 1;
+        };
+    }
+
     /** 요수의 급: 연기 1~7층 1급, 연기 8~13층 2급, 축기 3급. 범인은 급이 없어 {@code IllegalStateException} */
     public int beastGrade() {
         if (this == MORTAL) {

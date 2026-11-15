@@ -8,6 +8,8 @@ import mudmk3.application.cultivation.provided.CultivationProfile;
 import mudmk3.application.cultivation.provided.LearnedTechniqueView;
 import mudmk3.application.game.provided.PresenceFinder;
 import mudmk3.domain.character.CharacterFixture;
+import mudmk3.domain.cultivation.Insight;
+import mudmk3.domain.cultivation.InsightKind;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.shared.Realm;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static mudmk3.adapter.security.SecurityFixture.admin;
@@ -65,7 +68,11 @@ record CharacterApiWebMvcTest(MockMvcTester mvc, CultivationFinder cultivationFi
                  "spiritRoot":{"name":"목·화 진영근","roots":[{"element":"WOOD","elementName":"목","aptitude":50.0},
                                                               {"element":"FIRE","elementName":"화","aptitude":50.0}]},
                  "stats":{"qiBlood":60,"mana":25,"sense":20,"essence":20,"spirit":5,"body":6,"strength":3},
-                 "techniques":[{"id":1,"name":"장춘공","stage":1,"stageCount":9}]}""");
+                 "techniques":[{"id":1,"name":"장춘공","stage":1,"stageCount":9}],
+                 "insight":[{"kind":"METAL","name":"금","amount":0},{"kind":"WOOD","name":"목","amount":112},
+                            {"kind":"WATER","name":"수","amount":0},{"kind":"FIRE","name":"화","amount":230},
+                            {"kind":"EARTH","name":"토","amount":0},{"kind":"BODY","name":"연체","amount":0}]}""");
+        body.extractingPath("$.insight[1]").isEqualTo(Map.of("kind", "WOOD", "name", "목", "amount", 112));
         body.extractingPath("$.spiritRoot.roots[0].aptitude").isEqualTo(50.0);
         body.extractingPath("$.stats.qiBlood").isEqualTo(60);
     }
@@ -73,7 +80,7 @@ record CharacterApiWebMvcTest(MockMvcTester mvc, CultivationFinder cultivationFi
     @Test
     void findWithoutSpiritRoot() {
         when(cultivationFinder.profile(1L)).thenReturn(new CultivationProfile(1L, "한백", Realm.MORTAL, null,
-                StatSheet.of(Realm.MORTAL, null, List.of(), 0, 0), List.of()));
+                StatSheet.of(Realm.MORTAL, null, List.of(), 0, 0), List.of(), Insight.empty()));
 
         var body = assertThat(mvc.get().with(admin()).uri("/api/admin/characters/1"))
                 .hasStatusOk()
@@ -81,6 +88,7 @@ record CharacterApiWebMvcTest(MockMvcTester mvc, CultivationFinder cultivationFi
         body.extractingPath("$.spiritRoot").isNull();
         body.extractingPath("$.realmName").isEqualTo("범인");
         body.extractingPath("$.techniques").asArray().isEmpty();
+        body.extractingPath("$.insight").asArray().hasSize(6);
     }
 
     @Test
@@ -166,6 +174,7 @@ record CharacterApiWebMvcTest(MockMvcTester mvc, CultivationFinder cultivationFi
     private static CultivationProfile profile(Realm realm) {
         var root = CharacterFixture.spiritRoot();
         return new CultivationProfile(2L, "한립", realm, root, StatSheet.of(realm, root, List.of(), 0, 0),
-                List.of(new LearnedTechniqueView(1L, "장춘공", 1, 9)));
+                List.of(new LearnedTechniqueView(1L, "장춘공", 1, 9)),
+                new Insight(Map.of(InsightKind.FIRE, 230.9, InsightKind.WOOD, 112.2)));
     }
 }
