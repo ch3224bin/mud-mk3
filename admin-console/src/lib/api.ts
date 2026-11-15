@@ -50,6 +50,8 @@ export type RoomDetailResponse = {
   npcs: { id: number; name: string }[];
   /** 관리자가 둔 바닥 물건(id 순) */
   floorItems: FloorPlacementResponse[];
+  /** 몹 배치(id 순) */
+  mobs: MobPlacementResponse[];
 };
 /** respawnMinutes 가 null 이면 한 번뿐, remaining 은 지금 시각으로 계산한 남은 수 */
 export type FloorPlacementResponse = {
@@ -298,6 +300,65 @@ export type CharacterDetailResponse = {
   techniques: { id: number; name: string; stage: number; stageCount: number }[];
 };
 
+/** 몹 종류·체급·드롭 계층(world-server MobKind·MobTier·DropTier) */
+export type MobKindCode = "BEAST" | "CULTIVATOR" | "GHOST" | "PUPPET";
+export type MobTierCode = "NORMAL" | "STRONG" | "ELITE" | "BOSS";
+export type DropTierCode = "ADVANCED" | "RARE" | "TREASURE";
+/** 기준 경지·종류·체급으로 서버가 계산한 몹 스탯 */
+export type MobStatsResponse = { qiBlood: number; body: number; power: number };
+/**
+ * attackCoefficient 는 두목만(그 밖은 null), respawnSeconds 가 null 이면 체급 기준.
+ * 드롭 표는 저장할 때 통째로 바뀐다
+ */
+export type MobTypeSaveRequest = {
+  name: string;
+  description: string;
+  kind: MobKindCode;
+  realm: RealmCode;
+  tier: MobTierCode;
+  attackName: string;
+  attackCoefficient: number | null;
+  respawnSeconds: number | null;
+  fixedDrops: { itemTypeId: number; count: number }[];
+  tierDrops: { tier: DropTierCode; itemTypeId: number }[];
+};
+/** rankName 은 요수 `1급`, 나머지 `연기 6층` */
+export type MobSummaryResponse = {
+  id: number;
+  name: string;
+  kind: MobKindCode;
+  kindName: string;
+  rankName: string;
+  tier: MobTierCode;
+  tierName: string;
+  stats: MobStatsResponse;
+  effectiveRespawnSeconds: number;
+  placementCount: number;
+};
+/** placements 는 배치 id 순 */
+export type MobDetailResponse = {
+  id: number;
+  name: string;
+  description: string;
+  kind: MobKindCode;
+  kindName: string;
+  realm: RealmCode;
+  realmName: string;
+  tier: MobTierCode;
+  tierName: string;
+  rankName: string;
+  attackName: string;
+  attackCoefficient: number | null;
+  respawnSeconds: number | null;
+  effectiveRespawnSeconds: number;
+  stats: MobStatsResponse;
+  fixedDrops: { itemTypeId: number; itemTypeName: string; count: number }[];
+  tierDrops: { tier: DropTierCode; tierName: string; itemTypeId: number; itemTypeName: string }[];
+  placements: { id: number; roomId: number; roomName: string; count: number }[];
+};
+export type MobPlacementResponse = { id: number; roomId: number; mobId: number; mobName: string; count: number };
+export type MobPlacementSaveRequest = { mobId: number; count: number };
+
 export type FactionSaveRequest = { kind: FactionKind; name: string; description: string };
 export type ZoneSaveRequest = { name: string; description: string; ownerId: number | null };
 /** llmEnabled 는 서버에서 필수 값이라 늘 보낸다. roomId 가 null 이면 배치하지 않는다 */
@@ -433,6 +494,23 @@ export const getCharacter = (characterId: number) =>
 /** 수위·돌파 없이 경지를 바로 지정한다. 지정한 뒤의 상세를 돌려준다 */
 export const designateRealm = (characterId: number, realm: RealmCode) =>
   apiFetch<CharacterDetailResponse>(`/api/admin/characters/${characterId}/realm`, jsonBody("PUT", { realm }));
+
+/** 몹 목록(이름순) */
+export const listMobs = () => apiFetch<MobSummaryResponse[]>("/api/admin/mobs");
+export const getMob = (mobId: number) => apiFetch<MobDetailResponse>(`/api/admin/mobs/${mobId}`);
+export const createMob = (request: MobTypeSaveRequest) =>
+  apiFetch<MobDetailResponse>("/api/admin/mobs", jsonBody("POST", request));
+export const updateMob = (mobId: number, request: MobTypeSaveRequest) =>
+  apiFetch<MobDetailResponse>(`/api/admin/mobs/${mobId}`, jsonBody("PUT", request));
+/** 배치가 있으면 409 */
+export const deleteMob = (mobId: number) => apiFetch<void>(`/api/admin/mobs/${mobId}`, { method: "DELETE" });
+
+export const createMobPlacement = (roomId: number, request: MobPlacementSaveRequest) =>
+  apiFetch<MobPlacementResponse>(`/api/admin/rooms/${roomId}/mobs`, jsonBody("POST", request));
+export const updateMobPlacement = (placementId: number, request: MobPlacementSaveRequest) =>
+  apiFetch<MobPlacementResponse>(`/api/admin/mob-placements/${placementId}`, jsonBody("PUT", request));
+export const deleteMobPlacement = (placementId: number) =>
+  apiFetch<void>(`/api/admin/mob-placements/${placementId}`, { method: "DELETE" });
 
 /** 화면에 보일 오류 문구. 서버가 준 ProblemDetail detail 을 그대로 쓴다. */
 export function errorMessage(error: unknown): string {

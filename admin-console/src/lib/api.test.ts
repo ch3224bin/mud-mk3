@@ -3,17 +3,23 @@ import {
   ApiError,
   apiFetch,
   createItemType,
+  createMob,
+  createMobPlacement,
   createFloorItem,
   createNpc,
   createTechnique,
   deleteExit,
   deleteFloorItem,
+  deleteMob,
+  deleteMobPlacement,
   deleteShop,
   deleteTechnique,
   designateRealm,
   getCharacter,
+  getMob,
   getTechnique,
   listCharacters,
+  listMobs,
   listRealms,
   listTechniques,
   listZones,
@@ -22,6 +28,8 @@ import {
   saveStartingItems,
   updateFloorItem,
   updateItemType,
+  updateMob,
+  updateMobPlacement,
   updateTechnique,
   updateZone,
 } from "./api";
@@ -392,5 +400,72 @@ describe("상점", () => {
     expect(url).toBe("http://localhost:8080/api/admin/npcs/4/shop");
     expect(init.method).toBe("DELETE");
     expect(headersOf(init).get("X-MUD-Client")).toBe("1");
+  });
+});
+
+describe("몹", () => {
+  const request = {
+    name: "쌍두 흑망",
+    description: "",
+    kind: "BEAST" as const,
+    realm: "QI_12" as const,
+    tier: "BOSS" as const,
+    attackName: "휘감기",
+    attackCoefficient: 0.6,
+    respawnSeconds: 2700,
+    fixedDrops: [{ itemTypeId: 7, count: 2 }],
+    tierDrops: [{ tier: "ADVANCED" as const, itemTypeId: 8 }],
+  };
+
+  it("listMobs·getMob 은 GET 이고 X-MUD-Client 를 붙이지 않는다", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(200, []));
+
+    await listMobs();
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/mobs");
+    expect(lastCall().init.method).toBe("GET");
+    await getMob(2);
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/mobs/2");
+    expect(lastCall().init.method).toBe("GET");
+    expect(headersOf(lastCall().init).has("X-MUD-Client")).toBe(false);
+  });
+
+  it("createMob 은 POST, updateMob 은 PUT, deleteMob 은 DELETE /api/admin/mobs 로 보낸다", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, { id: 2 }));
+    await createMob(request);
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/mobs");
+    expect(lastCall().init.method).toBe("POST");
+    expect(JSON.parse(lastCall().init.body as string)).toEqual(request);
+    expect(headersOf(lastCall().init).get("X-MUD-Client")).toBe("1");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { id: 2 }));
+    await updateMob(2, { ...request, attackCoefficient: null, respawnSeconds: null });
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/mobs/2");
+    expect(lastCall().init.method).toBe("PUT");
+    expect(JSON.parse(lastCall().init.body as string)).toMatchObject({ attackCoefficient: null, respawnSeconds: null });
+
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(deleteMob(2)).resolves.toBeUndefined();
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/mobs/2");
+    expect(lastCall().init.method).toBe("DELETE");
+  });
+
+  it("몹 배치는 POST /rooms/{id}/mobs, PUT·DELETE /mob-placements/{id} 로 보낸다", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, { id: 21 }));
+    await createMobPlacement(3, { mobId: 2, count: 2 });
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/rooms/3/mobs");
+    expect(lastCall().init.method).toBe("POST");
+    expect(lastCall().init.body).toBe('{"mobId":2,"count":2}');
+    expect(headersOf(lastCall().init).get("X-MUD-Client")).toBe("1");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { id: 21 }));
+    await updateMobPlacement(21, { mobId: 2, count: 5 });
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/mob-placements/21");
+    expect(lastCall().init.method).toBe("PUT");
+    expect(lastCall().init.body).toBe('{"mobId":2,"count":5}');
+
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(deleteMobPlacement(21)).resolves.toBeUndefined();
+    expect(lastCall().url).toBe("http://localhost:8080/api/admin/mob-placements/21");
+    expect(lastCall().init.method).toBe("DELETE");
   });
 });

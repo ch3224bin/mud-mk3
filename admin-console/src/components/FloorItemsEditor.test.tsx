@@ -63,6 +63,7 @@ function room(floorItems: FloorPlacementResponse[]): RoomDetailResponse {
     exits: [],
     npcs: [],
     floorItems,
+    mobs: [],
   };
 }
 
