@@ -14,9 +14,9 @@ public final class QiBlood {
     private QiBlood() {
     }
 
-    /** 피해를 받은 뒤 깎인 양. 최대를 넘지 않는다 */
+    /** 피해를 받은 뒤 깎인 양. 최대를 넘지 않고, 음수 피해는 0 으로 본다(기혈이 오르지 않음) */
     public static double lostAfterDamage(double lost, double damage, int max) {
-        return Math.min(max, lost + damage);
+        return Math.min(max, lost + Math.max(0, damage));
     }
 
     /** 현재 기혈을 그 값으로 맞출 때의 깎인 양(0~최대) */

@@ -16,6 +16,11 @@ class QiBloodTest {
     }
 
     @Test
+    void lostAfterNegativeDamageUnchanged() {
+        assertThat(QiBlood.lostAfterDamage(10, -5, 60)).isEqualTo(10);
+    }
+
+    @Test
     void lostForOne() {
         assertThat(QiBlood.lostFor(1, 60)).isEqualTo(59);
     }
