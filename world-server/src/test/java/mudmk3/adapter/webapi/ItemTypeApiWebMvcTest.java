@@ -80,6 +80,20 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
                 "회춘단(연기 초)", "회춘단(연기 초)의 묘사다.", ItemCategory.PILL, 3, null, null));
     }
 
+    /** 옛 클라이언트가 지워진 거래 가능 칸을 보내도 모르는 칸으로 무시한다 */
+    @Test
+    void createIgnoresRemovedTradable() {
+        when(itemTypeEditor.create(any())).thenReturn(withId(ItemTypeFixture.createPill(), 7L));
+
+        assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/item-types")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name":"회춘단(연기 초)","category":"PILL","baseValue":3,"tradable":true}"""))
+                .hasStatus(HttpStatus.CREATED);
+        verify(itemTypeEditor).create(new ItemTypeSaveRequest(
+                "회춘단(연기 초)", null, ItemCategory.PILL, 3, null, null));
+    }
+
     @Test
     void createScrollWithTechnique() {
         Technique changchun = TechniqueFixture.changchun();
