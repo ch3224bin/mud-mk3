@@ -84,7 +84,7 @@ class MobInstanceTest {
         MobInstance mob = CombatFixture.wolf(T);
         mob.engage(A, T);
 
-        MobHit hit = mob.receive(A, 12, T);
+        MobHit hit = mob.receive(A, 12, AttackNature.NONE, T);
 
         assertThat(hit).isEqualTo(new MobHit(8, false));
         assertThat(mob.getQiBlood()).isEqualTo(41);
@@ -94,7 +94,7 @@ class MobInstanceTest {
         });
         assertThat(mob.condition()).isEqualTo(Condition.HEALTHY);
 
-        mob.receive(A, 12, T); // 기혈 33, 67%
+        mob.receive(A, 12, AttackNature.NONE, T); // 기혈 33, 67%
 
         assertThat(mob.condition()).isEqualTo(Condition.HURT);
     }
@@ -103,7 +103,7 @@ class MobInstanceTest {
     void receiveFromNonOpponentFail() {
         MobInstance mob = CombatFixture.wolf(T);
 
-        assertThatThrownBy(() -> mob.receive(A, 12, T)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> mob.receive(A, 12, AttackNature.NONE, T)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -111,12 +111,12 @@ class MobInstanceTest {
         MobInstance mob = CombatFixture.wolf(T);
         mob.engage(A, T);
         mob.engage(B, T);
-        mob.receive(A, 9, T);   // A 위협 10
-        mob.receive(B, 11, T);  // B 위협 11
+        mob.receive(A, 9, AttackNature.NONE, T);   // A 위협 10
+        mob.receive(B, 11, AttackNature.NONE, T);  // B 위협 11
 
         assertThat(mob.target()).contains(A);
 
-        mob.receive(B, 0.1, T); // B 위협 11.1
+        mob.receive(B, 0.1, AttackNature.NONE, T); // B 위협 11.1
 
         assertThat(mob.target()).contains(B);
         assertThat(mob.getTargetCharacterId()).isEqualTo(B);
@@ -128,8 +128,8 @@ class MobInstanceTest {
         mob.engage(A, T);
         mob.engage(B, T);
         mob.engage(3L, T);
-        mob.receive(3L, 5, T);
-        mob.receive(B, 6, T);
+        mob.receive(3L, 5, AttackNature.NONE, T);
+        mob.receive(B, 6, AttackNature.NONE, T);
 
         mob.disengage(A, T);
 
@@ -141,12 +141,12 @@ class MobInstanceTest {
         MobInstance mob = CombatFixture.wolf(T);
         mob.engage(A, T);
         mob.engage(B, T);
-        mob.receive(B, 10, T);
-        mob.receive(A, 10, T);
+        mob.receive(B, 10, AttackNature.NONE, T);
+        mob.receive(A, 10, AttackNature.NONE, T);
 
         assertThat(mob.killer()).contains(B);
 
-        mob.receive(A, 1, T);
+        mob.receive(A, 1, AttackNature.NONE, T);
 
         assertThat(mob.killer()).contains(A);
     }
@@ -156,10 +156,10 @@ class MobInstanceTest {
         MobInstance mob = CombatFixture.wolf(T);
         mob.engage(A, T);
         mob.engage(B, T);
-        mob.receive(A, 30, T);  // 피해 26, 기혈 23
+        mob.receive(A, 30, AttackNature.NONE, T);  // 피해 26, 기혈 23
         mob.disengage(A, T);
 
-        MobHit hit = mob.receive(B, 28, T); // 피해 24
+        MobHit hit = mob.receive(B, 28, AttackNature.NONE, T); // 피해 24
 
         assertThat(hit.died()).isTrue();
         assertThat(mob.killer()).contains(A);
@@ -178,9 +178,9 @@ class MobInstanceTest {
         MobInstance mob = CombatFixture.wolf(T);
         mob.engage(A, T);
         mob.engage(B, T);
-        mob.receive(B, 10, T);
+        mob.receive(B, 10, AttackNature.NONE, T);
 
-        MobHit hit = mob.receive(A, 100, T.plusSeconds(5));
+        MobHit hit = mob.receive(A, 100, AttackNature.NONE, T.plusSeconds(5));
 
         assertThat(hit.died()).isTrue();
         assertThat(hit.damage()).isEqualTo(96);
@@ -201,7 +201,7 @@ class MobInstanceTest {
     void engageDeadFail() {
         MobInstance mob = CombatFixture.wolf(T);
         mob.engage(A, T);
-        mob.receive(A, 200, T);
+        mob.receive(A, 200, AttackNature.NONE, T);
 
         assertThatThrownBy(() -> mob.engage(A, T)).isInstanceOf(IllegalStateException.class);
     }
@@ -227,7 +227,7 @@ class MobInstanceTest {
     void refillAfterTenSeconds() {
         MobInstance mob = CombatFixture.wolf(T);
         mob.engage(A, T);
-        mob.receive(A, 12, T);
+        mob.receive(A, 12, AttackNature.NONE, T);
         mob.disengage(A, T);
 
         mob.refillIfDue(T.plusMillis(9_900));
@@ -252,7 +252,7 @@ class MobInstanceTest {
     void reengageCancelsRefill() {
         MobInstance mob = CombatFixture.wolf(T);
         mob.engage(A, T);
-        mob.receive(A, 12, T);
+        mob.receive(A, 12, AttackNature.NONE, T);
         mob.disengage(A, T);
 
         mob.engage(B, T.plusSeconds(5));
@@ -268,7 +268,7 @@ class MobInstanceTest {
     void reengageRestoresRecord() {
         MobInstance mob = CombatFixture.wolf(T);
         mob.engage(A, T);
-        mob.receive(A, 12, T);
+        mob.receive(A, 12, AttackNature.NONE, T);
         mob.disengage(A, T);
 
         mob.engage(A, T.plusSeconds(5));
@@ -283,7 +283,7 @@ class MobInstanceTest {
     void respawnWithNewProfile() {
         MobInstance mob = CombatFixture.wolf(T);
         mob.engage(A, T);
-        mob.receive(A, 200, T);
+        mob.receive(A, 200, AttackNature.NONE, T);
 
         mob.respawn(CombatFixture.rabbitProfile(), T.plusSeconds(90));
 

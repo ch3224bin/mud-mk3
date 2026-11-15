@@ -1,5 +1,6 @@
 package mudmk3.adapter.persistence.memory;
 
+import mudmk3.domain.combat.AttackNature;
 import mudmk3.domain.combat.MobInstance;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +24,7 @@ class InMemoryMobInstanceRepositoryTest {
         repository.save(mob(5, 300L, 0, 20L));
         MobInstance dead = mob(6, 100L, 2, 10L);
         dead.engage(7L, NOW);
-        dead.receive(7L, 1_000, NOW);
+        dead.receive(7L, 1_000, AttackNature.NONE, NOW);
         repository.save(dead);
 
         assertThat(repository.findAllInRoom(10L)).extracting(MobInstance::getId).containsExactly(4L, 2L, 3L, 1L);

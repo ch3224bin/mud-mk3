@@ -1,5 +1,6 @@
 package mudmk3.application.game;
 
+import mudmk3.domain.combat.AttackNature;
 import mudmk3.domain.combat.CombatFixture;
 import mudmk3.domain.combat.MobInstance;
 import mudmk3.domain.combat.MobProfile;
@@ -70,7 +71,7 @@ class CombatTextsTest {
     void statusLineNumbersSameNamesAndShowsCondition() {
         MobInstance hurt = CombatFixture.wolf(NOW);
         hurt.engage(1L, NOW);
-        hurt.receive(1L, 24, NOW); // 피해 20 → 29/49 = 59% 다침
+        hurt.receive(1L, 24, AttackNature.NONE, NOW); // 피해 20 → 29/49 = 59% 다침
         MobInstance healthy = MobInstance.spawn(2, 100L, 1, 10L, 2, CombatFixture.wolfProfile(), NOW);
         MobInstance rabbit = MobInstance.spawn(3, 101L, 0, 10L, 1, CombatFixture.rabbitProfile(), NOW);
 
@@ -83,10 +84,10 @@ class CombatTextsTest {
     void statusLineDyingAndBadlyHurt() {
         MobInstance badly = CombatFixture.wolf(NOW);
         badly.engage(1L, NOW);
-        badly.receive(1L, 38, NOW); // 피해 34 → 15/49 = 30.6% 크게 다침
+        badly.receive(1L, 38, AttackNature.NONE, NOW); // 피해 34 → 15/49 = 30.6% 크게 다침
         MobInstance nearDeath = MobInstance.spawn(2, 100L, 1, 10L, 2, CombatFixture.wolfProfile(), NOW);
         nearDeath.engage(1L, NOW);
-        nearDeath.receive(1L, 47, NOW); // 피해 43 → 6/49 = 12% 빈사
+        nearDeath.receive(1L, 47, AttackNature.NONE, NOW); // 피해 43 → 6/49 = 12% 빈사
 
         assertThat(texts.statusLine(List.of(badly, nearDeath))).isEqualTo("[전투 중] 상대: 청모랑(크게 다침), 청모랑 2(빈사)");
     }

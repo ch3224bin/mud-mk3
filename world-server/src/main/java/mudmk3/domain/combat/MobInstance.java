@@ -119,17 +119,20 @@ public final class MobInstance {
     }
 
     /**
-     * 교전 상대의 공격을 받는다. 기혈은 육신 층을 거친 피해만큼, 위협·피해 기록은 층을 거치기 전 위력만큼 는다.
+     * 교전 상대의 공격을 받는다. 위력에 받는 쪽 배율({@link Damage#receiverMultiplier})을 곱한 값(층을 거치기 전 피해)만큼
+     * 위협·피해 기록이 늘고, 기혈은 육신 층까지 거친 피해({@link Damage#afterLayers})만큼 준다.
      * 쓰러지면 처치자를 정해 두고 교전 상대·기록을 모두 비운 뒤 재등장을 예약한다(쓰러지기 전 상대는 부르는 쪽이 미리 읽는다)
      */
-    public MobHit receive(Long characterId, double power, Instant now) {
+    public MobHit receive(Long characterId, double power, AttackNature nature, Instant now) {
+        requireNonNull(nature);
         requireNonNull(now);
         state(alive, "쓰러진 몹은 맞지 않습니다");
         Engagement engagement = engagements.get(characterId);
         state(engagement != null, "교전 상대가 아닙니다: " + characterId);
         double attackPower = Math.max(0, power);
-        engagements.put(characterId, requireNonNull(engagement).add(attackPower, dealtSeq++));
-        double damage = Damage.afterBody(attackPower, profile.stats().body());
+        double multiplier = Damage.receiverMultiplier(nature, profile.kind());
+        engagements.put(characterId, requireNonNull(engagement).add(attackPower * multiplier, dealtSeq++));
+        double damage = Damage.afterLayers(attackPower, multiplier, profile.stats().body());
         qiBlood = Math.max(0, qiBlood - damage);
         if (qiBlood > 0) {
             return new MobHit(damage, false);

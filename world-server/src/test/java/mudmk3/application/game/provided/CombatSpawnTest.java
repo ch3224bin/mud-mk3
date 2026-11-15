@@ -38,6 +38,7 @@ import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.domain.combat.Corpse;
+import mudmk3.domain.combat.AttackNature;
 import mudmk3.domain.combat.MobInstance;
 import mudmk3.domain.combat.PlayerCombat;
 import mudmk3.domain.item.ItemCategory;
@@ -297,7 +298,7 @@ class CombatSpawnTest extends BaseGameTest {
         Long characterId = characterIdOf(accountId);
         MobInstance second = mobInstanceRepository.findAllInRoom(map.entranceId()).get(1);
         second.engage(characterId, clock.instant());
-        second.receive(characterId, 20, clock.instant());
+        second.receive(characterId, 20, AttackNature.NONE, clock.instant());
         assertThat(lookAt("s1", "2.청모랑")).isEqualTo(SystemMessage.info("청모랑 (1급) — 푸른 털의 늑대. 다쳤다."));
         assertThat(lookAt("s1", "1.청모랑")).isEqualTo(SystemMessage.info("청모랑 (1급) — 푸른 털의 늑대. 멀쩡하다."));
     }

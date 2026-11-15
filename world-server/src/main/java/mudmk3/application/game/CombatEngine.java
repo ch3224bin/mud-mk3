@@ -1,7 +1,6 @@
 package mudmk3.application.game;
 
 import lombok.RequiredArgsConstructor;
-import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterVitalsEditor;
 import mudmk3.application.cultivation.provided.CultivationFinder;
 import mudmk3.application.game.required.GameMessage;
@@ -11,7 +10,7 @@ import mudmk3.application.game.required.MobInstanceRepository;
 import mudmk3.application.game.required.PlayerCombatRepository;
 import mudmk3.application.game.required.PresenceRepository;
 import mudmk3.application.mob.provided.MobPlacementFinder;
-import mudmk3.application.npc.provided.NpcFinder;
+import mudmk3.domain.combat.AttackNature;
 import mudmk3.domain.combat.Corpse;
 import mudmk3.domain.combat.Damage;
 import mudmk3.domain.combat.MobHit;
@@ -20,11 +19,8 @@ import mudmk3.domain.combat.MobProfile;
 import mudmk3.domain.combat.PlayerCombat;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.game.OnlinePlayer;
-import mudmk3.domain.item.ItemNames;
 import mudmk3.domain.item.ItemQuery;
 import mudmk3.domain.mob.MobPlacement;
-import mudmk3.domain.npc.Npc;
-import mudmk3.domain.shared.Josa;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -34,7 +30,6 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -63,17 +58,14 @@ class CombatEngine {
     private final PlayerCombatRepository playerCombatRepository;
     private final CorpseHandler corpseHandler;
     private final PresenceRepository presenceRepository;
-    private final NpcFinder npcFinder;
-    private final CharacterFinder characterFinder;
     private final CultivationFinder cultivationFinder;
     private final CharacterVitalsEditor characterVitalsEditor;
     private final CombatTexts combatTexts;
     private final ManaRecovery manaRecovery;
+    private final CombatActions combatActions;
 
     /** 몹 id. 서버가 돌아가는 동안 늘기만 한다 */
     private final AtomicLong mobIds = new AtomicLong();
-    /** 교전 시작 순번(같은 시각 행동의 순서). 늘기만 한다 */
-    private final AtomicLong engageOrders = new AtomicLong();
 
     /** 틱 하나. send 는 (연결 id, 메시지)로 보낼 것을 모은다. 이번 틱에 진 캐릭터를 돌려준다 */
     CombatOutcome tick(Instant now, BiConsumer<String, GameMessage> send) {
@@ -103,25 +95,23 @@ class CombatEngine {
             send.accept(sessionId, SystemMessage.error(CombatTexts.ATTACK_NO_ARGUMENT));
             return;
         }
-        Long roomId = player.getRoomId();
-        Optional<MobInstance> found = ItemNames.select(mobsInRoom(roomId), mob -> mob.getProfile().name(), query);
-        if (found.isEmpty()) {
-            send.accept(sessionId, SystemMessage.error(notAttackableTarget(player, ItemCommandHandler.inputOf(query))));
-            return;
+        MobInstance mob;
+        switch (combatActions.findTarget(player, query)) {
+            case TargetLookup.Rejected rejected -> {
+                send.accept(sessionId, SystemMessage.error(rejected.text()));
+                return;
+            }
+            case TargetLookup.Found found -> mob = found.mob();
         }
-        MobInstance mob = found.get();
-        String mobName = mob.getProfile().name();
         Long characterId = player.getCharacterId();
         PlayerCombat combat = playerCombatRepository.find(characterId).orElseGet(() -> new PlayerCombat(characterId));
         boolean engaged = combat.getMobIds().contains(mob.getId());
         if (engaged && combat.currentTarget().orElse(-1L) == mob.getId()) {
-            send.accept(sessionId, SystemMessage.error(combatTexts.alreadyFighting(mobName)));
+            send.accept(sessionId, SystemMessage.error(combatTexts.alreadyFighting(mob.getProfile().name())));
             return;
         }
         if (!engaged) {
-            engage(combat, mob, now);
-            send.accept(sessionId, SystemMessage.combat(combatTexts.engaged(mobName)));
-            notifyOthers(player, combatTexts.engagedNotice(player.getName(), mobName), "engage", send);
+            combatActions.startEngagement(player, combat, mob, now, send);
         }
         combat.target(mob.getId());
         playerCombatRepository.save(combat);
@@ -129,35 +119,6 @@ class CombatEngine {
         if (combat.readyAt(now)) {
             playerAct(combat, player, mob, now, now, send);
         }
-    }
-
-    /** 몹이 아니면 NPC(2차 {@code 대화} 찾기), 플레이어(이름 전체·앞부분) 순으로 보고 거절 문구를 고른다 */
-    private String notAttackableTarget(OnlinePlayer player, String input) {
-        List<Npc> npcs = npcFinder.findAllInRoom(player.getRoomId());
-        Optional<Npc> npc = npcs.stream().filter(n -> n.isCalled(input)).findFirst()
-                .or(() -> npcs.stream().filter(n -> n.nameStartsWith(input)).findFirst());
-        if (npc.isPresent()) {
-            return combatTexts.notAttackable(npc.get().getName());
-        }
-        String lower = input.toLowerCase(Locale.ROOT);
-        boolean isPlayer = presenceRepository.findAllInRoom(player.getRoomId()).stream()
-                .anyMatch(other -> other.getName().toLowerCase(Locale.ROOT).startsWith(lower));
-        if (isPlayer) {
-            return CombatTexts.ATTACK_PLAYER;
-        }
-        return "이곳에 '" + input + "'" + Josa.eunNeun(input) + " 없습니다.";
-    }
-
-    /** 서로의 교전 상대 목록에 넣는다. 교전하지 않던 쪽은 교전 시작 순번을 받는다(플레이어가 먼저) */
-    private void engage(PlayerCombat combat, MobInstance mob, Instant now) {
-        if (!combat.isFighting()) {
-            combat.recordEngageOrder(engageOrders.incrementAndGet());
-        }
-        if (!mob.isFighting()) {
-            mob.recordEngageOrder(engageOrders.incrementAndGet());
-        }
-        mob.engage(combat.getCharacterId(), now);
-        combat.engage(mob.getId());
     }
 
     // ---- 교전 상태
@@ -214,16 +175,9 @@ class CombatEngine {
         playerCombatRepository.save(combat);
     }
 
-    /**
-     * 그 방의 살아 있는 몹을 방 보기 순서로: 묶음 키 (몹 유형, 교전 중)가 처음 나온 순서대로 묶음을 놓고,
-     * 묶음 안은 (배치 id, 자리) 순. 이름·번호로 고를 때도 이 순서다(D86·D89)
-     */
+    /** 그 방의 살아 있는 몹(방 보기 순서, {@link CombatActions#mobsInRoom}) */
     List<MobInstance> mobsInRoom(Long roomId) {
-        Map<GroupKey, List<MobInstance>> groups = new LinkedHashMap<>();
-        for (MobInstance mob : mobInstanceRepository.findAllInRoom(roomId)) {
-            groups.computeIfAbsent(GroupKey.of(mob), key -> new ArrayList<>()).add(mob);
-        }
-        return groups.values().stream().flatMap(List::stream).toList();
+        return combatActions.mobsInRoom(roomId);
     }
 
     /** 그 방의 시체(쓰러진 순) */
@@ -311,7 +265,7 @@ class CombatEngine {
         if (found.isEmpty() || player.isEmpty() || !found.get().isFighting()) return;
         PlayerCombat combat = found.get();
         Optional<MobInstance> mob = combat.currentTarget().flatMap(mobInstanceRepository::findById);
-        if (mob.isEmpty() || !inCombatTogether(player.get(), mob.get())) return;
+        if (mob.isEmpty() || !combatActions.inCombatTogether(player.get(), mob.get())) return;
         playerAct(combat, player.get(), mob.get(), at, now, send);
     }
 
@@ -324,45 +278,12 @@ class CombatEngine {
         Long characterId = player.getCharacterId();
         double power = Damage.playerPower(cultivationFinder.stats(characterId).spirit());
         Set<Long> opponents = mob.opponentIds();
-        MobHit hit = mob.receive(characterId, power, now);
+        MobHit hit = combatActions.strike(characterId, mob, power, AttackNature.NONE, now);
         combat.attackedAt(at, now);
         playerCombatRepository.save(combat);
-        mobInstanceRepository.save(mob);
         send.accept(player.getSessionId(), SystemMessage.combat(combatTexts.playerHit(mob.getProfile().name(), hit.damage())));
         if (hit.died()) {
-            onMobKilled(mob, opponents, characterId, now, send);
-        }
-    }
-
-    /**
-     * 몹이 쓰러졌다: 그 자리에 시체를 남기고(드롭은 지금 굴림, D87) 처치자 {@code 청모랑을 쓰러뜨렸습니다.},
-     * 교전하던 다른 사람 {@code 청모랑이 쓰러졌다.}, 같은 방의 교전하지 않은 사람 {@code 한백이 청모랑을 쓰러뜨렸다.}
-     * (event {@code kill}) → 교전하던 플레이어마다 그 몹과의 교전을 끝낸다.
-     * 처치자는 피해가 가장 많은 사람이라 마지막 일격을 한 사람과 다를 수 있다
-     */
-    private void onMobKilled(MobInstance mob, Set<Long> opponents, Long strikerId, Instant now,
-                             BiConsumer<String, GameMessage> send) {
-        String mobName = mob.getProfile().name();
-        Long killerId = mob.killer().orElse(strikerId);
-        corpseHandler.leaveCorpse(mob, killerId, now);
-        String killerName = presenceRepository.findByCharacterId(killerId).map(OnlinePlayer::getName)
-                .orElseGet(() -> characterFinder.find(killerId).getName().value());
-        NoticeMessage killedNotice = NoticeMessage.combat(combatTexts.killedNotice(killerName, mobName), killerName, "kill");
-        for (OnlinePlayer other : presenceRepository.findAllInRoom(mob.getRoomId())) {
-            Long otherId = other.getCharacterId();
-            if (otherId.equals(killerId)) {
-                send.accept(other.getSessionId(), SystemMessage.combat(combatTexts.killed(mobName)));
-            } else if (opponents.contains(otherId)) {
-                send.accept(other.getSessionId(), SystemMessage.combat(combatTexts.fell(mobName)));
-            } else {
-                send.accept(other.getSessionId(), killedNotice);
-            }
-        }
-        for (Long opponentId : opponents) {
-            playerCombatRepository.find(opponentId).ifPresent(combat -> {
-                combat.disengage(mob.getId(), now);
-                playerCombatRepository.save(combat);
-            });
+            combatActions.onMobKilled(mob, opponents, characterId, now, send);
         }
     }
 
@@ -372,19 +293,20 @@ class CombatEngine {
         if (found.isEmpty() || !found.get().isFighting()) return;
         MobInstance mob = found.get();
         Optional<OnlinePlayer> target = mob.target().flatMap(presenceRepository::findByCharacterId);
-        if (target.isEmpty() || !inCombatTogether(target.get(), mob)) return;
+        if (target.isEmpty() || !combatActions.inCombatTogether(target.get(), mob)) return;
         mobAct(mob, target.get(), at, now, send, defeated);
     }
 
     /**
-     * 몹의 공격: 피해 = 몹 위력 − 육신 × 0.5 → 깎인 기혈을 DB에 씀 → {@code 청모랑이 물어뜯기로 덮친다! (피해 5, 기혈 55/60)}
+     * 몹의 공격: 피해 = 몹 위력 × 받는 쪽 배율(6차 1) − 육신 × 0.5 → 깎인 기혈을 DB에 씀 → {@code 청모랑이 물어뜯기로 덮친다! (피해 5, 기혈 55/60)}
      * → 기혈이 0 이하면 그 순간 진다
      */
     private void mobAct(MobInstance mob, OnlinePlayer target, Instant at, Instant now, BiConsumer<String, GameMessage> send,
                         List<Long> defeated) {
         Long characterId = target.getCharacterId();
         StatSheet stats = cultivationFinder.stats(characterId);
-        double damage = Damage.afterBody(mob.getProfile().stats().power(), stats.body());
+        double damage = Damage.afterLayers(mob.getProfile().stats().power(),
+                Damage.receiverMultiplier(AttackNature.NONE, null), stats.body());
         double remaining = characterVitalsEditor.takeDamage(characterId, damage, stats.qiBlood());
         mob.actedAt(at, now);
         mobInstanceRepository.save(mob);
@@ -406,23 +328,7 @@ class CombatEngine {
         characterVitalsEditor.setQiBlood(characterId, 1, maxQiBlood);
         endAll(characterId, now);
         send.accept(player.getSessionId(), SystemMessage.combat(CombatTexts.DEFEATED));
-        notifyOthers(player, combatTexts.defeatedNotice(player.getName()), "defeated", send);
-    }
-
-    /** 플레이어와 몹이 같은 방에서 서로 교전 중이다 */
-    private boolean inCombatTogether(OnlinePlayer player, MobInstance mob) {
-        return mob.isAlive() && mob.getRoomId().equals(player.getRoomId())
-                && mob.opponentIds().contains(player.getCharacterId())
-                && playerCombatRepository.find(player.getCharacterId())
-                .map(combat -> combat.getMobIds().contains(mob.getId())).orElse(false);
-    }
-
-    /** 같은 방 다른 사람에게 {@code notice}(tone {@code combat}) */
-    private void notifyOthers(OnlinePlayer actor, String text, String event, BiConsumer<String, GameMessage> send) {
-        NoticeMessage notice = NoticeMessage.combat(text, actor.getName(), event);
-        presenceRepository.findAllInRoom(actor.getRoomId()).stream()
-                .filter(other -> !other.getCharacterId().equals(actor.getCharacterId()))
-                .forEach(other -> send.accept(other.getSessionId(), notice));
+        combatActions.notifyOthers(player, combatTexts.defeatedNotice(player.getName()), "defeated", send);
     }
 
     /** 이번 틱에 할 행동 하나: 플레이어(characterId) 또는 몹(mobId) */
@@ -479,13 +385,6 @@ class CombatEngine {
         GameMessage notice = NoticeMessage.combat(combatTexts.appears(name), name, "respawn");
         for (OnlinePlayer player : presenceRepository.findAllInRoom(mob.getRoomId())) {
             send.accept(player.getSessionId(), notice);
-        }
-    }
-
-    /** 방 보기 묶음 키 */
-    private record GroupKey(Long mobTypeId, boolean fighting) {
-        static GroupKey of(MobInstance mob) {
-            return new GroupKey(mob.getProfile().mobTypeId(), mob.isFighting());
         }
     }
 }
