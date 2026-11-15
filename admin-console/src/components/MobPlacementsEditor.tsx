@@ -100,10 +100,13 @@ export default function MobPlacementsEditor({ room, mobs, onRoomChange }: Props)
                 <td>
                   <input
                     type="number"
-                    min={1}
+                    step="any"
                     aria-label={`${placement.mobName} 수`}
                     value={countOf(placement)}
-                    onChange={(e) => setCounts({ ...counts, [placement.id]: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setCounts((current) => ({ ...current, [placement.id]: value }));
+                    }}
                   />
                 </td>
                 <td>
@@ -134,7 +137,7 @@ export default function MobPlacementsEditor({ room, mobs, onRoomChange }: Props)
         </label>
         <label>
           수
-          <input type="number" min={1} value={count} onChange={(e) => setCount(e.target.value)} />
+          <input type="number" step="any" value={count} onChange={(e) => setCount(e.target.value)} />
         </label>
         <button type="submit" disabled={busy || options.length === 0}>
           추가

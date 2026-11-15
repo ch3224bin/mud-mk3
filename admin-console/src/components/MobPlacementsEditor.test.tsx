@@ -88,6 +88,19 @@ describe("MobPlacementsEditor", () => {
     expect(onRoomChange).toHaveBeenCalledWith(room([rabbits, wolves]));
   });
 
+  it("추가 폼의 수 0 도 브라우저 검사 없이 보내 서버 detail 을 보인다", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.createMobPlacement).mockRejectedValue(new api.ApiError(400, "몹 수는 1~10으로 정하십시오."));
+    render(<MobPlacementsEditor room={room([])} mobs={mobs} onRoomChange={vi.fn()} />);
+
+    await user.clear(screen.getByLabelText("수"));
+    await user.type(screen.getByLabelText("수"), "0");
+    await user.click(screen.getByRole("button", { name: "추가" }));
+
+    expect(api.createMobPlacement).toHaveBeenCalledWith(3, { mobId: 1, count: 0 });
+    expect(await screen.findByRole("alert")).toHaveTextContent("몹 수는 1~10으로 정하십시오.");
+  });
+
   it("행의 수를 고쳐 저장 하면 같은 몹으로 PUT 하고 응답으로 행을 바꾼다", async () => {
     const user = userEvent.setup();
     const onRoomChange = vi.fn();

@@ -52,7 +52,7 @@ export default function DropTableEditor({ itemTypes, value, onChange }: Props) {
                 <td>
                   <input
                     type="number"
-                    min={1}
+                    step="any"
                     aria-label={`고정 재료 ${index + 1} 수`}
                     value={row.count}
                     onChange={(e) => changeFixed(index, { count: e.target.value })}

@@ -167,7 +167,7 @@ export default function MobForm({ initial, realms, itemTypes, onSaved }: Props) 
           공격 계수
           <input
             type="number"
-            step={0.1}
+            step="any"
             value={attackCoefficient}
             onChange={(e) => setAttackCoefficient(e.target.value)}
           />
@@ -175,7 +175,7 @@ export default function MobForm({ initial, realms, itemTypes, onSaved }: Props) 
       )}
       <label>
         재등장(초)
-        <input type="number" min={1} value={respawnSeconds} onChange={(e) => setRespawnSeconds(e.target.value)} />
+        <input type="number" step="any" value={respawnSeconds} onChange={(e) => setRespawnSeconds(e.target.value)} />
       </label>
       <p className="muted">비우면 체급 기준(일반 90초 · 강적 3분 · 정예 10분). 두목은 30~60분을 꼭 넣습니다.</p>
       <DropTableEditor itemTypes={itemTypes} value={drops} onChange={setDrops} />

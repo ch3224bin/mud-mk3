@@ -160,6 +160,38 @@ describe("MobForm", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it("브라우저 검사로 막지 않고 소수 둘째 자리 계수·범위 밖 재등장·고정 재료 수 0 을 그대로 보내 서버 detail 을 보인다", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.createMob).mockRejectedValue(new api.ApiError(400, "공격 계수는 소수 첫째 자리까지 적으십시오."));
+    render(<MobForm realms={realms} itemTypes={itemTypes} onSaved={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText("체급"), "BOSS");
+    await user.clear(screen.getByLabelText("공격 계수"));
+    await user.type(screen.getByLabelText("공격 계수"), "0.65");
+    await user.type(screen.getByLabelText("재등장(초)"), "30.5");
+    await user.click(screen.getByRole("button", { name: "고정 재료 추가" }));
+    await user.clear(screen.getByLabelText("고정 재료 1 수"));
+    await user.type(screen.getByLabelText("고정 재료 1 수"), "0");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(api.createMob).toHaveBeenCalledWith(
+      expect.objectContaining({ attackCoefficient: 0.65, respawnSeconds: 30.5, fixedDrops: [{ itemTypeId: 7, count: 0 }] }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("공격 계수는 소수 첫째 자리까지 적으십시오.");
+  });
+
+  it("재등장 0 도 브라우저 검사 없이 보낸다", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.createMob).mockRejectedValue(new api.ApiError(400, "재등장은 10~86,400초로 정하십시오."));
+    render(<MobForm realms={realms} itemTypes={itemTypes} onSaved={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("재등장(초)"), "0");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(api.createMob).toHaveBeenCalledWith(expect.objectContaining({ respawnSeconds: 0 }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("재등장은 10~86,400초로 정하십시오.");
+  });
+
   it("고칠 때는 저장된 값으로 열리고 스탯 줄과 배치된 방 링크를 보이며, 저장하면 PUT 결과를 onSaved 로 넘긴다", async () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();
