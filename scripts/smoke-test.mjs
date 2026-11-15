@@ -869,9 +869,9 @@ async function run() {
     }
     await expectSystemTone(e, `버리기 ${springScrollName}`, "item");
     const collected = await expectSystemTone(e, `수습 ${rabbitName}`, "item");
-    const [collectedFirst, ...collectedRest] = collected.text.split("\n");
-    if (!collectedFirst.startsWith(`${rabbitName}의 시체를 수습했습니다: ${rabbitHideName} 1`)
-      || collectedRest.some((line) => !line.startsWith("저물대에 자리가 없습니다. 남은 것: "))) {
+    // 칸이 모자라면 "저물대에 자리가 없습니다" 문구는 별도 error 메시지로 오므로 여기서는 첫 줄만 본다
+    const [collectedFirst] = collected.text.split("\n");
+    if (!collectedFirst.startsWith(`${rabbitName}의 시체를 수습했습니다: ${rabbitHideName} 1`)) {
       fail(`수습 문구가 다름: ${JSON.stringify(collected.text)}`);
     }
     eInventory = await inventoryOf(e);
