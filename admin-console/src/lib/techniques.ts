@@ -118,15 +118,78 @@ export function toStages(stages: StageDraft[]): TechniqueStage[] {
   });
 }
 
-/** 폼에서 고치는 신통 한 줄. 소수가 있는 칸은 입력 그대로의 글자다 */
-export type AbilityDraft = Omit<AbilitySaveRequest, "costAmount" | "castSeconds" | "cooldownSeconds"> & {
+/** 한 신통의 이펙트 문장 수 상한 */
+export const MAX_EFFECT_LINES = 5;
+
+/** 폼에서 고치는 단계별 값 한 줄. 값 칸은 입력 그대로의 글자다 */
+export type StagePowerDraft = { stage: number; basePower: string; coefficient: string };
+
+/** `채우기` 칸: 배우는 단계의 기본 위력·계수와 단계마다 더하는 양 */
+export type FillDraft = { basePower: string; coefficient: string; baseStep: string; coefficientStep: string };
+
+/** 채우기 기본값(룰북 입문 공격 신통: 1성 2 · 1.2, 단계마다 기본 +0.2) */
+export const DEFAULT_FILL: FillDraft = { basePower: "2", coefficient: "1.2", baseStep: "0.2", coefficientStep: "0" };
+
+/** 소수 digits 자리에서 반올림하고 끝 0 을 지운 글자. 예: 2.2000000000000002 → `2.2` */
+function roundedText(value: number, digits: number): string {
+  const scale = 10 ** digits;
+  // 부동소수 오차(1.3335 × 1000 = 1333.4999…)를 먼저 걷어 내고 반올림한다.
+  return String(Math.round(Number((value * scale).toFixed(6))) / scale);
+}
+
+/** 배우는 단계 ~ 단계 수의 단계별 값: 배우는 단계 값 + (단계 − 배우는 단계) × 단계마다 더하는 양 */
+export function fillStagePowers(learnStage: number, stageCount: number, fill: FillDraft): StagePowerDraft[] {
+  const powers: StagePowerDraft[] = [];
+  for (let stage = learnStage; stage <= stageCount; stage++) {
+    const steps = stage - learnStage;
+    powers.push({
+      stage,
+      basePower: roundedText(Number(fill.basePower) + steps * Number(fill.baseStep), 2),
+      coefficient: roundedText(Number(fill.coefficient) + steps * Number(fill.coefficientStep), 3),
+    });
+  }
+  return powers;
+}
+
+/**
+ * 단계별 값 행을 배우는 단계 ~ 단계 수로 맞춘다. 남는 단계의 값은 그대로, 새 단계는 새 목록의 바로 앞 단계 값을
+ * 복사하고 앞이 없으면 채우기 기본값의 배우는 단계 값이다
+ */
+export function resizeStagePowers(
+  drafts: StagePowerDraft[],
+  learnStage: number,
+  stageCount: number,
+): StagePowerDraft[] {
+  const powers: StagePowerDraft[] = [];
+  for (let stage = learnStage; stage <= stageCount; stage++) {
+    const kept = drafts.find((draft) => draft.stage === stage);
+    const previous = powers.at(-1) ?? { basePower: DEFAULT_FILL.basePower, coefficient: DEFAULT_FILL.coefficient };
+    powers.push(kept ?? { stage, basePower: previous.basePower, coefficient: previous.coefficient });
+  }
+  return powers;
+}
+
+/**
+ * 폼에서 고치는 신통 한 줄. 소수가 있는 칸은 입력 그대로의 글자다.
+ * stagePowers 는 종류가 공격이 아니어도 지우지 않고 들고 있다(다시 공격으로 돌리면 보인다).
+ * usableInGame 은 저장된 응답의 값이고 새 행에는 없다
+ */
+export type AbilityDraft = Omit<
+  AbilitySaveRequest,
+  "costAmount" | "castSeconds" | "cooldownSeconds" | "stagePowers"
+> & {
   costAmount: string;
   castSeconds: string;
   cooldownSeconds: string;
+  stagePowers: StagePowerDraft[];
+  usableInGame?: boolean;
 };
 
-/** `신통 추가` 의 새 행: 1성, 공격, 속성 없음, 한 대상, 소모 없음, 시전 0, 대기 3, 전투 중만 */
-export function newAbility(): AbilityDraft {
+/**
+ * `신통 추가` 의 새 행: 1성, 공격, 속성 없음, 한 대상, 소모 없음, 시전 0, 대기 3, 전투 중만,
+ * 이펙트 문장 빈 줄 하나, 단계별 값은 1성 ~ 단계 수를 채우기 기본값으로
+ */
+export function newAbility(stageCount: number): AbilityDraft {
   return {
     name: "",
     learnStage: 1,
@@ -140,6 +203,8 @@ export function newAbility(): AbilityDraft {
     castSeconds: "0",
     cooldownSeconds: "3",
     usableWhen: "COMBAT_ONLY",
+    effectLines: [""],
+    stagePowers: fillStagePowers(1, stageCount, DEFAULT_FILL),
   };
 }
 
@@ -157,16 +222,42 @@ export function abilityDraftOf(ability: AbilityResponse): AbilityDraft {
     castSeconds: String(ability.castSeconds),
     cooldownSeconds: String(ability.cooldownSeconds),
     usableWhen: ability.usableWhen,
+    effectLines: [...ability.effectLines],
+    stagePowers: ability.stagePowers.map((power) => ({
+      stage: power.stage,
+      basePower: String(power.basePower),
+      coefficient: String(power.coefficient),
+    })),
+    usableInGame: ability.usableInGame,
   };
 }
 
-/** 저장 본문의 신통. 빈칸은 0 이고, bodyRefining·costPerTick 은 늘 보낸다 */
+/**
+ * 저장 본문의 신통. 빈칸은 0 이고, bodyRefining·costPerTick 은 늘 보낸다.
+ * 단계별 값은 공격일 때만 숫자로 보내고 그 밖은 빈 목록이다. usableInGame 은 보내지 않는다
+ */
 export function toAbility(draft: AbilityDraft): AbilitySaveRequest {
   return {
-    ...draft,
+    name: draft.name,
+    learnStage: draft.learnStage,
+    kind: draft.kind,
     elements: inElementOrder(draft.elements),
+    bodyRefining: draft.bodyRefining,
+    target: draft.target,
+    costStat: draft.costStat,
     costAmount: Number(draft.costAmount),
+    costPerTick: draft.costPerTick,
     castSeconds: Number(draft.castSeconds),
     cooldownSeconds: Number(draft.cooldownSeconds),
+    usableWhen: draft.usableWhen,
+    effectLines: draft.effectLines,
+    stagePowers:
+      draft.kind === "ATTACK"
+        ? draft.stagePowers.map((power) => ({
+            stage: power.stage,
+            basePower: Number(power.basePower),
+            coefficient: Number(power.coefficient),
+          }))
+        : [],
   };
 }

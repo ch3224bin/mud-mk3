@@ -21,6 +21,7 @@ import {
   ELEMENTS,
   emptyStage,
   inElementOrder,
+  resizeStagePowers,
   type StageDraft,
   stageDraftOf,
   toAbility,
@@ -55,6 +56,19 @@ export default function TechniqueForm({ initial, realms, onSaved }: Props) {
   const [abilities, setAbilities] = useState<AbilityDraft[]>(() => initial?.abilities.map(abilityDraftOf) ?? []);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  /** 단계 수가 바뀌면 신통마다 단계별 값 행도 배우는 단계 ~ 새 단계 수로 맞춘다 */
+  function changeStages(next: StageDraft[]) {
+    if (next.length !== stages.length) {
+      setAbilities(
+        abilities.map((ability) => ({
+          ...ability,
+          stagePowers: resizeStagePowers(ability.stagePowers, ability.learnStage, next.length),
+        })),
+      );
+    }
+    setStages(next);
+  }
 
   function request(): TechniqueSaveRequest {
     return {
@@ -136,7 +150,7 @@ export default function TechniqueForm({ initial, realms, onSaved }: Props) {
         </select>
       </label>
       <h2>단계</h2>
-      <StageTable stages={stages} onChange={setStages} />
+      <StageTable stages={stages} onChange={changeStages} />
       <h2>신통</h2>
       <AbilityTable abilities={abilities} stageCount={stages.length} onChange={setAbilities} />
       <div className="actions">

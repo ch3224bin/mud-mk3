@@ -32,6 +32,14 @@ const garam: CharacterDetailResponse = {
   },
   stats: { qiBlood: 60, mana: 20, sense: 15, essence: 10, spirit: 20, body: 12, strength: 11 },
   techniques: [{ id: 2, name: "장춘공", stage: 1, stageCount: 9 }],
+  insight: [
+    { kind: "METAL", name: "금", amount: 0 },
+    { kind: "WOOD", name: "목", amount: 0 },
+    { kind: "WATER", name: "수", amount: 0 },
+    { kind: "FIRE", name: "화", amount: 0 },
+    { kind: "EARTH", name: "토", amount: 0 },
+    { kind: "BODY", name: "연체", amount: 0 },
+  ],
 };
 
 const qi7: CharacterDetailResponse = {

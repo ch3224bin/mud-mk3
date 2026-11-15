@@ -253,6 +253,8 @@ describe("경지·공법", () => {
         castSeconds: 0,
         cooldownSeconds: 3,
         usableWhen: "COMBAT_ONLY" as const,
+        effectLines: ["{대상}에게 화탄술을 펼친다!"],
+        stagePowers: [{ stage: 1, basePower: 2, coefficient: 1.2 }],
       },
     ],
   };

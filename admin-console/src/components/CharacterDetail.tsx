@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { CharacterDetailResponse, RealmResponse } from "../lib/api";
-import { spiritRootText } from "../lib/characters";
+import { insightText, spiritRootText } from "../lib/characters";
 import { stageLabel } from "../lib/techniques";
 import CharacterRealmForm from "./CharacterRealmForm";
 
-/** 캐릭터 상세: 이름·영근(읽기 전용)·경지 지정과 스탯 표·익힌 공법 표. 경지 말고는 고칠 수 없다 */
+/** 캐릭터 상세: 이름·영근(읽기 전용)·경지 지정과 스탯 표·깨달음(읽기 전용)·익힌 공법 표. 경지 말고는 고칠 수 없다 */
 export default function CharacterDetail({
   initial,
   realms,
@@ -22,6 +22,7 @@ export default function CharacterDetail({
       <h1>{character.name}</h1>
       <p>{`영근: ${spiritRootText(character.spiritRoot)}`}</p>
       <CharacterRealmForm character={character} realms={realms} onSaved={setCharacter} />
+      <p className="insight">{insightText(character.insight)}</p>
       <h2>익힌 공법</h2>
       {character.techniques.length === 0 ? (
         <p className="muted">없음</p>

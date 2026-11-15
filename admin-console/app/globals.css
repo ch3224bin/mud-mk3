@@ -125,6 +125,11 @@ td {
   white-space: pre-wrap;
 }
 
+/* 깨달음 줄: `깨달음` 뒤 두 칸을 그대로 보인다 */
+.insight {
+  white-space: pre-wrap;
+}
+
 .muted {
   color: var(--muted);
 }

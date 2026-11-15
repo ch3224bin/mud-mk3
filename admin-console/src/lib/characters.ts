@@ -1,4 +1,5 @@
-import type { CharacterDetailResponse, CharacterStatsResponse } from "./api";
+import type { CharacterDetailResponse, CharacterInsightResponse, CharacterStatsResponse } from "./api";
+import { formatCount } from "./items";
 
 /** 상세 스탯 표의 행(위에서부터). 기혈~영력은 최대치다 */
 export const STAT_ROWS: { key: keyof CharacterStatsResponse; label: string }[] = [
@@ -23,4 +24,9 @@ export function spiritRootText(spiritRoot: CharacterDetailResponse["spiritRoot"]
   }
   const roots = spiritRoot.roots.map((root) => `${root.elementName} ${aptitudeText(root.aptitude)}`).join(", ");
   return `${spiritRoot.name} (${roots})`;
+}
+
+/** 룰북 상태 화면의 깨달음 줄. 예: `깨달음  금 0 · 목 112 · 수 0 · 화 230 · 토 0 · 연체 0` */
+export function insightText(insight: CharacterInsightResponse[]): string {
+  return `깨달음  ${insight.map((entry) => `${entry.name} ${formatCount(entry.amount)}`).join(" · ")}`;
 }

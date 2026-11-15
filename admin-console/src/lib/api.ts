@@ -213,7 +213,12 @@ export type TechniqueStage = {
   strengthBonus: number;
   aptitudeGain: number;
 };
-/** 신통 저장 값. bodyRefining·costPerTick 은 서버에서 필수라 늘 보낸다. costAmount 는 소모 없음이면 0 */
+/** 공격 신통의 단계 하나의 값. 기본 위력은 소수 둘째, 계수는 셋째 자리까지 */
+export type StagePower = { stage: number; basePower: number; coefficient: number };
+/**
+ * 신통 저장 값. bodyRefining·costPerTick 은 서버에서 필수라 늘 보낸다. costAmount 는 소모 없음이면 0.
+ * effectLines 는 입력 순서(1~5개), stagePowers 는 공격이면 배우는 단계부터 단계 수까지 오름차순, 그 밖은 빈 목록
+ */
 export type AbilitySaveRequest = {
   name: string;
   learnStage: number;
@@ -227,8 +232,11 @@ export type AbilitySaveRequest = {
   castSeconds: number;
   cooldownSeconds: number;
   usableWhen: UsableWhenCode;
+  effectLines: string[];
+  stagePowers: StagePower[];
 };
-export type AbilityResponse = AbilitySaveRequest & { kindName: string; targetName: string };
+/** usableInGame 은 6차에 게임에서 쓸 수 있는 꼴인지 */
+export type AbilityResponse = AbilitySaveRequest & { kindName: string; targetName: string; usableInGame: boolean };
 /** stages[0] 이 1성이고 길이가 단계 수다. 단계·신통은 저장할 때 통째로 바뀐다 */
 export type TechniqueSaveRequest = {
   name: string;
@@ -289,7 +297,13 @@ export type CharacterStatsResponse = {
   body: number;
   strength: number;
 };
-/** spiritRoot 는 정하지 않았으면 null, techniques 는 익힌 순서 */
+/** 깨달음 한 갈래. amount 는 소수점을 버린 정수 */
+export type CharacterInsightResponse = {
+  kind: "METAL" | "WOOD" | "WATER" | "FIRE" | "EARTH" | "BODY";
+  name: string;
+  amount: number;
+};
+/** spiritRoot 는 정하지 않았으면 null, techniques 는 익힌 순서, insight 는 금·목·수·화·토·연체 순 여섯 개(0이어도) */
 export type CharacterDetailResponse = {
   id: number;
   name: string;
@@ -298,6 +312,7 @@ export type CharacterDetailResponse = {
   spiritRoot: { name: string; roots: CharacterRootResponse[] } | null;
   stats: CharacterStatsResponse;
   techniques: { id: number; name: string; stage: number; stageCount: number }[];
+  insight: CharacterInsightResponse[];
 };
 
 /** 몹 종류·체급·드롭 계층(world-server MobKind·MobTier·DropTier) */

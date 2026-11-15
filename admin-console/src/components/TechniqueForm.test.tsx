@@ -64,6 +64,13 @@ const changchun: TechniqueDetailResponse = {
       castSeconds: 0,
       cooldownSeconds: 3,
       usableWhen: "COMBAT_ONLY",
+      effectLines: ["손끝에서 붉은 불덩이가 피어올라 {대상}을 덮친다!"],
+      stagePowers: [
+        { stage: 1, basePower: 2, coefficient: 1.2 },
+        { stage: 2, basePower: 2.2, coefficient: 1.2 },
+        { stage: 3, basePower: 2.4, coefficient: 1.224 },
+      ],
+      usableInGame: true,
     },
   ],
   learnerCount: 2,
@@ -109,6 +116,8 @@ describe("TechniqueForm", () => {
     await user.type(screen.getByLabelText("2성 필요 깨달음"), "120");
     await user.click(screen.getByRole("button", { name: "신통 추가" }));
     await user.type(screen.getByLabelText("신통 이름"), "화탄술");
+    await user.click(screen.getByRole("button", { name: "자세히" }));
+    await user.type(screen.getByLabelText("이펙트 문장 1"), "작은 불덩이가 꼬리를 그으며 {{대상}에게 날아든다!");
     await user.click(screen.getByRole("button", { name: "저장" }));
 
     expect(api.createTechnique).toHaveBeenCalledWith({
@@ -131,6 +140,11 @@ describe("TechniqueForm", () => {
           castSeconds: 0,
           cooldownSeconds: 3,
           usableWhen: "COMBAT_ONLY",
+          effectLines: ["작은 불덩이가 꼬리를 그으며 {대상}에게 날아든다!"],
+          stagePowers: [
+            { stage: 1, basePower: 2, coefficient: 1.2 },
+            { stage: 2, basePower: 2.2, coefficient: 1.2 },
+          ],
         },
       ],
     });
@@ -180,11 +194,65 @@ describe("TechniqueForm", () => {
         name: "장춘공",
         elements: ["WOOD"],
         stages: [stage(0, 0), stage(120, 2), stage(190, 2)],
-        abilities: [expect.objectContaining({ name: "화탄술", elements: ["FIRE"], costStat: "MANA", costAmount: 5 })],
+        abilities: [
+          expect.objectContaining({
+            name: "화탄술",
+            elements: ["FIRE"],
+            costStat: "MANA",
+            costAmount: 5,
+            effectLines: ["손끝에서 붉은 불덩이가 피어올라 {대상}을 덮친다!"],
+            stagePowers: [
+              { stage: 1, basePower: 2, coefficient: 1.2 },
+              { stage: 2, basePower: 2.2, coefficient: 1.2 },
+              { stage: 3, basePower: 2.4, coefficient: 1.224 },
+            ],
+          }),
+        ],
       }),
     );
+    expect(vi.mocked(api.updateTechnique).mock.calls[0][1].abilities[0]).not.toHaveProperty("usableInGame");
     expect(onSaved).toHaveBeenCalledWith(saved);
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("단계 수를 바꾸면 신통의 단계별 값 행도 맞추고, 새 단계는 바로 앞 단계 값을 복사한다", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.updateTechnique).mockResolvedValue(changchun);
+    render(<TechniqueForm initial={changchun} realms={realms} onSaved={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText("단계 수"), "5");
+    await user.click(screen.getByRole("button", { name: "자세히" }));
+
+    expect(screen.getByLabelText("5성 계수")).toHaveValue(1.224);
+    await user.click(screen.getByRole("button", { name: "저장" }));
+    expect(vi.mocked(api.updateTechnique).mock.calls[0][1].abilities[0].stagePowers).toEqual([
+      { stage: 1, basePower: 2, coefficient: 1.2 },
+      { stage: 2, basePower: 2.2, coefficient: 1.2 },
+      { stage: 3, basePower: 2.4, coefficient: 1.224 },
+      { stage: 4, basePower: 2.4, coefficient: 1.224 },
+      { stage: 5, basePower: 2.4, coefficient: 1.224 },
+    ]);
+
+    await user.selectOptions(screen.getByLabelText("단계 수"), "2");
+    expect(screen.queryByLabelText("3성 계수")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("2성 기본 위력")).toHaveValue(2.2);
+  });
+
+  it("이펙트 문장은 클라이언트가 검사하지 않고 그대로 보내며, 서버 400 detail 을 보인다", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.updateTechnique).mockRejectedValue(new api.ApiError(400, "이펙트 문장은 1~5개로 정하십시오: 화탄술"));
+    render(
+      <TechniqueForm
+        initial={{ ...changchun, abilities: [{ ...changchun.abilities[0], effectLines: [""] }] }}
+        realms={realms}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(vi.mocked(api.updateTechnique).mock.calls[0][1].abilities[0].effectLines).toEqual([""]);
+    expect(await screen.findByRole("alert")).toHaveTextContent("이펙트 문장은 1~5개로 정하십시오: 화탄술");
   });
 
   it("고칠 때는 이 공법이 담긴 물건 링크와 익힌 캐릭터 수를 보인다", () => {
