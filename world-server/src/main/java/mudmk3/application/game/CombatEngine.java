@@ -172,10 +172,16 @@ class CombatEngine {
         return combatTexts.statusLine(opponents);
     }
 
-    /** 세계에서 빠진다(끊김·종료): 모든 교전을 끝내고 교전 상태를 지운다 */
+    /**
+     * 세계에서 빠진다(끊김·종료): 모든 교전을 끝낸다. 다음 공격 시각은 남겨 다시 접속해도 공격 간격이 줄지 않게 하고(D84),
+     * 다시 차기 예약은 지운다(세계 밖에서는 차지 않음 — 들어올 때 {@link #entered} 가 다시 예약)
+     */
     void leave(Long characterId, Instant now) {
         endAll(characterId, now);
-        playerCombatRepository.delete(characterId);
+        playerCombatRepository.find(characterId).ifPresent(combat -> {
+            combat.clearRefill();
+            playerCombatRepository.save(combat);
+        });
     }
 
     /** 다른 방으로 옮겨진다(방 삭제): 모든 교전을 끝낸다. 교전 중이었으면 10초 뒤 다시 차기를 예약한다 */

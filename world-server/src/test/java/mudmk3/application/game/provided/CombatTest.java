@@ -415,7 +415,9 @@ class CombatTest extends BaseGameTest {
 
         gameConnector.disconnect("a");
 
-        assertThat(playerCombatRepository.find(characterIdOf(hanbaek))).isEmpty();
+        PlayerCombat left = playerCombatRepository.find(characterIdOf(hanbaek)).orElseThrow();
+        assertThat(left.isFighting()).isFalse();
+        assertThat(left.getRefillAt()).isNull();
         assertThat(onlyMob(map.entranceId()).opponentIds()).containsExactly(characterIdOf(hanlip));
 
         advanceAndTick(1.5);
@@ -430,6 +432,31 @@ class CombatTest extends BaseGameTest {
         assertThat(onlyMob(map.entranceId()).getQiBlood()).isEqualTo(33);
         advanceAndTick(0.5);
         assertThat(onlyMob(map.entranceId()).getQiBlood()).isEqualTo(49);
+    }
+
+    /** 끊고 바로 다시 접속해도 공격 간격은 줄지 않는다: 처음 일격(0초) 뒤 3초 전에는 다시 치지 않는다 */
+    @Test
+    void reconnectKeepsAttackCooldown() {
+        GameMap map = prepareMap();
+        Long hanbaek = enterAs("a", "한백", Realm.QI_1);
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "공격 청모랑");
+        advance(1);
+        gameConnector.disconnect("a");
+        connect("a2", hanbaek);
+        sender.clear();
+
+        gameConnector.handle("a2", "공격 청모랑");
+
+        assertThat(combatLines("a2")).containsExactly("청모랑과 싸움이 벌어진다.");
+        assertThat(onlyMob(map.entranceId()).getQiBlood()).isEqualTo(41);
+
+        advanceAndTick(1.5); // 2.5초: 아직 아님(몹은 새 교전이라 1.5초 뒤 침)
+        assertThat(combatLines("a2")).doesNotContain(HIT_WOLF);
+
+        advanceAndTick(0.5); // 3초: 처음 일격의 다음 시각
+        assertThat(combatLines("a2")).contains(HIT_WOLF);
+        assertThat(onlyMob(map.entranceId()).getQiBlood()).isEqualTo(33);
     }
 
     @Test
