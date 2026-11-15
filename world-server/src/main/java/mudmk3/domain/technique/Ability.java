@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import mudmk3.domain.AbstractEntity;
 import mudmk3.domain.shared.Element;
+import mudmk3.domain.shared.Josa;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -41,6 +42,14 @@ public class Ability extends AbstractEntity {
     private static final BigDecimal COEFFICIENT_MAX = BigDecimal.valueOf(100);
     private static final int EFFECT_LINES_MAX = 5;
     private static final int EFFECT_LINE_MAX_LENGTH = 100;
+    /** 기존 신통 채우기의 룰북 입문 공격 신통 값: 오행(연체가 아님) 기본 위력·계수·단계마다 기본 + */
+    private static final BigDecimal STARTER_BASE_POWER = new BigDecimal("2");
+    private static final BigDecimal STARTER_COEFFICIENT = new BigDecimal("1.2");
+    private static final BigDecimal STARTER_STEP = new BigDecimal("0.2");
+    /** 기존 신통 채우기의 룰북 입문 공격 신통 값: 연체 기본 위력·계수·단계마다 기본 + */
+    private static final BigDecimal STARTER_BODY_BASE_POWER = new BigDecimal("5");
+    private static final BigDecimal STARTER_BODY_COEFFICIENT = new BigDecimal("2.2");
+    private static final BigDecimal STARTER_BODY_STEP = new BigDecimal("0.5");
 
     /** 이 신통이 딸린 공법 */
     private Technique technique;
@@ -147,6 +156,36 @@ public class Ability extends AbstractEntity {
         info.stagePowers().forEach(power -> ability.stagePowers.add(new AbilityStagePower(power.stage(),
                 power.basePower().setScale(2), power.coefficient().setScale(3))));
         return ability;
+    }
+
+    /**
+     * 6차 전에 만든 신통의 빈 칸을 채운다(admin-tool.md 기존 신통 채우기). 검사를 거치지 않는다.
+     * 이펙트 문장이 없으면 한 줄({@code {대상}에게 화탄술을 펼친다!} 또는 {@code 화탄술을 펼친다.}),
+     * 공격 신통에 단계별 값이 없으면 배우는 단계부터 {@code stageCount}성까지 룰북 입문 공격 신통 값.
+     * 이미 있는 값은 건드리지 않는다
+     *
+     * @return 하나라도 채웠으면 true
+     */
+    boolean fillMissing(int stageCount) {
+        boolean filled = false;
+        if (effectLines.isEmpty()) {
+            String subject = Josa.withEulReul(name);
+            effectLines.add(target == AbilityTarget.SINGLE
+                    ? EffectLine.TARGET + "에게 " + subject + " 펼친다!"
+                    : subject + " 펼친다.");
+            filled = true;
+        }
+        if (kind == AbilityKind.ATTACK && stagePowers.isEmpty()) {
+            BigDecimal base = bodyRefining ? STARTER_BODY_BASE_POWER : STARTER_BASE_POWER;
+            BigDecimal coefficient = (bodyRefining ? STARTER_BODY_COEFFICIENT : STARTER_COEFFICIENT).setScale(3);
+            BigDecimal step = bodyRefining ? STARTER_BODY_STEP : STARTER_STEP;
+            for (int stage = learnStage; stage <= stageCount; stage++) {
+                BigDecimal basePower = base.add(step.multiply(BigDecimal.valueOf(stage - learnStage))).setScale(2);
+                stagePowers.add(new AbilityStagePower(stage, basePower, coefficient));
+            }
+            filled = true;
+        }
+        return filled;
     }
 
     /** 이펙트 문장(입력 순서, 바꿀 수 없음) */

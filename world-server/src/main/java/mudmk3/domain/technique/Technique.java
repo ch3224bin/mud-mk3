@@ -119,6 +119,20 @@ public class Technique extends AbstractEntity {
                 .toList();
     }
 
+    /**
+     * 6차 전에 만든 신통의 이펙트 문장·단계별 값 가운데 빈 것을 채운다({@link Ability#fillMissing}).
+     * 검사를 거치지 않고, 이미 있는 값은 건드리지 않는다
+     *
+     * @return 채운 신통 수
+     */
+    public int fillMissingAbilityData() {
+        int filled = 0;
+        for (Ability ability : abilities) {
+            if (ability.fillMissing(stages.size())) filled++;
+        }
+        return filled;
+    }
+
     static void ensureNoDuplicateElement(List<Element> elements) {
         Set<Element> seen = EnumSet.noneOf(Element.class);
         for (Element element : elements) {

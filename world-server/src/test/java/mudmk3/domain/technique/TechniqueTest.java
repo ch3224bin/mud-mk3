@@ -3,11 +3,13 @@ package mudmk3.domain.technique;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Objects.requireNonNull;
 import static mudmk3.domain.technique.TechniqueFixture.bodyStage;
 import static mudmk3.domain.technique.TechniqueFixture.changchunInfo;
 import static mudmk3.domain.technique.TechniqueFixture.changchunStages;
@@ -273,6 +275,29 @@ class TechniqueTest {
 
         assertThatThrownBy(() -> technique.stage(0)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> technique.stage(10)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void fillMissingAbilityDataCount() {
+        Technique technique = TechniqueFixture.changchun();
+        Ability fireBall = technique.getAbilities().get(0);
+        Ability heavenEye = technique.getAbilities().get(1);
+        clearField(fireBall, "effectLines");
+        clearField(fireBall, "stagePowers");
+        clearField(heavenEye, "effectLines");
+
+        assertThat(technique.fillMissingAbilityData()).isEqualTo(2);
+        assertThat(fireBall.getEffectLines()).containsExactly("{대상}에게 화탄술을 펼친다!");
+        assertThat(fireBall.getStagePowers()).hasSize(9);
+        assertThat(heavenEye.getEffectLines()).containsExactly("천안술을 펼친다.");
+        assertThat(heavenEye.getStagePowers()).isEmpty();
+        assertThat(technique.getAbilities().get(2).getEffectLines()).containsExactly("어풍결 기운이 퍼진다.");
+        assertThat(technique.fillMissingAbilityData()).isZero();
+    }
+
+    private static void clearField(Ability ability, String field) {
+        List<?> values = (List<?>) ReflectionTestUtils.getField(ability, field);
+        requireNonNull(values).clear();
     }
 
     static void assertFail(TechniqueSaveInfo info, String message) {
