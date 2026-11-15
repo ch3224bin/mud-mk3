@@ -191,6 +191,29 @@ index.md `### 6차 이터레이션 열린 질문` 은 모두 `→ (제안)` 답�
 - L6-2: 계획의 처리대로(막지 않음).
 - L6-3: `필요` 는 소모량을 `Numbers.decimal` 로(2.5 → `필요 2.5`), `남은 것` 은 버린 정수 그대로. 근거: 버림이면 `필요 2, 남은 것 2` 로 거절되어 틀린 안내가 된다. Task 6 이 구현, Task 10 이 command.md 에 `(제안)` 으로 적는다.
 
+**사전 점검 판정 (리드, 2026-11-15)** — 태스크 본문·D 결정보다 앞선다. 해당 태스크 구현자는 반드시 따른다.
+- F1 (T5·T6): 몹이 쓰러질 때 한 상대 상한 지우기는 `receive` 가 아니라 `CombatActions.onMobKilled` 끝(깨달음을 쌓은 뒤)에서 한다.
+- F2 (T4·T6): 깨달음 더하기는 JPQL 일괄 갱신을 쓰지 않는다. `findByCharacterIdAndKind` 로 찾아 엔티티 값을 고치고(dirty checking) 없으면 save.
+- F3 (T1, D117): `changchunWithStages` 는 공법 단계 수에 맞춰 단계별 값을 만든다. 9단계가 아닌 공법은 `withStagePowers` 를 쓴다.
+- F4 (T10, D111): D111 의 '`필요` 버림' 은 리드 판정 L6-3 으로 대체(`필요` = `Numbers.decimal`). Task 10 은 L6-1 의 index.md `(1.8초)` 예도 고친다.
+- F5 (T6): 테스트 `insufficientManaShowsDecimalCost`(소모 2.5 → `필요 2.5, 남은 것 2`)를 더한다.
+- F6 (T6): `capNotRepeated`·`insightCapResetsAfterReengage` 는 피해 0 신통(단계별 기본 위력 0·계수 0)으로 상황을 만든다.
+- F7 (T11): 5차 단계 42 의 정리(몹 배치 삭제·시작 소지품 되돌림)를 단계 51 로 옮겨 한 번만 한다.
+- F8 (T11): 단계 44 앞에 `버리기` 하나를 넣어 빈칸을 만들고 빈칸을 검사한다.
+- F9 (T1): 'effectLines 빠짐·0개·6개 → 400' 문구는 `TechniqueEditorTest`(또는 관리 API 통합 테스트)에서 본다. WebMvc 테스트는 목록이 편집기로 넘어가는지만 본다.
+- F10 (T5, D118): `귀속 비검`·`귀속`·`귀속 해제 비검` 파싱도 고칠 목록에 넣는다.
+- F11 (T6): `TechniqueFinderTest` 는 없으므로 새 파일로 만든다.
+- F12 (T6): 같은 이름 신통이 여럿일 수 있으므로 리포지토리는 `List` 로 받고 첫 값을 쓴다.
+- F13 (T6): '1성 천안술' 은 배우는 단계가 1인 픽스처 변형을 쓴다.
+- F14 (T6·T7): 소모 1 신통과 낙뢰술의 단계별 값은 화탄술과 같다(1성 기본 위력 2·계수 1.2 등).
+- F15 (T2): 기존 신통 채우기 값은 `BigDecimal` 로 계산한다.
+- F16 (T3, D104): 법력 회복 틱은 매 틱 모든 presence 의 회복 기준 시각을 먼저 갱신한다.
+- F17 (T1, D99): 이펙트 문장 검증 순서는 계획대로 '검사 우선'(검사 종류마다 모든 줄을 본 뒤 다음 검사). Task 10 이 스펙 문장을 이에 맞춘다.
+- F18 (D97·D106): 깨달음 계산은 계획대로 `domain/cultivation`, 새 의존 `combat → cultivation` 허용(순환 없음). Task 10 이 platform.md 를 고친다.
+- F19 (T8): `toAbility` 는 `usableInGame` 을 빼고 보낸다. `abilityDraftOf` 도 고친다. `TechniqueForm` 의 단계 수 변경에서 `resizeStagePowers` 를 부른다.
+- F20 (T5·T7): `Casting.seq` 카운터는 `CombatActions` 에 둔다. 행동 정렬 넷째 키는 '자동 공격 먼저'.
+- F21 (T6): 검사 4(영력 0)의 '오행 신통' 은 `!bodyRefining` 이다(속성 없는 신통 포함).
+
 ## Review Focus
 
 스펙이 직접 말하지 않지만 실제로 부딪칠 만한 것. 각 줄의 테스트는 담당 태스크에 들어 있다.
