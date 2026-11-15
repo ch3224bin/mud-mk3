@@ -3,6 +3,7 @@ package mudmk3.application.technique.provided;
 import mudmk3.domain.technique.Technique;
 
 import java.util.List;
+import java.util.Optional;
 
 /** 공법·신통 정의를 찾는다 */
 public interface TechniqueFinder {
@@ -15,4 +16,9 @@ public interface TechniqueFinder {
 
     /** 이름순 */
     List<TechniqueView> viewAll();
+
+    /**
+     * 어느 공법에든 그 이름(영문 대소문자 무시)의 신통이 정의되어 있으면 처음 정의된 것의 저장된 이름. 없으면 빈 값
+     */
+    Optional<String> findAbilityName(String name);
 }

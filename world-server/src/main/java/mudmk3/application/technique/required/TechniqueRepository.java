@@ -39,6 +39,10 @@ public interface TechniqueRepository extends Repository<Technique, Long> {
     @Query("select count(c) from CharacterTechnique c where c.technique.id = :id")
     long countLearners(Long id);
 
+    /** 모든 공법의 신통 가운데 영문 대소문자를 가리지 않고 이름이 같은 것의 저장된 이름(신통 id 순) */
+    @Query("select a.name from Ability a where lower(a.name) = lower(:name) order by a.id")
+    List<String> findAbilityNames(String name);
+
     /** 이 공법을 익힌 캐릭터의 가장 높은 단계. 익힌 캐릭터가 없으면 비어 있다 */
     @Query("select max(c.stage) from CharacterTechnique c where c.technique.id = :id")
     Optional<Integer> maxLearnedStage(Long id);

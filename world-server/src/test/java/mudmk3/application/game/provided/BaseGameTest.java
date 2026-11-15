@@ -37,6 +37,10 @@ import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
 import mudmk3.application.zone.provided.ZoneSaveRequest;
 import mudmk3.domain.character.PlayerCharacter;
+import mudmk3.domain.cultivation.CharacterInsight;
+import mudmk3.domain.cultivation.CharacterTechnique;
+import mudmk3.domain.cultivation.Insight;
+import mudmk3.domain.cultivation.InsightKind;
 import mudmk3.domain.faction.Faction;
 import mudmk3.domain.faction.FactionKind;
 import mudmk3.domain.item.BagGrade;
@@ -50,6 +54,8 @@ import mudmk3.domain.npc.ShopKind;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.room.Room;
 import mudmk3.domain.shared.Realm;
+import mudmk3.domain.technique.Technique;
+import mudmk3.domain.technique.TechniqueSaveInfo;
 import mudmk3.domain.zone.Zone;
 import org.junit.jupiter.api.AfterEach;
 import org.jspecify.annotations.Nullable;
@@ -59,7 +65,9 @@ import org.springframework.test.context.event.RecordApplicationEvents;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 import static mudmk3.domain.character.CharacterFixture.spiritRoot;
@@ -287,6 +295,29 @@ abstract class BaseGameTest {
     /** 그 계정 캐릭터의 깎인 법력(비어 있으면 0) */
     protected double manaLost(Long accountId) {
         return characterRepository.readManaLost(characterIdOf(accountId)).orElseThrow();
+    }
+
+    /**
+     * 공법을 만들고 그 계정 캐릭터가 1성으로 익힌다(익힌 순서는 부른 순서). 공법 id. 게임은 명령마다 익힌 공법을 DB에서 읽는다
+     */
+    protected Long learn(Long accountId, TechniqueSaveInfo info) {
+        Technique technique = Technique.create(info);
+        entityManager.persist(technique);
+        PlayerCharacter character = characterRepository.findByAccountId(accountId).orElseThrow();
+        entityManager.persist(CharacterTechnique.learn(character, technique));
+        entityManager.flush();
+        return id(technique.getId());
+    }
+
+    /** 그 계정 캐릭터의 쌓인 깨달음(소수 그대로) */
+    protected Insight insightOf(Long accountId) {
+        entityManager.flush();
+        Map<InsightKind, Double> amounts = new EnumMap<>(InsightKind.class);
+        entityManager.createQuery("select i from CharacterInsight i where i.characterId = :id", CharacterInsight.class)
+                .setParameter("id", characterIdOf(accountId))
+                .getResultList()
+                .forEach(insight -> amounts.put(insight.getKind(), insight.getAmount()));
+        return new Insight(amounts);
     }
 
     // ---- 서버 틱과 몹

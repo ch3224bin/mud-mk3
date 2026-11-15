@@ -113,6 +113,7 @@ public class GameService implements GameConnector, GameTicker {
     private final CultivationTexts cultivationTexts;
     private final CombatEngine combatEngine;
     private final CombatCommandHandler combatCommandHandler;
+    private final AbilityCommandHandler abilityCommandHandler;
     private final Clock clock;
     private final GameMessageSender sender;
     private final TransactionTemplate transactionTemplate;
@@ -138,6 +139,7 @@ public class GameService implements GameConnector, GameTicker {
             CultivationTexts cultivationTexts,
             CombatEngine combatEngine,
             CombatCommandHandler combatCommandHandler,
+            AbilityCommandHandler abilityCommandHandler,
             Clock clock,
             GameMessageSender sender,
             PlatformTransactionManager transactionManager
@@ -156,6 +158,7 @@ public class GameService implements GameConnector, GameTicker {
         this.cultivationTexts = cultivationTexts;
         this.combatEngine = combatEngine;
         this.combatCommandHandler = combatCommandHandler;
+        this.abilityCommandHandler = abilityCommandHandler;
         this.clock = clock;
         this.sender = sender;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -497,8 +500,9 @@ public class GameService implements GameConnector, GameTicker {
             case Command.Quit _ -> quit(sessionId, player);
             case Command.Empty _ -> {
             }
-            // 신통 쓰기·중지는 아직 게임에 잇지 않아 4차 '모르는 명령' 응답이다
-            case Command.Unknown _, Command.UseAbility _, Command.Stop _ -> send(sessionId, SystemMessage.error(UNKNOWN));
+            case Command.UseAbility useAbility -> abilityCommandHandler.use(player, useAbility, clock.instant(), this::send);
+            // 중지는 아직 게임에 잇지 않아 4차 '모르는 명령' 응답이다(Task 7)
+            case Command.Unknown _, Command.Stop _ -> send(sessionId, SystemMessage.error(UNKNOWN));
         }
     }
 

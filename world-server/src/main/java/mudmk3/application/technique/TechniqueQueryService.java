@@ -8,6 +8,7 @@ import mudmk3.domain.technique.Technique;
 import mudmk3.support.stereotype.ApplicationService;
 
 import java.util.List;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
@@ -33,6 +34,11 @@ public class TechniqueQueryService implements TechniqueFinder {
         return techniqueRepository.findAllByOrderByNameAsc().stream()
                 .map(this::toView)
                 .toList();
+    }
+
+    @Override
+    public Optional<String> findAbilityName(String name) {
+        return techniqueRepository.findAbilityNames(name).stream().findFirst();
     }
 
     private TechniqueView toView(Technique technique) {
