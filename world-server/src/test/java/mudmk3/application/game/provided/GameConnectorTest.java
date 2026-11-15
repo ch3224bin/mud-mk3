@@ -81,6 +81,7 @@ import static mudmk3.application.technique.provided.TechniqueRequestFixture.requ
 import static mudmk3.domain.character.CharacterFixture.createCharacter;
 import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
+import static mudmk3.domain.mob.MobFixture.wolf;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static mudmk3.domain.technique.TechniqueFixture.greenWoodInfo;
 import static mudmk3.domain.technique.TechniqueFixture.ironBodyInfo;
@@ -179,6 +180,75 @@ class GameConnectorTest extends BaseGameTest {
         RoomMessage room = sender.lastTo("s1", RoomMessage.class);
         assertThat(room.mobs()).isEmpty();
         assertThat(room.corpses()).isEmpty();
+    }
+
+    // ---- 교전 중 막힘(D86)
+
+    @Test
+    void fightingBlocksCommands() {
+        GameMap map = prepareMap();
+        NpcMap npcs = prepareNpcs(map);
+        Items items = prepareItems();
+        prepareShop(npcs, items);
+        Long hanbaek = enter("a", "한백"); // 범인이어도 교전 막힘 문구가 먼저
+        enter("b", "한립");
+        give(hanbaek, items.hide(), 2);
+        place(map.entranceId(), items.fang(), 1, null);
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "공격 청모랑");
+        sender.clear();
+
+        gameConnector.handle("a", "북");
+        gameConnector.handle("a", "종료");
+        List.of("줍기 늑대 이빨", "주기 한립 늑대 가죽", "대화 왕씨", "읽기 늑대 가죽", "목록", "사기 회춘단", "팔기 늑대 가죽",
+                "값 늑대 가죽").forEach(command -> gameConnector.handle("a", command));
+
+        SystemMessage cannotDo = SystemMessage.error("싸우는 중에는 할 수 없습니다.");
+        assertThat(sender.messagesTo("a")).containsExactly(
+                SystemMessage.error("싸우는 중에는 움직일 수 없습니다."),
+                SystemMessage.error("싸우는 중에는 떠날 수 없습니다."),
+                cannotDo, cannotDo, cannotDo, cannotDo, cannotDo, cannotDo, cannotDo, cannotDo);
+        assertThat(sender.closeReasonOf("a")).isEmpty();
+        assertThat(roomIdOf(hanbaek)).isEqualTo(map.entranceId());
+        assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    @Test
+    void fightingAllowsInfoSayAndDrop() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long hanbaek = enter("a", "한백");
+        give(hanbaek, items.hide(), 2);
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "공격 청모랑");
+        sender.clear();
+
+        gameConnector.handle("a", "소지품");
+        gameConnector.handle("a", "상태");
+        gameConnector.handle("a", "말하기 덤벼라");
+        gameConnector.handle("a", "버리기 늑대 가죽 1");
+        gameConnector.handle("a", "확인");
+
+        List<GameMessage> messages = sender.messagesTo("a");
+        assertThat(messages).hasSize(5);
+        assertThat(messages.get(0)).isInstanceOf(InventoryMessage.class);
+        assertThat(messages.get(1)).isInstanceOf(StatusMessage.class);
+        assertThat(messages.get(2)).isInstanceOf(SayMessage.class);
+        assertThat(messages.get(3)).isEqualTo(SystemMessage.item("늑대 가죽 1개를 버렸습니다."));
+        assertThat(messages.get(4)).isEqualTo(SystemMessage.error("확인할 것이 없습니다."));
+    }
+
+    @Test
+    void notFightingQuitAndMoveWork() {
+        GameMap map = prepareMap();
+        Long hanbaek = enter("a", "한백");
+        placeMob(map, wolf(), 1);
+        sender.clear();
+
+        gameConnector.handle("a", "북");
+        assertThat(roomIdOf(hanbaek)).isEqualTo(map.wellId());
+        gameConnector.handle("a", "종료");
+        assertThat(sender.closeReasonOf("a")).contains(GameCloseReason.QUIT);
     }
 
     @Test

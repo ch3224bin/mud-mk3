@@ -131,6 +131,21 @@ class CommandParserTest {
     }
 
     @Test
+    void attack() {
+        assertThat(parse("공격 청모랑")).isEqualTo(new Command.Attack(new ItemQuery("청모랑", 0)));
+        assertThat(parse("공격 2.청모랑")).isEqualTo(new Command.Attack(new ItemQuery("청모랑", 2)));
+        assertThat(parse("공격  쌍두   흑망 ")).isEqualTo(new Command.Attack(new ItemQuery("쌍두 흑망", 0)));
+        assertThat(parse("공격")).isEqualTo(new Command.Attack(null));
+    }
+
+    @Test
+    void collect() {
+        assertThat(parse("수습 청모랑")).isEqualTo(new Command.Collect(new ItemQuery("청모랑", 0)));
+        assertThat(parse("수습 2.청모랑의 시체")).isEqualTo(new Command.Collect(new ItemQuery("청모랑의 시체", 2)));
+        assertThat(parse("수습")).isEqualTo(new Command.Collect(null));
+    }
+
+    @Test
     void readTakesWholeArgumentAsName() {
         assertThat(parse("읽기 옥간 2")).isEqualTo(new Read(new ItemQuery("옥간 2", 0)));
         assertThat(parse("읽기 옥간 전부")).isEqualTo(new Read(new ItemQuery("옥간 전부", 0)));

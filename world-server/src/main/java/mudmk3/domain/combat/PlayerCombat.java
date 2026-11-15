@@ -25,6 +25,8 @@ public final class PlayerCombat {
     private @Nullable Long targetMobId;
     private @Nullable Instant nextAttackAt;
     private @Nullable Instant refillAt;
+    /** 지금 교전을 시작한 순번(같은 시각 행동의 순서, D86). 교전하지 않으면 뜻이 없다 */
+    private long engageOrder;
 
     public PlayerCombat(Long characterId) {
         this.characterId = requireNonNull(characterId);
@@ -41,6 +43,11 @@ public final class PlayerCombat {
             mobIds.add(mobId);
         }
         refillAt = null;
+    }
+
+    /** 교전을 시작한 순번을 적는다(교전하지 않던 플레이어가 교전에 들어갈 때 부른다) */
+    public void recordEngageOrder(long order) {
+        this.engageOrder = order;
     }
 
     /** 노리는 몹을 정한다 */

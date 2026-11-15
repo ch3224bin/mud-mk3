@@ -74,11 +74,23 @@ class ShopCommandHandler {
     private final InventoryFinder inventoryFinder;
     private final InventoryEditor inventoryEditor;
     private final CharacterFinder characterFinder;
+    private final CombatEngine combatEngine;
     private final Clock clock;
 
-    /** 상점 명령을 처리한다. send 는 (연결 id, 메시지)로 보낼 것을 모은다 */
+    /**
+     * 상점 명령을 처리한다. 교전 중에는 {@code 목록}·{@code 사기}·{@code 팔기}·{@code 값}·결제 대기 중인 {@code 확인} 이 범인 막힘보다
+     * 먼저 막힌다(D86 — 막힌 확인은 대기도 사라진다). send 는 (연결 id, 메시지)로 보낼 것을 모은다
+     */
     void handle(Command command, OnlinePlayer player, GameSession session, BiConsumer<String, GameMessage> send) {
         Reply reply = new Reply(player.getSessionId(), send);
+        boolean shopCommand = command instanceof Command.ShopList || command instanceof Command.Buy
+                || command instanceof Command.Sell || command instanceof Command.Appraise
+                || (command instanceof Command.Confirm && livePending(session).isPresent());
+        if (shopCommand && combatEngine.isFighting(player.getCharacterId())) {
+            session.clearPending();
+            reply.error(CombatTexts.CANNOT_DO);
+            return;
+        }
         switch (command) {
             case Command.ShopList list -> list(player, list.args(), reply);
             case Command.Buy buy -> buy(player, session, buy.args(), reply);

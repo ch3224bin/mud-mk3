@@ -4,6 +4,7 @@ import mudmk3.domain.item.ItemNames;
 import mudmk3.domain.item.ItemQuery;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.shared.Names;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Optional;
 
@@ -46,7 +47,9 @@ public final class CommandParser {
             case "상태", "ㅅ" -> rest.isEmpty() ? new Command.Status() : new Command.Unknown(word);
             case "공법" -> rest.isEmpty() ? new Command.Techniques() : new Command.Unknown(word);
             case "신통" -> rest.isEmpty() ? new Command.Abilities() : new Command.Unknown(word);
-            case "읽기" -> parseRead(rest);
+            case "읽기" -> new Command.Read(wholeName(rest));
+            case "공격" -> new Command.Attack(wholeName(rest));
+            case "수습" -> new Command.Collect(wholeName(rest));
             case "누구" -> rest.isEmpty() ? new Command.Who() : new Command.Unknown(word);
             case "도움말" -> rest.isEmpty() ? new Command.Help() : new Command.Unknown(word);
             case "종료" -> rest.isEmpty() ? new Command.Quit() : new Command.Unknown(word);
@@ -63,10 +66,10 @@ public final class CommandParser {
         return new Command.Talk(rest.substring(0, space), word.isEmpty() ? null : word);
     }
 
-    /** 인자 전체가 물건 이름(번호 허용). 수량은 받지 않는다 */
-    private static Command parseRead(String rest) {
+    /** 인자 전체가 이름(번호 허용). 수량은 받지 않는다. 비면 null */
+    private static @Nullable ItemQuery wholeName(String rest) {
         String name = ItemNames.normalize(rest);
-        return new Command.Read(name.isEmpty() ? null : ItemQuery.parse(name));
+        return name.isEmpty() ? null : ItemQuery.parse(name);
     }
 
     /** 첫 낱말이 대상, 나머지가 물건 인자. 대상이 없으면 null */

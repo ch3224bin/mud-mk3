@@ -22,7 +22,7 @@ public final class ReservedWords {
             "사기", "팔기", "값", "확인", "취소", "주기", "교환", "거래소", "경매", "찾기",
             "가입", "탈퇴", "공적", "동부", "맡기기", "보관함", "비경", "주입", "나가기", "퀘스트",
             "영수", "계약", "먹이기", "되살리기", "말하기", "'", "귓속말", "외치기", "종료", "뒤로",
-            "고르기", "튜토리얼");
+            "고르기", "튜토리얼", "공격");
 
     private static final Set<String> LOWER = ALL.stream()
             .map(word -> word.toLowerCase(Locale.ROOT))

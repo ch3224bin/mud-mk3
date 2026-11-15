@@ -88,8 +88,16 @@ class ItemCommandHandler {
     private final CombatEngine combatEngine;
     private final CombatTexts combatTexts;
 
-    /** 물건 명령(주기·읽기 포함)과 인자 있는 {@code 보기} 를 처리한다. send 는 (연결 id, 메시지)로 보낼 것을 모은다 */
+    /**
+     * 물건 명령(주기·읽기 포함)과 인자 있는 {@code 보기} 를 처리한다. 교전 중에는 {@code 줍기}·{@code 주기}·{@code 읽기} 가 막힌다(D86).
+     * send 는 (연결 id, 메시지)로 보낼 것을 모은다
+     */
     void handle(Command command, OnlinePlayer player, BiConsumer<String, GameMessage> send) {
+        if ((command instanceof Command.Pick || command instanceof Command.Give || command instanceof Command.Read)
+                && combatEngine.isFighting(player.getCharacterId())) {
+            send.accept(player.getSessionId(), SystemMessage.error(CombatTexts.CANNOT_DO));
+            return;
+        }
         switch (command) {
             case Command.Inventory _ -> send.accept(player.getSessionId(), inventory(player));
             case Command.Pick pick -> pick(player, pick.args(), send);
@@ -458,7 +466,7 @@ class ItemCommandHandler {
     }
 
     /** 입력한 이름(번호 포함). 영석 등급 낱말은 전체 이름으로 바뀐 뒤다 */
-    private static String inputOf(ItemQuery query) {
+    static String inputOf(ItemQuery query) {
         return query.hasOrdinal() ? query.ordinal() + "." + query.name() : query.name();
     }
 

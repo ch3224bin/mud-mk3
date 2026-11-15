@@ -107,6 +107,14 @@ public sealed interface Command {
     record Read(@Nullable ItemQuery item) implements Command {
     }
 
+    /** 같은 방의 몹과 교전을 시작하거나 노리는 몹을 바꾼다. 인자 전체가 이름(번호 허용, 수량 없음), 빠졌으면 null */
+    record Attack(@Nullable ItemQuery target) implements Command {
+    }
+
+    /** 시체의 물건을 거둔다. 인자 전체가 시체 이름(번호 허용, 수량 없음), 빠졌으면 null */
+    record Collect(@Nullable ItemQuery corpse) implements Command {
+    }
+
     record Who() implements Command {
     }
 

@@ -111,6 +111,7 @@ public class GameService implements GameConnector, GameTicker {
     private final CultivationFinder cultivationFinder;
     private final CultivationTexts cultivationTexts;
     private final CombatEngine combatEngine;
+    private final CombatCommandHandler combatCommandHandler;
     private final Clock clock;
     private final GameMessageSender sender;
     private final TransactionTemplate transactionTemplate;
@@ -135,6 +136,7 @@ public class GameService implements GameConnector, GameTicker {
             CultivationFinder cultivationFinder,
             CultivationTexts cultivationTexts,
             CombatEngine combatEngine,
+            CombatCommandHandler combatCommandHandler,
             Clock clock,
             GameMessageSender sender,
             PlatformTransactionManager transactionManager
@@ -152,6 +154,7 @@ public class GameService implements GameConnector, GameTicker {
         this.cultivationFinder = cultivationFinder;
         this.cultivationTexts = cultivationTexts;
         this.combatEngine = combatEngine;
+        this.combatCommandHandler = combatCommandHandler;
         this.clock = clock;
         this.sender = sender;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -175,7 +178,10 @@ public class GameService implements GameConnector, GameTicker {
         serialized(() -> doDisconnect(sessionId));
     }
 
-    /** 서버 틱 하나(D85). 명령처럼 락 안에서 트랜잭션 하나로 처리하고, 보낼 것은 커밋 뒤 보낸다 */
+    /**
+     * 서버 틱 하나(D85). 명령처럼 락 안에서 트랜잭션 하나로 처리하고, 보낼 것은 커밋 뒤 보낸다.
+     * 진 캐릭터({@link CombatOutcome})는 그 자리에 기혈 1로 남는다 — 시작 방에서 깨어나기(D88)는 아직 없다
+     */
     @Override
     @Transactional(propagation = Propagation.SUPPORTS)
     public void tick() {
@@ -308,6 +314,7 @@ public class GameService implements GameConnector, GameTicker {
         presenceRepository.save(player);
         notifyOthers(player, roomId, Josa.withIGa(name) + " 나타난다.", "appear");
         sendRoom(sessionId, session, room);
+        combatEngine.entered(player.getCharacterId(), clock.instant());
     }
 
     private void doDisconnect(String sessionId) {
@@ -317,7 +324,9 @@ public class GameService implements GameConnector, GameTicker {
         presenceRepository.findBySessionId(sessionId).ifPresent(this::leaveWorld);
     }
 
+    /** 세계에서 빠진다. 교전 중이었으면 교전이 바로 끝난다(5차에 30초 남는 몸은 없음) */
     private void leaveWorld(OnlinePlayer player) {
+        combatEngine.leave(player.getCharacterId(), clock.instant());
         presenceRepository.delete(player.getCharacterId());
         notifyOthers(player, player.getRoomId(), Josa.withIGa(player.getName()) + " 사라진다.", "disappear");
     }
@@ -473,6 +482,7 @@ public class GameService implements GameConnector, GameTicker {
                     itemCommandHandler.handle(command, player, this::send);
             case Command.ShopList _, Command.Buy _, Command.Sell _, Command.Appraise _, Command.Confirm _, Command.Cancel _ ->
                     shopCommandHandler.handle(command, player, session, this::send);
+            case Command.Attack _, Command.Collect _ -> combatCommandHandler.handle(command, player, this::send);
             case Command.Status _ -> status(sessionId, player);
             case Command.Techniques _ -> send(sessionId, SystemMessage.info(cultivationTexts.techniques(
                     characterFinder.find(player.getCharacterId()).getRealm(),
@@ -492,7 +502,12 @@ public class GameService implements GameConnector, GameTicker {
     private void status(String sessionId, OnlinePlayer player) {
         PlayerCharacter character = characterFinder.find(player.getCharacterId());
         StatSheet stats = cultivationFinder.stats(player.getCharacterId());
-        send(sessionId, StatusMessage.of(character, stats, cultivationTexts.status(character, stats)));
+        String text = cultivationTexts.status(character, stats);
+        String combatLine = combatEngine.statusLine(player.getCharacterId());
+        if (!combatLine.isEmpty()) {
+            text = text + "\n" + combatLine;
+        }
+        send(sessionId, StatusMessage.of(character, stats, text));
     }
 
     private void look(String sessionId, OnlinePlayer player, Command.Look look) {
@@ -504,6 +519,10 @@ public class GameService implements GameConnector, GameTicker {
     }
 
     private void move(String sessionId, GameSession session, OnlinePlayer player, Direction direction) {
+        if (combatEngine.isFighting(player.getCharacterId())) {
+            send(sessionId, SystemMessage.error(CombatTexts.CANNOT_MOVE));
+            return;
+        }
         Room from = roomFinder.find(player.getRoomId());
         Optional<Exit> exit = from.findExit(direction);
         if (exit.isEmpty()) {
@@ -539,6 +558,10 @@ public class GameService implements GameConnector, GameTicker {
 
     /** 같은 방 NPC에게 말을 건다. 이름 전체가 같은 NPC, 없으면 이름이 입력으로 시작하는 첫 NPC. 묻는 사람에게만 보낸다 */
     private void talk(String sessionId, OnlinePlayer player, Command.Talk talk) {
+        if (combatEngine.isFighting(player.getCharacterId())) {
+            send(sessionId, SystemMessage.error(CombatTexts.CANNOT_DO));
+            return;
+        }
         String target = talk.target();
         if (target == null || target.isBlank()) {
             send(sessionId, SystemMessage.error(TALK_NO_TARGET));
@@ -583,6 +606,10 @@ public class GameService implements GameConnector, GameTicker {
     }
 
     private void quit(String sessionId, OnlinePlayer player) {
+        if (combatEngine.isFighting(player.getCharacterId())) {
+            send(sessionId, SystemMessage.error(CombatTexts.CANNOT_QUIT));
+            return;
+        }
         send(sessionId, SystemMessage.info(QUIT));
         leaveWorld(player);
         close(sessionId, GameCloseReason.QUIT);
@@ -612,6 +639,7 @@ public class GameService implements GameConnector, GameTicker {
 
         List<OnlinePlayer> stranded = presenceRepository.findAllInRoom(deletedRoomId);
         stranded.forEach(player -> {
+            combatEngine.endAll(player.getCharacterId(), clock.instant());
             player.moveTo(startId);
             presenceRepository.save(player);
         });

@@ -29,6 +29,12 @@ class ReservedWordsTest {
 
     @Test
     void listMatchesPlan() {
-        assertThat(ReservedWords.ALL).hasSize(104).doesNotHaveDuplicates();
+        assertThat(ReservedWords.ALL).hasSize(105).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void attackReserved() {
+        assertThat(ReservedWords.contains("공격")).isTrue();
+        assertThat(ReservedWords.ALL.getLast()).isEqualTo("공격");
     }
 }

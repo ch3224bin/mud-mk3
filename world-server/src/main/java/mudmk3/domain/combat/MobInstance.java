@@ -50,6 +50,8 @@ public final class MobInstance {
     private @Nullable Long targetCharacterId;
     private @Nullable Instant nextActionAt;
     private @Nullable Instant refillAt;
+    /** 지금 교전을 시작한 순번(같은 시각 행동의 순서, D86). 교전하지 않으면 뜻이 없다 */
+    private long engageOrder;
 
     private MobInstance(long id, Long placementId, int slot, Long roomId, int placementCount, MobProfile profile) {
         this.id = id;
@@ -92,6 +94,11 @@ public final class MobInstance {
         }
         engagements.put(characterId, engagement);
         return true;
+    }
+
+    /** 교전을 시작한 순번을 적는다(상대가 없던 몹이 교전에 들어갈 때 부른다) */
+    public void recordEngageOrder(long order) {
+        this.engageOrder = order;
     }
 
     /** 교전 상대에서 뺀다. 상대가 모두 사라지면 10초 뒤 다시 차기를 예약하고 행동을 멈춘다 */
