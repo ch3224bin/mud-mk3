@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// compose 로 띄운 세 서비스(world-server)에 대고 1~4차 시나리오를 자동으로 확인한다.
+// compose 로 띄운 세 서비스(world-server)에 대고 1~5차 시나리오를 자동으로 확인한다.
 // 사용: node scripts/smoke-test.mjs [baseUrl=http://localhost:8080]
 // 전제: world-server 가 SPRING_PROFILES_ACTIVE=local, MUD_DEV_LOGIN_ENABLED=true 로 떠 있고
 //       MUD_ADMIN_EMAILS 에 관리자 이메일(기본 smoke-admin@example.com, 바꾸려면 SMOKE_ADMIN_EMAIL)이 들어 있다.
@@ -7,6 +7,9 @@
 // 실행마다 지역·플레이어 이메일·캐릭터 이름·성·종문·NPC·아이템 종류 이름에 실행 번호를 섞는다. 만든 데이터는 지우지 않는다.
 // 시작 소지품은 3차 단계에서 바꾸고 끝에(실패해도) 처음 값으로 되돌린다. 시작 방은 그 실행의 광장으로 남는다.
 // 4차: 새 캐릭터는 범인이라 상점 단계 전에 관리 API로 C를 연기 1층으로 지정한다. 공법·옥간·저물탁 이름에도 실행 번호를 섞는다.
+// 5차: 몹·사냥터 이름에도 실행 번호를 섞는다. 서버 틱(1초)이 실제로 돌므로 몹 행동은 고정 대기 없이 제한 시간 안에
+//      메시지가 오거나(waitFor) 보기를 되풀이해 조건이 맞을 때까지(lookUntil) 기다린다. 이 실행의 몹 배치는 끝에 지운다.
+//      시작 소지품은 단계 1 뒤에 읽어 두고 [] 로 정한 뒤 끝에(실패해도) 읽어 둔 값으로 되돌린다.
 
 const baseUrl = (process.argv[2] ?? "http://localhost:8080").replace(/\/$/, "");
 const wsUrl = baseUrl.replace(/^http/, "ws") + "/ws/game";
@@ -40,6 +43,11 @@ const greenName = `청목결${runNo}`;
 const springScrollName = `${springName} 옥간`;
 const greenScrollName = `${greenName} 옥간`;
 const braceletName = `하급 저물탁${runNo}`;
+// 5차 재료·몹·사냥터(숫자로 끝나 받침 없음: 들토끼123456와·가·를)
+const rabbitHideName = `토끼 가죽${runNo}`;
+const rabbitName = `들토끼${runNo}`;
+const bossName = `흑망${runNo}`;
+const huntName = `사냥터${runNo}`;
 
 class SmokeFailure extends Error {}
 
@@ -126,7 +134,7 @@ class GameClient {
   }
 
   /** since 이후에 받은 메시지 중 조건에 맞는 첫 메시지를 기다린다 */
-  waitFor(predicate, description, since = 0) {
+  waitFor(predicate, description, since = 0, timeoutMs = TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
       const check = () => {
         const found = this.messages.slice(since).find(predicate);
@@ -138,8 +146,8 @@ class GameClient {
       const timer = setTimeout(() => {
         done();
         const received = this.messages.slice(since).map((m) => JSON.stringify(m)).join("\n    ");
-        reject(new SmokeFailure(`${this.label}: ${description} 를 ${TIMEOUT_MS}ms 안에 받지 못함. 받은 것:\n    ${received || "(없음)"}`));
-      }, TIMEOUT_MS);
+        reject(new SmokeFailure(`${this.label}: ${description} 를 ${timeoutMs}ms 안에 받지 못함. 받은 것:\n    ${received || "(없음)"}`));
+      }, timeoutMs);
       const done = () => {
         clearTimeout(timer);
         this.waiters = this.waiters.filter((w) => w !== check);
@@ -161,9 +169,9 @@ class GameClient {
   }
 }
 
-// command.md 4차 도움말(D76)
-const HELP_4 = "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말]"
-  + " · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건>"
+// command.md 5차 도움말(D92)
+const HELP_5 = "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말]"
+  + " · 공격 <대상> · 수습 <시체> · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건>"
   + " · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량]"
   + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건>"
   + " · 확인 · 취소 · 누구 · 도움말 · 종료";
@@ -195,6 +203,9 @@ async function run() {
   const clients = [];
   let admin = null;
   let originalStartingItems = null;
+  // 스모크 시작 때의 시작 소지품(단계 1 뒤에 읽고 [] 로 정함, 끝에 되돌림)과 이 실행의 몹 배치 id
+  let initialStartingItems = null;
+  const mobPlacementIds = [];
   const connect = (...args) => {
     const client = new GameClient(...args);
     clients.push(client);
@@ -213,6 +224,10 @@ async function run() {
     }
     const me = await api(playerA, "GET", "/api/auth/me");
     if (me.email !== playerA.email || me.characterName !== null) fail(`/api/auth/me 응답이 다름: ${JSON.stringify(me)}`);
+    // 기존 pgdata 의 시작 소지품이 있으면 E 의 칸이 모자랄 수 있어 [] 로 정하고 끝에 되돌린다(단계 18 의 처음 값도 [])
+    initialStartingItems = (await api(admin, "GET", "/api/admin/world/starting-items"))
+      .map(({ itemTypeId, count }) => ({ itemTypeId, count }));
+    await api(admin, "PUT", "/api/admin/world/starting-items", { items: [] });
 
     step("2. 관리자 — 지역·방·양방향 출구·시작 방. 플레이어는 관리 API 403, 미로그인 401, X-MUD-Client 없으면 403");
     const zone = await api(admin, "POST", "/api/admin/zones",
@@ -561,7 +576,7 @@ async function run() {
     await expectSystem(c, `주기 없는사람 ${pillName}`, "여기에 없는사람은 없습니다.", "error");
     mark = c.send("도움말");
     const help3 = await c.waitFor((m) => m.type === "system" && m.text.startsWith("명령:"), "3차 도움말", mark);
-    if (help3.text !== HELP_4) fail(`도움말이 4차 문구와 다름: ${JSON.stringify(help3.text)}`);
+    if (help3.text !== HELP_5) fail(`도움말이 5차 문구와 다름: ${JSON.stringify(help3.text)}`);
 
     step("25. 관리자 — 시작 소지품을 처음 값으로 되돌림");
     const restored = await api(admin, "PUT", "/api/admin/world/starting-items", { items: originalStartingItems });
@@ -756,7 +771,7 @@ async function run() {
     }
     if (startingItemsEmpty && eInventory.totalSlots !== 2) fail(`시작 소지품이 빈데 E 칸이 2 가 아님: ${eInventory.totalSlots}`);
 
-    step("35. 관리자 — E 축기 초기 지정 → growth 알림, 저물탁 칸 열림, 도움말 4차 명령");
+    step("35. 관리자 — E 축기 초기 지정 → growth 알림, 저물탁 칸 열림, 도움말 5차 문구");
     await designate(e, nameE, "FOUNDATION_EARLY", "경지가 축기 초기로 바뀌었습니다. (육신 +24, 근력 +12, 영력 +23, 의식 +56, 정혈 +56)");
     eInventory = await inventoryOf(e);
     if (eInventory.totalSlots !== slotsBefore + 100 || eInventory.text.includes("(축기 초기 필요)")) {
@@ -764,7 +779,143 @@ async function run() {
     }
     mark = e.send("도움말");
     const help4 = await e.waitFor((m) => m.type === "system" && m.text.startsWith("명령:"), "4차 도움말", mark);
-    if (!help4.text.includes("상태(ㅅ) · 공법 · 신통 · 읽기 <물건>")) fail(`도움말에 4차 명령이 없음: ${help4.text}`);
+    if (help4.text !== HELP_5) fail(`도움말이 5차 문구와 다름: ${JSON.stringify(help4.text)}`);
+
+    // ---- 5차 ----
+    step(`36. 관리자 — 재료 ${rabbitHideName}, 몹 ${rabbitName}(일반·드롭)·${bossName}(두목), 사냥터 ${huntName}(광장 동), 배치, 쓰이는 것 삭제 409`);
+    const rabbitHide = await itemType(rabbitHideName, "MATERIAL", 1);
+    const mobRequest = (values) => ({
+      description: "", kind: "BEAST", attackName: "뒷발차기", attackCoefficient: null, respawnSeconds: null,
+      fixedDrops: [], tierDrops: [], ...values,
+    });
+    const rabbit = await api(admin, "POST", "/api/admin/mobs", mobRequest({
+      name: rabbitName, realm: "QI_1", tier: "NORMAL", respawnSeconds: 10,
+      fixedDrops: [{ itemTypeId: rabbitHide.id, count: 1 }],
+    }), { expect: 201 });
+    if (JSON.stringify(rabbit.stats) !== JSON.stringify({ qiBlood: 42, body: 7, power: 7 }) || rabbit.rankName !== "1급"
+      || rabbit.fixedDrops[0]?.itemTypeName !== rabbitHideName) {
+      fail(`${rabbitName} 응답이 다름: ${JSON.stringify(rabbit)}`);
+    }
+    const bossRequest = mobRequest({ name: bossName, realm: "FOUNDATION_PEAK", tier: "BOSS", attackName: "독니", respawnSeconds: 1800 });
+    const noCoefficient = await api(admin, "POST", "/api/admin/mobs", bossRequest, { expect: 400 });
+    if (noCoefficient.detail !== "두목의 공격 계수는 0.4~0.8로 정하십시오.") fail(`두목 공격 계수 detail 이 다름: ${noCoefficient.detail}`);
+    const boss = await api(admin, "POST", "/api/admin/mobs", { ...bossRequest, attackCoefficient: 0.6 }, { expect: 201 });
+    if (JSON.stringify(boss.stats) !== JSON.stringify({ qiBlood: 5400, body: 78, power: 57 })) {
+      fail(`${bossName} stats 가 {5400,78,57} 이 아님: ${JSON.stringify(boss)}`);
+    }
+    const hunt = await api(admin, "POST", "/api/admin/rooms",
+      { zoneId: zone.id, name: huntName, description: "풀이 무성한 사냥터다." }, { expect: 201 });
+    await api(admin, "PUT", `/api/admin/rooms/${square.id}/exits/EAST`, { targetRoomId: hunt.id, twoWay: true });
+    const placeMob = async (room, mob) => {
+      const placement = await api(admin, "POST", `/api/admin/rooms/${room.id}/mobs`, { mobId: mob.id, count: 1 }, { expect: 201 });
+      mobPlacementIds.push(placement.id);
+      return placement;
+    };
+    await placeMob(square, rabbit);
+    await placeMob(hunt, boss);
+    await api(admin, "DELETE", `/api/admin/item-types/${rabbitHide.id}`, undefined, { expect: 409 });
+    await api(admin, "DELETE", `/api/admin/mobs/${rabbit.id}`, undefined, { expect: 409 });
+
+    step(`37. E 보기 되풀이 → ${rabbitName} 나타남, 보기 ${rabbitName}, 공격 거절 셋`);
+    /** 보기를 되풀이해 그 방 room 메시지가 조건에 맞을 때까지 기다린다 */
+    const lookUntil = async (client, roomName, predicate, description, timeoutMs) => {
+      const deadline = Date.now() + timeoutMs;
+      let last = null;
+      while (Date.now() < deadline) {
+        const m = client.send("보기");
+        last = await client.waitFor(isRoom(roomName), `${client.label} 보기 room`, m);
+        if (predicate(last)) return last;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+      fail(`${client.label}: ${description} 를 ${timeoutMs}ms 안에 보지 못함. 마지막 보기: ${JSON.stringify(last)}`);
+    };
+    const mobLine = (room, name) => room.mobs?.find((mob) => mob.name === name);
+    const expectMobLine = (room, expected) => {
+      const line = mobLine(room, expected.name);
+      if (!line || ["name", "rank", "tier", "count", "fighting"].some((key) => line[key] !== expected[key])) {
+        fail(`${room.name} 의 몹 줄이 ${JSON.stringify(expected)} 가 아님: ${JSON.stringify(room.mobs)}`);
+      }
+    };
+    const rabbitRoom = await lookUntil(e, "광장", (room) => mobLine(room, rabbitName), `광장의 ${rabbitName}`, 5000);
+    expectMobLine(rabbitRoom, { name: rabbitName, rank: "1급", tier: null, count: 1, fighting: false });
+    await expectSystem(e, `보기 ${rabbitName}`, `${rabbitName} (1급) — 멀쩡하다.`, "info");
+    await expectSystem(e, "공격", "누구를 공격하시겠습니까? (예: 공격 늑대)", "error");
+    await expectSystem(e, "공격 곰", "이곳에 '곰'은 없습니다.", "error");
+    const npcRefusal = await expectSystemTone(e, `공격 ${npcName}`, "error");
+    if (!npcRefusal.text.startsWith(npcName) || !npcRefusal.text.endsWith(" 공격할 수 있는 상대가 아닙니다.")) {
+      fail(`NPC 공격 거절 문구가 다름: ${JSON.stringify(npcRefusal)}`);
+    }
+
+    step(`38. 관리자 — E 연기 7층 지정, 공격 ${rabbitName} → 교전·일격, 이동·종료 막힘, 상태 전투 줄, 맞음·처치(≤ 12초)`);
+    await designate(e, nameE, "QI_7", "경지가 연기 7층으로 바뀌었습니다. (육신 -24, 근력 -12, 영력 -23, 의식 -56, 정혈 -56)");
+    const combatLine = (text) => (m) => m.type === "system" && m.tone === "combat" && m.text === text;
+    const attackMark = e.send(`공격 ${rabbitName}`);
+    await e.waitFor(combatLine(`${rabbitName}와 싸움이 벌어진다.`), "교전 시작", attackMark);
+    await e.waitFor(combatLine(`${rabbitName}에게 일격을 날린다. (피해 19)`), "첫 일격", attackMark);
+    await expectSystem(e, "동", "싸우는 중에는 움직일 수 없습니다.", "error");
+    await expectSystem(e, "종료", "싸우는 중에는 떠날 수 없습니다.", "error");
+    if (e.closeEvent) fail(`E 연결이 종료로 닫힘: ${JSON.stringify(e.closeEvent)}`);
+    status = await statusOf(e);
+    if (!status.text.includes(`[전투 중] 상대: ${rabbitName}`)) fail(`E 상태에 전투 줄이 없음: ${JSON.stringify(status.text)}`);
+    await e.waitFor(combatLine(`${rabbitName}가 뒷발차기로 덮친다! (피해 1, 기혈 119/120)`), "들토끼 공격", attackMark, 12000);
+    await e.waitFor(combatLine(`${rabbitName}를 쓰러뜨렸습니다.`), "들토끼 처치", attackMark, 12000);
+
+    step(`39. E 보기 → 시체, 수습 ${rabbitName} → ${rabbitHideName} 1, 소지품`);
+    mark = e.send("보기");
+    const corpseRoom = await e.waitFor(isRoom("광장"), "처치 뒤 보기", mark);
+    if (JSON.stringify(corpseRoom.corpses) !== JSON.stringify([{ name: `${rabbitName}의 시체`, collectible: true }])
+      || corpseRoom.mobs.length !== 0) {
+      fail(`처치 뒤 광장의 시체·몹이 다름: ${JSON.stringify({ mobs: corpseRoom.mobs, corpses: corpseRoom.corpses })}`);
+    }
+    await expectSystemTone(e, `버리기 ${springScrollName}`, "item");
+    const collected = await expectSystemTone(e, `수습 ${rabbitName}`, "item");
+    const [collectedFirst, ...collectedRest] = collected.text.split("\n");
+    if (!collectedFirst.startsWith(`${rabbitName}의 시체를 수습했습니다: ${rabbitHideName} 1`)
+      || collectedRest.some((line) => !line.startsWith("저물대에 자리가 없습니다. 남은 것: "))) {
+      fail(`수습 문구가 다름: ${JSON.stringify(collected.text)}`);
+    }
+    eInventory = await inventoryOf(e);
+    if (!eInventory.items.some((i) => i.name === rabbitHideName)) fail(`E 소지품에 ${rabbitHideName} 이 없음: ${JSON.stringify(eInventory.items)}`);
+
+    step(`40. 재등장(≤ 16초) — ${rabbitName}가 나타난다(respawn), 숨을 고름(기혈 120/120), 보기 count 1`);
+    await e.waitFor((m) => m.type === "notice" && m.event === "respawn" && m.text === `${rabbitName}가 나타난다.`,
+      "재등장 알림", attackMark, 16000);
+    await e.waitFor((m) => m.type === "system" && m.text === "숨을 고르자 기운이 돌아온다. (기혈 120/120)",
+      "기혈 다시 참", attackMark, 16000);
+    mark = e.send("보기");
+    const respawnRoom = await e.waitFor(isRoom("광장"), "재등장 뒤 보기", mark);
+    expectMobLine(respawnRoom, { name: rabbitName, rank: "1급", tier: null, count: 1, fighting: false });
+
+    step(`41. 관리자 — E 연기 1층 지정, 동 → ${huntName} 의 ${bossName}, 공격 → 질 때(≤ 10초), 깨어남 기혈 1, 다시 참(≤ 15초)`);
+    await designate(e, nameE, "QI_1", "경지가 연기 1층으로 바뀌었습니다. (육신 -6, 근력 -3, 영력 -6, 의식 -12, 정혈 -12)");
+    mark = e.send("동");
+    const huntRoom = await e.waitFor(isRoom(huntName), `${huntName} room`, mark);
+    expectMobLine(huntRoom, { name: bossName, rank: "3급", tier: "두목", count: 1, fighting: false });
+    const bossMark = e.send(`공격 ${bossName}`);
+    await e.waitFor(combatLine("기혈이 다했습니다. 눈앞이 캄캄해진다…"), "질 때", bossMark, 10000);
+    await e.waitFor(combatLine(`${square.name}에서 깨어났습니다. (기혈 1/60)`), "깨어남", bossMark, 10000);
+    await e.waitFor(isRoom(square.name), "시작 방 room", bossMark, 10000);
+    status = await statusOf(e);
+    if (gauge(status.stats?.qiBlood) !== JSON.stringify({ current: 1, max: 60 })) fail(`진 뒤 E 기혈이 {1,60} 이 아님: ${JSON.stringify(status.stats?.qiBlood)}`);
+    await e.waitFor((m) => m.type === "system" && m.text === "숨을 고르자 기운이 돌아온다. (기혈 60/60)",
+      "진 뒤 기혈 다시 참", bossMark, 15000);
+    status = await statusOf(e);
+    expectGauge("E 기혈", status.stats?.qiBlood, 60);
+
+    step("42. E 도움말 5차 명령, 관리자 — 이 실행의 몹 배치 지움 → 광장에서 몹이 사라짐, 시작 소지품 되돌림");
+    mark = e.send("도움말");
+    const help5 = await e.waitFor((m) => m.type === "system" && m.text.startsWith("명령:"), "5차 도움말", mark);
+    if (!help5.text.includes("공격 <대상> · 수습 <시체>")) fail(`도움말에 5차 명령이 없음: ${help5.text}`);
+    while (mobPlacementIds.length > 0) {
+      await api(admin, "DELETE", `/api/admin/mob-placements/${mobPlacementIds[0]}`, undefined, { expect: 204 });
+      mobPlacementIds.shift();
+    }
+    await lookUntil(e, "광장", (room) => !mobLine(room, rabbitName), `광장에서 ${rabbitName} 사라짐`, 5000);
+    const backToInitial = await api(admin, "PUT", "/api/admin/world/starting-items", { items: initialStartingItems });
+    if (JSON.stringify(backToInitial.map(({ itemTypeId, count }) => ({ itemTypeId, count }))) !== JSON.stringify(initialStartingItems)) {
+      fail(`시작 소지품이 스모크 시작 때 값으로 돌아가지 않음: ${JSON.stringify(backToInitial)}`);
+    }
+    initialStartingItems = null;
 
     console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName}·${merchantName}, 공법 ${springName}·${greenName})`);
   } finally {
@@ -773,6 +924,24 @@ async function run() {
       try {
         await api(admin, "PUT", "/api/admin/world/starting-items", { items: originalStartingItems });
         console.log("- (정리) 시작 소지품을 처음 값으로 되돌림");
+      } catch (error) {
+        console.error(`- (정리) 시작 소지품 되돌리기 실패: ${error.message ?? error}`);
+      }
+    }
+    if (admin) {
+      for (const placementId of mobPlacementIds) {
+        try {
+          await api(admin, "DELETE", `/api/admin/mob-placements/${placementId}`, undefined, { expect: 204 });
+          console.log(`- (정리) 몹 배치 ${placementId} 지움`);
+        } catch (error) {
+          console.error(`- (정리) 몹 배치 ${placementId} 지우기 실패: ${error.message ?? error}`);
+        }
+      }
+    }
+    if (admin && initialStartingItems) {
+      try {
+        await api(admin, "PUT", "/api/admin/world/starting-items", { items: initialStartingItems });
+        console.log("- (정리) 시작 소지품을 스모크 시작 때 값으로 되돌림");
       } catch (error) {
         console.error(`- (정리) 시작 소지품 되돌리기 실패: ${error.message ?? error}`);
       }
