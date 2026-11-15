@@ -13,4 +13,10 @@
         <Field name="qiBloodLost"/>
         <Bug pattern="UWF_UNWRITTEN_FIELD"/>
     </Match>
+    <!-- 깎인 법력도 같다(6차) -->
+    <Match>
+        <Class name="mudmk3.domain.character.PlayerCharacter"/>
+        <Field name="manaLost"/>
+        <Bug pattern="UWF_UNWRITTEN_FIELD"/>
+    </Match>
 </FindBugsFilter>

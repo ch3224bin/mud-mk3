@@ -47,7 +47,8 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * 몹·교전·시체 메모리 상태를 다룬다(D85·D86). {@link GameService} 가 게임 락과 트랜잭션 안에서 부른다.
- * 서버 틱은 platform.md {@code #### 서버 틱} 순서대로 처리한다: 1 배치 맞추기 → 2 행동 → 3 다시 차기 → 4 시체 사라짐 → 5 재등장.
+ * 서버 틱은 platform.md {@code #### 서버 틱} 순서대로 처리한다: 1 배치 맞추기 → 법력 회복({@link ManaRecovery}) → 2 행동 →
+ * 3 다시 차기 → 4 시체 사라짐 → 5 재등장.
  * <p>
  * 틱이 중간에 실패하면 트랜잭션(깎인 기혈 쓰기)은 롤백되지만 메모리 상태는 되돌리지 않고 보낼 줄도 버려진다
  * ({@link GameService} 의 1차 한계). 기혈 쓰기는 몹 행동 하나에서 메모리를 바꾸기 전에 하므로, 어긋나도 "몹이 친 것이 DB에
@@ -67,6 +68,7 @@ class CombatEngine {
     private final CultivationFinder cultivationFinder;
     private final CharacterVitalsEditor characterVitalsEditor;
     private final CombatTexts combatTexts;
+    private final ManaRecovery manaRecovery;
 
     /** 몹 id. 서버가 돌아가는 동안 늘기만 한다 */
     private final AtomicLong mobIds = new AtomicLong();
@@ -79,6 +81,7 @@ class CombatEngine {
                 .collect(Collectors.toMap(placement -> requireNonNull(placement.getId()), Function.identity(),
                         (a, b) -> a, LinkedHashMap::new));
         reconcile(placements, now, send);
+        manaRecovery.recover(now);
         List<Long> defeated = new ArrayList<>();
         act(now, send, defeated);
         refillMobs(now);
@@ -199,13 +202,15 @@ class CombatEngine {
         });
     }
 
-    /** 세계에 들어왔다: 깎인 기혈이 있으면 10초 뒤 다시 차기를 예약한다 */
+    /**
+     * 세계에 들어왔다: 법력 회복 기준 시각을 지금으로 두고(끊긴 동안은 차지 않음), 깎인 기혈이 있으면 10초 뒤 다시 차기를 예약한다
+     */
     void entered(Long characterId, Instant now) {
-        if (characterVitalsEditor.qiBloodLost(characterId) <= 0) {
-            return;
-        }
         PlayerCombat combat = playerCombatRepository.find(characterId).orElseGet(() -> new PlayerCombat(characterId));
-        combat.scheduleRefill(now);
+        combat.startManaRegen(now);
+        if (characterVitalsEditor.qiBloodLost(characterId) > 0) {
+            combat.scheduleRefill(now);
+        }
         playerCombatRepository.save(combat);
     }
 

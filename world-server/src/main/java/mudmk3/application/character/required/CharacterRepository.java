@@ -41,4 +41,13 @@ public interface CharacterRepository extends Repository<PlayerCharacter, Long> {
     /** 깎인 기혈(비어 있으면 0). 없는 캐릭터면 비어 있다 */
     @Query(value = "select coalesce(qi_blood_lost, 0) from player_character where id = :id", nativeQuery = true)
     Optional<Double> readQiBloodLost(Long id);
+
+    /** 깎인 법력을 쓴다(그 열만, 영속성 컨텍스트는 비우지 않음). 쓴 행 수를 돌려준다 */
+    @Modifying(flushAutomatically = true)
+    @Query(value = "update player_character set mana_lost = :lost where id = :id", nativeQuery = true)
+    int writeManaLost(Long id, double lost);
+
+    /** 깎인 법력(비어 있으면 0). 없는 캐릭터면 비어 있다 */
+    @Query(value = "select coalesce(mana_lost, 0) from player_character where id = :id", nativeQuery = true)
+    Optional<Double> readManaLost(Long id);
 }

@@ -16,6 +16,7 @@ import mudmk3.application.world.provided.WorldSettingsFinder;
 import mudmk3.domain.character.CharacterAlreadyExistsException;
 import mudmk3.domain.character.CharacterCreateInfo;
 import mudmk3.domain.character.CharacterName;
+import mudmk3.domain.character.Mana;
 import mudmk3.domain.character.DuplicateCharacterNameException;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.character.QiBlood;
@@ -85,8 +86,9 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
         }
         character.changeRealm(realm);
         characterRepository.save(character);
-        // 엔티티 저장은 깎인 기혈 열을 쓰지 않으므로 그 열만 따로 맞춘다(경지를 내리면 최대가 준 만큼 줄임)
+        // 엔티티 저장은 깎인 기혈·법력 열을 쓰지 않으므로 그 열만 따로 맞춘다(경지를 내리면 최대가 준 만큼 줄임)
         writeQiBloodLost(characterId, QiBlood.lostAfterDemotion(qiBloodLost(characterId), from, realm));
+        writeManaLost(characterId, Mana.lostAfterDemotion(manaLost(characterId), from, realm));
         eventPublisher.publishEvent(new RealmChangedEvent(characterId, from, realm));
     }
 
@@ -155,8 +157,37 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
         return true;
     }
 
+    @Override
+    public double manaLost(Long characterId) {
+        return characterRepository.readManaLost(characterId)
+                .orElseThrow(() -> new IllegalArgumentException("캐릭터를 찾을 수 없습니다. id: " + characterId));
+    }
+
+    @Override
+    public double spendMana(Long characterId, double amount, int maxMana) {
+        double lost = Mana.lostAfterSpend(manaLost(characterId), amount, maxMana);
+        writeManaLost(characterId, lost);
+        return Mana.current(lost, maxMana);
+    }
+
+    @Override
+    public boolean recoverMana(Long characterId, double amount) {
+        double lost = manaLost(characterId);
+        if (lost <= 0) {
+            return false;
+        }
+        writeManaLost(characterId, Mana.lostAfterRecover(lost, amount));
+        return true;
+    }
+
     private void writeQiBloodLost(Long characterId, double lost) {
         if (characterRepository.writeQiBloodLost(characterId, lost) == 0) {
+            throw new IllegalArgumentException("캐릭터를 찾을 수 없습니다. id: " + characterId);
+        }
+    }
+
+    private void writeManaLost(Long characterId, double lost) {
+        if (characterRepository.writeManaLost(characterId, lost) == 0) {
             throw new IllegalArgumentException("캐릭터를 찾을 수 없습니다. id: " + characterId);
         }
     }

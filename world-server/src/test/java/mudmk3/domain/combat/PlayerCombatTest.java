@@ -133,4 +133,32 @@ class PlayerCombatTest {
 
         assertThat(combat.getRefillAt()).isNull();
     }
+
+    @Test
+    void manaRegenSecondsNullIsZero() {
+        PlayerCombat combat = new PlayerCombat(7L);
+
+        assertThat(combat.getManaRegenAt()).isNull();
+        assertThat(combat.manaRegenSeconds(T)).isZero();
+        assertThat(combat.getManaRegenAt()).isEqualTo(T);
+    }
+
+    @Test
+    void manaRegenSecondsClampedToOne() {
+        PlayerCombat combat = new PlayerCombat(7L);
+        combat.startManaRegen(T);
+
+        assertThat(combat.manaRegenSeconds(T.plusSeconds(5))).isEqualTo(1);
+        assertThat(combat.getManaRegenAt()).isEqualTo(T.plusSeconds(5));
+        assertThat(combat.manaRegenSeconds(T.plusSeconds(4))).isZero();
+    }
+
+    @Test
+    void manaRegenSecondsHalf() {
+        PlayerCombat combat = new PlayerCombat(7L);
+        combat.startManaRegen(T);
+
+        assertThat(combat.manaRegenSeconds(T.plusMillis(500))).isEqualTo(0.5);
+        assertThat(combat.manaRegenSeconds(T.plusMillis(1_500))).isEqualTo(1);
+    }
 }

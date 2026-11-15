@@ -38,7 +38,7 @@ class CultivationTextsTest {
     @Test
     void statusQi1() {
         PlayerCharacter han = character("목 화", Realm.QI_1);
-        StatSheet stats = StatSheet.of(Realm.QI_1, han.findSpiritRoot().orElseThrow(), List.of(learned(changchun())), 0);
+        StatSheet stats = StatSheet.of(Realm.QI_1, han.findSpiritRoot().orElseThrow(), List.of(learned(changchun())), 0, 0);
 
         assertThat(texts.status(han, stats)).isEqualTo("""
                 한백 · 연기 1층 · 목·화 진영근 (목 50, 화 50)
@@ -52,7 +52,7 @@ class CultivationTextsTest {
     @Test
     void statusMortal() {
         PlayerCharacter han = character("화", Realm.MORTAL);
-        StatSheet stats = StatSheet.of(Realm.MORTAL, han.findSpiritRoot().orElseThrow(), List.of(), 0);
+        StatSheet stats = StatSheet.of(Realm.MORTAL, han.findSpiritRoot().orElseThrow(), List.of(), 0, 0);
 
         assertThat(texts.status(han, stats)).isEqualTo("""
                 한백 · 범인 · 화 천영근 (화 100)
@@ -65,7 +65,7 @@ class CultivationTextsTest {
     @Test
     void statusCommaNumbers() {
         PlayerCharacter han = character("목 화", Realm.QI_13);
-        StatSheet stats = StatSheet.of(Realm.QI_13, han.findSpiritRoot().orElseThrow(), List.of(), 0);
+        StatSheet stats = StatSheet.of(Realm.QI_13, han.findSpiritRoot().orElseThrow(), List.of(), 0, 0);
 
         assertThat(texts.status(han, stats).lines().toList()).contains("수위  0 / 11,000");
     }
@@ -74,7 +74,7 @@ class CultivationTextsTest {
     void statusShowsAptitudeWithGainFloored() {
         PlayerCharacter han = character("금 목 화", Realm.QI_3);
         StatSheet stats = StatSheet.of(Realm.QI_3, han.findSpiritRoot().orElseThrow(),
-                List.of(learned(changchun(), 5)), 0);
+                List.of(learned(changchun(), 5)), 0, 0);
 
         assertThat(texts.status(han, stats).lines().findFirst().orElseThrow())
                 .isEqualTo("한백 · 연기 3층 · 금·목·화 진영근 (금 33, 목 37, 화 33)");

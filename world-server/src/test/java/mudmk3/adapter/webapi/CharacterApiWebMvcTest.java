@@ -73,7 +73,7 @@ record CharacterApiWebMvcTest(MockMvcTester mvc, CultivationFinder cultivationFi
     @Test
     void findWithoutSpiritRoot() {
         when(cultivationFinder.profile(1L)).thenReturn(new CultivationProfile(1L, "한백", Realm.MORTAL, null,
-                StatSheet.of(Realm.MORTAL, null, List.of(), 0), List.of()));
+                StatSheet.of(Realm.MORTAL, null, List.of(), 0, 0), List.of()));
 
         var body = assertThat(mvc.get().with(admin()).uri("/api/admin/characters/1"))
                 .hasStatusOk()
@@ -165,7 +165,7 @@ record CharacterApiWebMvcTest(MockMvcTester mvc, CultivationFinder cultivationFi
 
     private static CultivationProfile profile(Realm realm) {
         var root = CharacterFixture.spiritRoot();
-        return new CultivationProfile(2L, "한립", realm, root, StatSheet.of(realm, root, List.of(), 0),
+        return new CultivationProfile(2L, "한립", realm, root, StatSheet.of(realm, root, List.of(), 0, 0),
                 List.of(new LearnedTechniqueView(1L, "장춘공", 1, 9)));
     }
 }

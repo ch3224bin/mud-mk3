@@ -41,6 +41,10 @@ public class PlayerCharacter extends AbstractEntity {
     @Getter(AccessLevel.NONE)
     private @Nullable Double qiBloodLost;
 
+    /** 깎인 법력(6차). 엔티티는 읽기만 하고 게임·관리 코드는 전용 쿼리로 읽고 쓴다 */
+    @Getter(AccessLevel.NONE)
+    private @Nullable Double manaLost;
+
     @Getter(AccessLevel.NONE)
     private List<SpiritRootEntry> spiritRoots = new ArrayList<>();
 

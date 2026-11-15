@@ -184,6 +184,34 @@ record CharacterRepositoryTest(CharacterRepository characterRepository, EntityMa
         assertThat(characterRepository.readQiBloodLost(saved.getId())).contains(30.0);
     }
 
+    @Test
+    void legacyNullIsFullMana() {
+        PlayerCharacter character = characterRepository.save(createCharacter(1L, "한백", 10L));
+        entityManager.flush();
+        entityManager.createNativeQuery("update player_character set mana_lost = null").executeUpdate();
+        entityManager.clear();
+
+        assertThat(characterRepository.readManaLost(character.getId())).contains(0.0);
+        assertThat(characterRepository.readManaLost(999L)).isEmpty();
+        assertThat(characterRepository.writeManaLost(999L, 1)).isZero();
+    }
+
+    @Test
+    void entitySaveDoesNotWriteManaLost() {
+        PlayerCharacter saved = characterRepository.save(createCharacter(1L, "한백", 10L));
+        flushAndClear();
+        PlayerCharacter character = characterRepository.findById(saved.getId()).orElseThrow();
+
+        assertThat(characterRepository.writeManaLost(character.getId(), 5.5)).isEqualTo(1);
+        character.moveTo(20L);
+        characterRepository.save(character);
+        flushAndClear();
+
+        assertThat(characterRepository.findById(saved.getId()).orElseThrow().getRoomId()).isEqualTo(20L);
+        assertThat(characterRepository.readManaLost(saved.getId())).contains(5.5);
+        assertThat(characterRepository.readQiBloodLost(saved.getId())).contains(0.0);
+    }
+
     private void flushAndClear() {
         entityManager.flush();
         entityManager.clear();

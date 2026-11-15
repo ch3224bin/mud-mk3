@@ -165,7 +165,7 @@ public sealed interface GameMessage {
                     new RealmView(realm.name(), realm.koreanName()),
                     new SpiritRootView(root.name(), roots),
                     new StatsView(new GaugeView(Damage.gauge(stats.qiBloodCurrent()), stats.qiBlood()),
-                            GaugeView.full(stats.mana()),
+                            new GaugeView(Damage.gauge(stats.manaCurrent()), stats.mana()),
                             GaugeView.full(stats.sense()), GaugeView.full(stats.essence()),
                             GaugeView.full(stats.spirit()), stats.body(), stats.strength()),
                     required.isPresent() ? new CultivationView(0, required.getAsInt()) : null,

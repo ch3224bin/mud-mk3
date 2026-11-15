@@ -279,6 +279,16 @@ abstract class BaseGameTest {
         recorded.stream(RealmChangedEvent.class).skip(before).toList().forEach(gameService::onRealmChanged);
     }
 
+    /** 그 계정 캐릭터의 깎인 법력을 리포지토리로 바로 쓴다(전용 쿼리, 알림 없음) */
+    protected void setManaLost(Long accountId, double lost) {
+        characterRepository.writeManaLost(characterIdOf(accountId), lost);
+    }
+
+    /** 그 계정 캐릭터의 깎인 법력(비어 있으면 0) */
+    protected double manaLost(Long accountId) {
+        return characterRepository.readManaLost(characterIdOf(accountId)).orElseThrow();
+    }
+
     // ---- 서버 틱과 몹
 
     /** 서버 틱 하나({@link GameTicker#tick()}) */

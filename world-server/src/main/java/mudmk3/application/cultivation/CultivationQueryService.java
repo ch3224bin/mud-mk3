@@ -67,10 +67,11 @@ public class CultivationQueryService implements CultivationFinder {
                 .toList();
     }
 
-    /** 깎인 기혈은 엔티티 값이 아니라 전용 쿼리로 읽는다 */
+    /** 깎인 기혈·법력은 엔티티 값이 아니라 전용 쿼리로 읽는다 */
     private StatSheet stats(PlayerCharacter character, List<CharacterTechnique> learned) {
-        double qiBloodLost = characterVitalsEditor.qiBloodLost(requireNonNull(character.getId()));
-        return StatSheet.of(character.getRealm(), character.findSpiritRoot().orElse(null), learned, qiBloodLost);
+        Long characterId = requireNonNull(character.getId());
+        return StatSheet.of(character.getRealm(), character.findSpiritRoot().orElse(null), learned,
+                characterVitalsEditor.qiBloodLost(characterId), characterVitalsEditor.manaLost(characterId));
     }
 
     private static LearnedTechniqueView toView(CharacterTechnique learned) {

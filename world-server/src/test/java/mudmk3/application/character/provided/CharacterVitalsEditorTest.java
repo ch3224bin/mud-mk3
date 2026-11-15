@@ -74,6 +74,60 @@ record CharacterVitalsEditorTest(CharacterVitalsEditor characterVitalsEditor, Ch
                 .isInstanceOf(IllegalArgumentException.class).hasMessage(UNKNOWN);
     }
 
+    @Test
+    void spendManaPersists() {
+        Long han = prepareCharacter(Realm.QI_1);
+
+        assertThat(characterVitalsEditor.spendMana(han, 5.5, 25)).isEqualTo(19.5);
+        assertThat(characterVitalsEditor.spendMana(han, 30, 25)).isZero();
+        flushAndClear();
+
+        assertThat(characterVitalsEditor.manaLost(han)).isEqualTo(25);
+    }
+
+    @Test
+    void recoverManaFalseWhenFull() {
+        Long han = prepareCharacter(Realm.QI_1);
+
+        assertThat(characterVitalsEditor.recoverMana(han, 1)).isFalse();
+
+        characterVitalsEditor.spendMana(han, 3, 25);
+        assertThat(characterVitalsEditor.recoverMana(han, 1)).isTrue();
+        assertThat(characterVitalsEditor.manaLost(han)).isEqualTo(2);
+        assertThat(characterVitalsEditor.recoverMana(han, 5)).isTrue();
+        flushAndClear();
+
+        assertThat(characterVitalsEditor.manaLost(han)).isZero();
+        assertThat(characterVitalsEditor.recoverMana(han, 1)).isFalse();
+    }
+
+    /** 법력 쓰기와 기혈 쓰기는 서로의 열을 건드리지 않는다 */
+    @Test
+    void manaWriteDoesNotTouchQiBlood() {
+        Long han = prepareCharacter(Realm.QI_1);
+        characterVitalsEditor.takeDamage(han, 12.5, 60);
+
+        characterVitalsEditor.spendMana(han, 5, 25);
+        characterVitalsEditor.recoverMana(han, 1);
+        flushAndClear();
+
+        assertThat(characterVitalsEditor.qiBloodLost(han)).isEqualTo(12.5);
+        assertThat(characterVitalsEditor.manaLost(han)).isEqualTo(4);
+
+        characterVitalsEditor.restoreQiBlood(han);
+        assertThat(characterVitalsEditor.manaLost(han)).isEqualTo(4);
+    }
+
+    @Test
+    void unknownCharacterManaFail() {
+        assertThatThrownBy(() -> characterVitalsEditor.manaLost(999L))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage(UNKNOWN);
+        assertThatThrownBy(() -> characterVitalsEditor.spendMana(999L, 1, 25))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage(UNKNOWN);
+        assertThatThrownBy(() -> characterVitalsEditor.recoverMana(999L, 1))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage(UNKNOWN);
+    }
+
     /** 경지 지정으로 바뀐 엔티티가 있어도 기혈 쓰기가 경지를 되돌리지 않고, 엔티티 저장이 깎인 기혈을 지우지 않는다 */
     @Test
     void vitalsWriteDoesNotTouchRealm() {

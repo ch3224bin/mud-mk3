@@ -54,6 +54,23 @@ record CharacterRealmEditorTest(CharacterRealmEditor characterRealmEditor, Chara
         assertThat(characterVitalsEditor.qiBloodLost(han)).isEqualTo(40);
     }
 
+    /** 연기 7층(법력 55)에서 40 깎여 현재 15 → 연기 1층(법력 25): 경지 몫이 준 30만큼 줄여 10(현재 15 그대로) */
+    @Test
+    void designateDownReducesManaLost() {
+        Long han = prepareCharacter(Realm.QI_7);
+        characterVitalsEditor.spendMana(han, 40, 55);
+
+        characterRealmEditor.designate(han, Realm.QI_1);
+        flushAndClear();
+
+        assertThat(characterVitalsEditor.manaLost(han)).isEqualTo(10);
+
+        characterRealmEditor.designate(han, Realm.MORTAL);
+        flushAndClear();
+
+        assertThat(characterVitalsEditor.manaLost(han)).isZero();
+    }
+
     @Test
     void designateUnknownFail() {
         assertThatThrownBy(() -> characterRealmEditor.designate(999L, Realm.QI_1))

@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import org.jspecify.annotations.Nullable;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,7 +15,7 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * 플레이어 한 명의 교전 상태(메모리, 엔티티 아님): 교전한 순서의 몹 id, 노리는 몹, 다음 공격 시각(3초 간격, 교전이 끝나도
- * 남아 다른 몹을 쳐도 간격이 줄지 않음), 기혈 다시 차기 시각
+ * 남아 다른 몹을 쳐도 간격이 줄지 않음), 기혈 다시 차기 시각, 법력 회복 기준 시각
  */
 @Getter
 public final class PlayerCombat {
@@ -25,6 +26,8 @@ public final class PlayerCombat {
     private @Nullable Long targetMobId;
     private @Nullable Instant nextAttackAt;
     private @Nullable Instant refillAt;
+    /** 법력 회복을 마지막으로 셈한 시각. 세계에 들어올 때 정하고 법력 회복 틱마다 옮긴다 */
+    private @Nullable Instant manaRegenAt;
     /** 지금 교전을 시작한 순번(같은 시각 행동의 순서, D86). 교전하지 않으면 뜻이 없다 */
     private long engageOrder;
 
@@ -113,5 +116,23 @@ public final class PlayerCombat {
 
     public void clearRefill() {
         refillAt = null;
+    }
+
+    /** 법력 회복 기준 시각을 지금으로 둔다(세계에 들어올 때) */
+    public void startManaRegen(Instant now) {
+        manaRegenAt = requireNonNull(now);
+    }
+
+    /**
+     * 지난 기준 시각부터 흐른 초를 0~1초로 잘라 돌려주고 기준 시각을 지금으로 옮긴다. 기준 시각이 없으면 0초
+     */
+    public double manaRegenSeconds(Instant now) {
+        requireNonNull(now);
+        Instant from = manaRegenAt;
+        manaRegenAt = now;
+        if (from == null) {
+            return 0;
+        }
+        return Math.clamp(Duration.between(from, now).toNanos() / 1e9, 0.0, 1.0);
     }
 }
