@@ -28,6 +28,15 @@ final class RequestValues {
         return List.copyOf(elements);
     }
 
+    /** 빠진 목록은 빈 목록. 목록 안의 빈 값은 받지 않는다({@code IllegalArgumentException("<필드> 에 빈 값이 있습니다")}) */
+    static <T> List<T> list(@Nullable List<T> values, String fieldName) {
+        if (values == null) return List.of();
+        if (values.stream().anyMatch(value -> value == null)) {
+            throw new IllegalArgumentException(fieldName + " 에 빈 값이 있습니다");
+        }
+        return List.copyOf(values);
+    }
+
     static BigDecimal orZero(@Nullable BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }

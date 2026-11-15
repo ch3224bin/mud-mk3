@@ -17,8 +17,11 @@ import mudmk3.domain.technique.AbilityTarget;
 import mudmk3.domain.technique.CostStat;
 import mudmk3.domain.technique.DuplicateTechniqueNameException;
 import mudmk3.domain.technique.Technique;
+import mudmk3.domain.technique.TechniqueFixture;
+import mudmk3.domain.technique.TechniqueSaveInfo;
 import mudmk3.domain.technique.TechniqueStage;
 import mudmk3.domain.technique.UsableWhen;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Propagation;
@@ -69,7 +72,9 @@ record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder tech
         TechniqueSaveRequest request = new TechniqueSaveRequest("강체결", null, null, Realm.MORTAL,
                 List.of(new StageRequest(null, null, null, null, null, null, null, null, null)),
                 List.of(new AbilityRequest("철권", 1, AbilityKind.ATTACK, null, true, AbilityTarget.SINGLE,
-                        CostStat.NONE, null, false, null, new BigDecimal("4"), UsableWhen.COMBAT_ONLY)));
+                        CostStat.NONE, null, false, null, new BigDecimal("4"), UsableWhen.COMBAT_ONLY,
+                        List.of("주먹을 내지른다."),
+                        List.of(new StagePowerRequest(1, new BigDecimal("5"), new BigDecimal("2.2"))))));
 
         TechniqueView view = techniqueEditor.create(request);
 
@@ -88,17 +93,17 @@ record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder tech
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("startRealm 는 꼭 보내야 합니다");
         assertThatThrownBy(() -> new AbilityRequest("화탄술", 1, null, null, false, AbilityTarget.SINGLE,
-                CostStat.MANA, null, false, null, null, UsableWhen.COMBAT_ONLY))
+                CostStat.MANA, null, false, null, null, UsableWhen.COMBAT_ONLY, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("kind 는 꼭 보내야 합니다");
         assertThatThrownBy(() -> new AbilityRequest("화탄술", 1, AbilityKind.ATTACK, null, false, null,
-                CostStat.MANA, null, false, null, null, UsableWhen.COMBAT_ONLY))
+                CostStat.MANA, null, false, null, null, UsableWhen.COMBAT_ONLY, null, null))
                 .hasMessage("target 는 꼭 보내야 합니다");
         assertThatThrownBy(() -> new AbilityRequest("화탄술", 1, AbilityKind.ATTACK, null, false,
-                AbilityTarget.SINGLE, null, null, false, null, null, UsableWhen.COMBAT_ONLY))
+                AbilityTarget.SINGLE, null, null, false, null, null, UsableWhen.COMBAT_ONLY, null, null))
                 .hasMessage("costStat 는 꼭 보내야 합니다");
         assertThatThrownBy(() -> new AbilityRequest("화탄술", 1, AbilityKind.ATTACK, null, false,
-                AbilityTarget.SINGLE, CostStat.MANA, null, false, null, null, null))
+                AbilityTarget.SINGLE, CostStat.MANA, null, false, null, null, null, null, null))
                 .hasMessage("usableWhen 는 꼭 보내야 합니다");
     }
 
@@ -136,9 +141,9 @@ record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder tech
         TechniqueView created = techniqueEditor.create(changchunRequest("spring"));
         flushAndClear();
 
+        TechniqueSaveRequest twoStages = changchunWithStageCount(2);
         TechniqueSaveRequest request = new TechniqueSaveRequest("Spring", "새 묘사", List.of(Element.WOOD),
-                Realm.QI_1, changchunRequest("x").stages().subList(0, 2),
-                changchunRequest("x").abilities().subList(0, 2));
+                Realm.QI_1, twoStages.stages(), twoStages.abilities());
         TechniqueView updated = techniqueEditor.update(created.id(), request);
         flushAndClear();
 
@@ -283,6 +288,118 @@ record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder tech
         assertThat(techniqueFinder.viewAll()).extracting(TechniqueView::learnerCount).containsExactly(2L, 0L);
     }
 
+    // --- 6차: 이펙트 문장·단계별 값 ---
+
+    /** 트랜잭션 밖에서도 이펙트 문장·단계별 값·usableInGame 을 읽을 수 있다 */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void viewHasEffectLinesStagePowersAndUsable() {
+        TechniqueView created = techniqueEditor.create(changchunRequest("장춘공"));
+        try {
+            TechniqueView view = techniqueFinder.view(created.id());
+
+            TechniqueView.AbilityView fireBall = view.abilities().getFirst();
+            assertThat(fireBall.effectLines()).containsExactlyElementsOf(TechniqueFixture.FIRE_BALL_LINES);
+            assertThat(fireBall.stagePowers()).hasSize(9);
+            TechniqueView.StagePowerView first = fireBall.stagePowers().getFirst();
+            assertThat(first.stage()).isEqualTo(1);
+            assertThat(first.basePower()).hasToString("2.00");
+            assertThat(first.coefficient()).hasToString("1.200");
+            assertThat(fireBall.stagePowers().getLast().basePower()).hasToString("3.60");
+            assertThat(fireBall.usableInGame()).isTrue();
+            TechniqueView.AbilityView heavenEye = view.abilities().get(1);
+            assertThat(heavenEye.effectLines()).containsExactly("천안술 기운이 퍼진다.");
+            assertThat(heavenEye.stagePowers()).isEmpty();
+            assertThat(heavenEye.usableInGame()).isFalse();
+            assertThat(techniqueFinder.viewAll()).singleElement().isEqualTo(view);
+        } finally {
+            techniqueEditor.delete(created.id());
+        }
+    }
+
+    @Test
+    void updateReplacesEffectLines() {
+        TechniqueView created = techniqueEditor.create(changchunRequest("장춘공"));
+        flushAndClear();
+
+        TechniqueSaveRequest original = changchunRequest("장춘공");
+        List<AbilityRequest> abilities = original.abilities().stream()
+                .map(ability -> ability.name().equals("화탄술") ? withEffectLines(ability, List.of("  새 불꽃이 튄다!  ")) : ability)
+                .toList();
+        techniqueEditor.update(created.id(), new TechniqueSaveRequest(original.name(), original.description(),
+                original.elements(), original.startRealm(), original.stages(), abilities));
+        flushAndClear();
+
+        TechniqueView view = techniqueFinder.view(created.id());
+        assertThat(view.abilities().getFirst().effectLines()).containsExactly("새 불꽃이 튄다!");
+        assertThat(view.abilities().getFirst().stagePowers()).hasSize(9);
+        assertThat(entityManager.createNativeQuery("select count(*) from ability_effect_line").getSingleResult())
+                .isEqualTo(3L);
+    }
+
+    @Test
+    void effectLinesCountFail() {
+        AbilityRequest fireBall = changchunRequest("장춘공").abilities().getFirst();
+
+        for (List<String> lines : java.util.Arrays.asList(null, List.<String>of(),
+                List.of("가", "나", "다", "라", "마", "바"))) {
+            TechniqueSaveRequest request = changchunRequestWith(withEffectLines(fireBall, lines));
+            assertThatThrownBy(() -> techniqueEditor.create(request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("이펙트 문장은 1~5개로 정하십시오: 화탄술");
+        }
+    }
+
+    @Test
+    void missingStagePowersFail() {
+        AbilityRequest fireBall = changchunRequest("장춘공").abilities().getFirst();
+        AbilityRequest noPowers = new AbilityRequest(fireBall.name(), fireBall.learnStage(), fireBall.kind(),
+                fireBall.elements(), fireBall.bodyRefining(), fireBall.target(), fireBall.costStat(),
+                fireBall.costAmount(), fireBall.costPerTick(), fireBall.castSeconds(), fireBall.cooldownSeconds(),
+                fireBall.usableWhen(), fireBall.effectLines(), null);
+
+        assertThatThrownBy(() -> techniqueEditor.create(changchunRequestWith(noPowers)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("단계별 값은 배우는 단계부터 마지막 단계까지 하나씩 정하십시오: 화탄술");
+    }
+
+    @Test
+    void stagePowerRequestNullFail() {
+        assertThatThrownBy(() -> new StagePowerRequest(null, new BigDecimal("2"), new BigDecimal("1.2")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("stage 는 꼭 보내야 합니다");
+        assertThatThrownBy(() -> new StagePowerRequest(1, null, new BigDecimal("1.2")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("basePower 는 꼭 보내야 합니다");
+        assertThatThrownBy(() -> new StagePowerRequest(1, new BigDecimal("2"), null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("coefficient 는 꼭 보내야 합니다");
+    }
+
+    @Test
+    void nullInListsFail() {
+        AbilityRequest fireBall = changchunRequest("장춘공").abilities().getFirst();
+        List<String> lines = new java.util.ArrayList<>();
+        lines.add(null);
+
+        assertThatThrownBy(() -> withEffectLines(fireBall, lines))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("effectLines 에 빈 값이 있습니다");
+    }
+
+    private static TechniqueSaveRequest changchunRequestWith(AbilityRequest fireBall) {
+        TechniqueSaveRequest original = changchunRequest("장춘공");
+        return new TechniqueSaveRequest(original.name(), original.description(), original.elements(),
+                original.startRealm(), original.stages(), List.of(fireBall));
+    }
+
+    private static AbilityRequest withEffectLines(AbilityRequest ability, @Nullable List<String> effectLines) {
+        return new AbilityRequest(ability.name(), ability.learnStage(), ability.kind(), ability.elements(),
+                ability.bodyRefining(), ability.target(), ability.costStat(), ability.costAmount(),
+                ability.costPerTick(), ability.castSeconds(), ability.cooldownSeconds(), ability.usableWhen(),
+                effectLines, ability.stagePowers());
+    }
+
     /** 공법 정의 쪽 테스트라 익힌 공법은 캐릭터·익힌 행을 직접 넣어 만든다 */
     private void learn(Long techniqueId, String characterName, int stage) {
         PlayerCharacter character = CharacterFixture.createCharacter(
@@ -294,10 +411,13 @@ record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder tech
         entityManager.persist(learned);
     }
 
+    /** 앞 {@code count} 단계와 앞 {@code count} 신통(단계별 값은 그 단계까지)만 둔 장춘공 요청 */
     private static TechniqueSaveRequest changchunWithStageCount(int count) {
-        TechniqueSaveRequest request = changchunRequest("장춘공");
-        return new TechniqueSaveRequest(request.name(), request.description(), request.elements(),
-                request.startRealm(), request.stages().subList(0, count), request.abilities().subList(0, count));
+        TechniqueSaveInfo info = TechniqueFixture.changchunInfo("장춘공");
+        return TechniqueRequestFixture.requestOf(new TechniqueSaveInfo(info.name(), info.description(),
+                info.elements(), info.startRealm(), info.stages().subList(0, count),
+                info.abilities().subList(0, count).stream()
+                        .map(ability -> TechniqueFixture.upToStage(ability, count)).toList()));
     }
 
     private ItemType scroll(String name, Long techniqueId) {

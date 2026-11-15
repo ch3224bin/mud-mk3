@@ -6,6 +6,7 @@ import mudmk3.domain.shared.Realm;
 import mudmk3.domain.technique.Ability;
 import mudmk3.domain.technique.AbilityKind;
 import mudmk3.domain.technique.AbilitySaveInfo;
+import mudmk3.domain.technique.AbilityStagePower;
 import mudmk3.domain.technique.AbilityTarget;
 import mudmk3.domain.technique.CostStat;
 import mudmk3.domain.technique.Technique;
@@ -22,6 +23,7 @@ import java.util.List;
 import static mudmk3.domain.technique.TechniqueFixture.ability;
 import static mudmk3.domain.technique.TechniqueFixture.fireBall;
 import static mudmk3.domain.technique.TechniqueFixture.windRiding;
+import static mudmk3.domain.technique.TechniqueFixture.withEffectLines;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -66,7 +68,8 @@ record TechniqueRepositoryTest(TechniqueRepository techniqueRepository, EntityMa
         Technique loaded = techniqueRepository.findById(technique.getId()).orElseThrow();
         loaded.update(new TechniqueSaveInfo("장춘공", "", List.of(Element.WOOD), Realm.MORTAL,
                 List.of(new TechniqueStage(0, 0, 0, 0, 0, 0, 0, 0, 0), new TechniqueStage(120, 0, 2, 1, 0, 0, 0, 0, 1)),
-                List.of(windRidingAt(2), fireBall())));
+                List.of(windRidingAt(2), withEffectLines(TechniqueFixture.upToStage(fireBall(), 2),
+                        List.of("새 불꽃이 튄다!")))));
         entityManager.flush();
         entityManager.clear();
 
@@ -76,6 +79,44 @@ record TechniqueRepositoryTest(TechniqueRepository techniqueRepository, EntityMa
         assertThat(found.getAbilities()).extracting(Ability::getLearnStage).containsExactly(2, 1);
         assertThat(count("ability")).isEqualTo(2L);
         assertThat(count("technique_stage")).isEqualTo(2L);
+    }
+
+    @Test
+    void saveEffectLinesAndStagePowersInOrder() {
+        Technique technique = techniqueRepository.save(TechniqueFixture.changchun());
+        entityManager.flush();
+        entityManager.clear();
+
+        Technique found = techniqueRepository.findById(technique.getId()).orElseThrow();
+
+        Ability fireBall = found.getAbilities().getFirst();
+        assertThat(fireBall.getEffectLines()).containsExactlyElementsOf(TechniqueFixture.FIRE_BALL_LINES);
+        assertThat(fireBall.getStagePowers()).extracting(AbilityStagePower::stage)
+                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9);
+        assertThat(fireBall.getStagePowers()).extracting(power -> power.basePower().toString())
+                .containsExactly("2.00", "2.20", "2.40", "2.60", "2.80", "3.00", "3.20", "3.40", "3.60");
+        assertThat(fireBall.getStagePowers()).extracting(power -> power.coefficient().toString())
+                .containsOnly("1.200");
+        assertThat(found.getAbilities().get(1).getStagePowers()).isEmpty();
+        assertThat(found.getAbilities().get(1).getEffectLines()).containsExactly("천안술 기운이 퍼진다.");
+    }
+
+    @Test
+    void replaceAbilitiesReplacesCollections() {
+        Technique technique = techniqueRepository.save(TechniqueFixture.changchun());
+        entityManager.flush();
+        entityManager.clear();
+
+        Technique loaded = techniqueRepository.findById(technique.getId()).orElseThrow();
+        loaded.update(TechniqueFixture.changchunWith(List.of(withEffectLines(fireBall(), List.of("새 불꽃이 튄다!")))));
+        entityManager.flush();
+        entityManager.clear();
+
+        Technique found = techniqueRepository.findById(technique.getId()).orElseThrow();
+        assertThat(found.getAbilities()).singleElement()
+                .satisfies(ability -> assertThat(ability.getEffectLines()).containsExactly("새 불꽃이 튄다!"));
+        assertThat(count("ability_effect_line")).isEqualTo(1L);
+        assertThat(count("ability_stage_power")).isEqualTo(9L);
     }
 
     @Test
@@ -127,6 +168,8 @@ record TechniqueRepositoryTest(TechniqueRepository techniqueRepository, EntityMa
         assertThat(count("ability_element")).isEqualTo(0L);
         assertThat(count("technique_stage")).isEqualTo(0L);
         assertThat(count("technique_element")).isEqualTo(0L);
+        assertThat(count("ability_effect_line")).isEqualTo(0L);
+        assertThat(count("ability_stage_power")).isEqualTo(0L);
     }
 
     private Object count(String table) {
@@ -136,7 +179,8 @@ record TechniqueRepositoryTest(TechniqueRepository techniqueRepository, EntityMa
     private static AbilitySaveInfo mixed() {
         return new AbilitySaveInfo("토화술", 2, AbilityKind.AREA_ATTACK, List.of(Element.EARTH, Element.FIRE), false,
                 AbilityTarget.ALL_ENEMIES, CostStat.SENSE, new java.math.BigDecimal("1.5"), true,
-                new java.math.BigDecimal("2.5"), new java.math.BigDecimal("3600"), UsableWhen.ANYTIME);
+                new java.math.BigDecimal("2.5"), new java.math.BigDecimal("3600"), UsableWhen.ANYTIME,
+                List.of("땅과 불이 함께 일어난다."), List.of());
     }
 
     private static AbilitySaveInfo windRidingAt(int stage) {

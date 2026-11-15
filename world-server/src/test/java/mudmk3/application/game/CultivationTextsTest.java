@@ -12,6 +12,7 @@ import mudmk3.domain.technique.AbilitySaveInfo;
 import mudmk3.domain.technique.AbilityTarget;
 import mudmk3.domain.technique.CostStat;
 import mudmk3.domain.technique.Technique;
+import mudmk3.domain.technique.TechniqueFixture;
 import mudmk3.domain.technique.TechniqueSaveInfo;
 import mudmk3.domain.technique.TechniqueStage;
 import mudmk3.domain.technique.UsableWhen;
@@ -101,7 +102,8 @@ class CultivationTextsTest {
     @Test
     void multiElementSplitsInsight() {
         Technique fireEarth = Technique.create(new TechniqueSaveInfo("화토공", "", List.of(Element.EARTH, Element.FIRE),
-                Realm.MORTAL, List.of(stage(0, 0, 0, 0, 0, 0), stage(400, 0, 0, 0, 0, 0)), List.of(fireBall())));
+                Realm.MORTAL, List.of(stage(0, 0, 0, 0, 0, 0), stage(400, 0, 0, 0, 0, 0)),
+                List.of(TechniqueFixture.upToStage(fireBall(), 2))));
 
         assertThat(texts.techniques(Realm.QI_1, List.of(learned(fireEarth))))
                 .isEqualTo("화토공  1/2성 · 화·토 · 오행  다음 2성: 화 깨달음 200 (지금 0) · 토 깨달음 200 (지금 0)");
@@ -110,7 +112,7 @@ class CultivationTextsTest {
     @Test
     void lastStageLine() {
         Technique single = Technique.create(new TechniqueSaveInfo("목령공", "", List.of(Element.WOOD), Realm.MORTAL,
-                List.of(stage(0, 0, 0, 0, 0, 0)), List.of(fireBall())));
+                List.of(stage(0, 0, 0, 0, 0, 0)), List.of(TechniqueFixture.upToStage(fireBall(), 1))));
 
         assertThat(texts.techniques(Realm.QI_1, List.of(learned(single))))
                 .isEqualTo("목령공  1/1성 · 끝에 이름 · 목 · 오행");
@@ -157,7 +159,7 @@ class CultivationTextsTest {
     void perTickCost() {
         assertThat(abilityLine(new AbilitySaveInfo("호신술", 1, AbilityKind.DEFENSE, List.of(Element.FIRE, Element.EARTH),
                 false, AbilityTarget.SELF, CostStat.SENSE, new BigDecimal("1"), true, BigDecimal.ZERO,
-                new BigDecimal("90"), UsableWhen.ANYTIME)))
+                new BigDecimal("90"), UsableWhen.ANYTIME, List.of("호신술을 두른다."), List.of())))
                 .isEqualTo("  호신술  방어·화·토  의식 1 (틱마다)  대기 1분 30초");
     }
 
@@ -259,7 +261,7 @@ class CultivationTextsTest {
     /** 그 신통 하나를 1성에 둔 공법을 익혔을 때 신통 줄 */
     private String abilityLine(AbilitySaveInfo info) {
         Technique technique = Technique.create(new TechniqueSaveInfo("시험공", "", List.of(Element.FIRE), Realm.MORTAL,
-                List.of(stage(0, 0, 0, 0, 0, 0)), List.of(info)));
+                List.of(stage(0, 0, 0, 0, 0, 0)), List.of(TechniqueFixture.upToStage(info, 1))));
         CharacterTechnique learned = learned(technique);
         return texts.abilities(List.of(learned)).lines().skip(1).findFirst().orElseThrow();
     }

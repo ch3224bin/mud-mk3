@@ -91,7 +91,7 @@ class TechniqueTest {
     @Test
     void elementsSortedAndNamesJoined() {
         Technique technique = Technique.create(new TechniqueSaveInfo("화토공", "", List.of(Element.EARTH, Element.FIRE),
-                Realm.MORTAL, List.of(stage(0, 0, 0, 0, 0, 0)), List.of(fireBall())));
+                Realm.MORTAL, List.of(stage(0, 0, 0, 0, 0, 0)), List.of(TechniqueFixture.upToStage(fireBall(), 1))));
 
         assertThat(technique.getElements()).containsExactly(Element.FIRE, Element.EARTH);
         assertThat(technique.elementNames()).contains("화·토");
@@ -111,7 +111,8 @@ class TechniqueTest {
         Technique technique = TechniqueFixture.changchun();
 
         technique.update(new TechniqueSaveInfo("청목결", "새 묘사", List.of(Element.WOOD, Element.FIRE), Realm.QI_7,
-                List.of(stage(0, 15, 0, 0, 0, 0), stage(1_800, 15, 3, 1, 0, 0)), List.of(fireBall())));
+                List.of(stage(0, 15, 0, 0, 0, 0), stage(1_800, 15, 3, 1, 0, 0)),
+                List.of(TechniqueFixture.upToStage(fireBall(), 2))));
 
         assertThat(technique.getName()).isEqualTo("청목결");
         assertThat(technique.getDescription()).isEqualTo("새 묘사");

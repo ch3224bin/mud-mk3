@@ -17,6 +17,7 @@ import mudmk3.domain.item.ItemType;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
 import mudmk3.domain.technique.Technique;
+import mudmk3.domain.technique.TechniqueFixture;
 import mudmk3.domain.technique.TechniqueSaveInfo;
 import mudmk3.domain.technique.TechniqueStage;
 import org.jspecify.annotations.Nullable;
@@ -160,7 +161,7 @@ record TechniqueReaderTest(TechniqueReader techniqueReader, CultivationFinder cu
 
     private static TechniqueSaveInfo woodTechnique(String name, int aptitudeRequired) {
         return new TechniqueSaveInfo(name, "", List.of(Element.WOOD), Realm.MORTAL,
-                List.of(stage(0, aptitudeRequired, 0, 0, 0, 0)), List.of(fireBall()));
+                List.of(stage(0, aptitudeRequired, 0, 0, 0, 0)), List.of(TechniqueFixture.upToStage(fireBall(), 1)));
     }
 
     private Technique persist(TechniqueSaveInfo info) {

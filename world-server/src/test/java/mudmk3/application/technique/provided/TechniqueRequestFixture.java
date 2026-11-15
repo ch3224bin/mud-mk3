@@ -39,7 +39,11 @@ public final class TechniqueRequestFixture {
                 .map(ability -> new AbilityRequest(ability.name(), ability.learnStage(), ability.kind(),
                         ability.elements(), ability.bodyRefining(), ability.target(), ability.costStat(),
                         ability.costAmount(), ability.costPerTick(), ability.castSeconds(), ability.cooldownSeconds(),
-                        ability.usableWhen()))
+                        ability.usableWhen(), ability.effectLines(),
+                        ability.stagePowers().stream()
+                                .map(power -> new StagePowerRequest(power.stage(), power.basePower(),
+                                        power.coefficient()))
+                                .toList()))
                 .toList();
     }
 }

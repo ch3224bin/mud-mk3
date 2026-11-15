@@ -5,6 +5,7 @@ import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
 import mudmk3.domain.technique.Ability;
 import mudmk3.domain.technique.AbilityKind;
+import mudmk3.domain.technique.AbilityStagePower;
 import mudmk3.domain.technique.AbilityTarget;
 import mudmk3.domain.technique.CostStat;
 import mudmk3.domain.technique.Technique;
@@ -66,7 +67,10 @@ public record TechniqueView(
         return abilities.size();
     }
 
-    /** 신통 보기 값(정의 순서). 종류·대상의 화면 이름을 더한다 */
+    /**
+     * 신통 보기 값(정의 순서). 종류·대상의 화면 이름을 더한다. 6차: 이펙트 문장·단계별 값(저장한 모양 그대로)과
+     * 게임에서 쓸 수 있는 꼴인지
+     */
     public record AbilityView(
             String name,
             int learnStage,
@@ -81,10 +85,15 @@ public record TechniqueView(
             boolean costPerTick,
             BigDecimal castSeconds,
             BigDecimal cooldownSeconds,
-            UsableWhen usableWhen
+            UsableWhen usableWhen,
+            List<String> effectLines,
+            List<StagePowerView> stagePowers,
+            boolean usableInGame
     ) {
         public AbilityView {
             elements = List.copyOf(elements);
+            effectLines = List.copyOf(effectLines);
+            stagePowers = List.copyOf(stagePowers);
         }
 
         public static AbilityView of(Ability ability) {
@@ -92,7 +101,15 @@ public record TechniqueView(
                     ability.getKind().koreanName(), ability.getElements(), ability.isBodyRefining(),
                     ability.getTarget(), ability.getTarget().koreanName(), ability.getCostStat(),
                     ability.getCostAmount(), ability.isCostPerTick(), ability.getCastSeconds(),
-                    ability.getCooldownSeconds(), ability.getUsableWhen());
+                    ability.getCooldownSeconds(), ability.getUsableWhen(), ability.getEffectLines(),
+                    ability.getStagePowers().stream().map(StagePowerView::of).toList(), ability.usableInGame());
+        }
+    }
+
+    /** 공격 신통의 단계 하나의 값(기본 위력 scale 2, 계수 scale 3) */
+    public record StagePowerView(int stage, BigDecimal basePower, BigDecimal coefficient) {
+        static StagePowerView of(AbilityStagePower power) {
+            return new StagePowerView(power.stage(), power.basePower(), power.coefficient());
         }
     }
 }

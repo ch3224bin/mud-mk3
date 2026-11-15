@@ -2,6 +2,7 @@ package mudmk3.adapter.webapi.dto;
 
 import mudmk3.application.technique.provided.TechniqueView;
 import mudmk3.application.technique.provided.TechniqueView.AbilityView;
+import mudmk3.application.technique.provided.TechniqueView.StagePowerView;
 import mudmk3.application.technique.required.ScrollItem;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
@@ -17,7 +18,8 @@ import java.util.List;
 
 /**
  * 공법 상세: 저장 칸 전부와 {@code id}·{@code lineName}·{@code startRealmName}·{@code learnerCount}·{@code scrollItems}.
- * {@code stages[0]} 이 1성이다. 신통에는 {@code kindName}·{@code targetName} 을 더한다
+ * {@code stages[0]} 이 1성이다. 신통에는 {@code kindName}·{@code targetName} 을 더한다.
+ * 6차: 신통에 {@code effectLines}·{@code stagePowers}(저장한 모양 그대로)와 {@code usableInGame} 을 더한다
  */
 public record TechniqueDetailResponse(
         Long id,
@@ -75,13 +77,23 @@ public record TechniqueDetailResponse(
             boolean costPerTick,
             BigDecimal castSeconds,
             BigDecimal cooldownSeconds,
-            UsableWhen usableWhen
+            UsableWhen usableWhen,
+            List<String> effectLines,
+            List<StagePowerResponse> stagePowers,
+            boolean usableInGame
     ) {
         static AbilityResponse of(AbilityView ability) {
             return new AbilityResponse(ability.name(), ability.learnStage(), ability.kind(), ability.kindName(),
                     ability.elements(), ability.bodyRefining(), ability.target(), ability.targetName(),
                     ability.costStat(), ability.costAmount(), ability.costPerTick(), ability.castSeconds(),
-                    ability.cooldownSeconds(), ability.usableWhen());
+                    ability.cooldownSeconds(), ability.usableWhen(), ability.effectLines(),
+                    ability.stagePowers().stream().map(StagePowerResponse::of).toList(), ability.usableInGame());
+        }
+    }
+
+    public record StagePowerResponse(int stage, BigDecimal basePower, BigDecimal coefficient) {
+        static StagePowerResponse of(StagePowerView power) {
+            return new StagePowerResponse(power.stage(), power.basePower(), power.coefficient());
         }
     }
 

@@ -7,6 +7,7 @@ import mudmk3.application.technique.provided.TechniqueInUseException;
 import mudmk3.application.technique.provided.TechniqueSaveRequest;
 import mudmk3.application.technique.provided.TechniqueView;
 import mudmk3.application.technique.required.ScrollItem;
+import mudmk3.domain.technique.AbilityStagePower;
 import mudmk3.domain.technique.DuplicateTechniqueNameException;
 import mudmk3.domain.technique.Technique;
 import mudmk3.domain.technique.TechniqueFixture;
@@ -45,7 +46,10 @@ record TechniqueApiWebMvcTest(MockMvcTester mvc, TechniqueFinder techniqueFinder
              "stages":[{"insightRequired":0,"manaBonus":0},{"insightRequired":120,"manaBonus":2,"senseBonus":1,"aptitudeGain":1}],
              "abilities":[{"name":"화탄술","learnStage":1,"kind":"ATTACK","elements":["FIRE"],"bodyRefining":false,
                            "target":"SINGLE","costStat":"MANA","costAmount":5,"costPerTick":false,"castSeconds":0,
-                           "cooldownSeconds":3,"usableWhen":"COMBAT_ONLY"}]}""";
+                           "cooldownSeconds":3,"usableWhen":"COMBAT_ONLY",
+                           "effectLines":["{대상}에게 불꽃이 튄다!"],
+                           "stagePowers":[{"stage":1,"basePower":2,"coefficient":1.2},
+                                          {"stage":2,"basePower":2.2,"coefficient":1.2}]}]}""";
 
     @Test
     void create() {
@@ -71,7 +75,13 @@ record TechniqueApiWebMvcTest(MockMvcTester mvc, TechniqueFinder techniqueFinder
                 {"abilities":[{"name":"화탄술","learnStage":1,"kind":"ATTACK","kindName":"공격","elements":["FIRE"],
                                "bodyRefining":false,"target":"SINGLE","targetName":"한 대상","costStat":"MANA",
                                "costAmount":5.0,"costPerTick":false,"castSeconds":0.0,"cooldownSeconds":3.0,
-                               "usableWhen":"COMBAT_ONLY"},{},{}]}""");
+                               "usableWhen":"COMBAT_ONLY","usableInGame":true,
+                               "stagePowers":[{"stage":1,"basePower":2.00,"coefficient":1.200},{},{},{},{},{},{},{},{}]},
+                              {"stagePowers":[],"usableInGame":false},{}]}""");
+        body.extractingPath("$.abilities[0].effectLines").isEqualTo(TechniqueFixture.FIRE_BALL_LINES);
+        // 저장한 모양(scale 2·3) 그대로 나간다
+        assertThat(body.actual().getJson())
+                .contains("\"stagePowers\":[{\"stage\":1,\"basePower\":2.00,\"coefficient\":1.200}");
         body.extractingPath("$.description").isEqualTo("범인도 수련을 시작할 수 있는 목 속성 입문 공법.");
     }
 
@@ -100,6 +110,26 @@ record TechniqueApiWebMvcTest(MockMvcTester mvc, TechniqueFinder techniqueFinder
         assertThat(ability.costAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(ability.castSeconds()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(ability.cooldownSeconds()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(ability.effectLines()).isEmpty();
+        assertThat(ability.stagePowers()).isEmpty();
+    }
+
+    @Test
+    void createPassesEffectLinesAndStagePowers() {
+        when(techniqueEditor.create(any())).thenReturn(view(TechniqueFixture.changchun(), 1L, List.of()));
+
+        assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/techniques")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(CHANGCHUN_JSON))
+                .hasStatus(HttpStatus.CREATED);
+
+        ArgumentCaptor<TechniqueSaveRequest> captor = ArgumentCaptor.forClass(TechniqueSaveRequest.class);
+        verify(techniqueEditor).create(captor.capture());
+        var ability = captor.getValue().toInfo().abilities().getFirst();
+        assertThat(ability.effectLines()).containsExactly("{대상}에게 불꽃이 튄다!");
+        assertThat(ability.stagePowers()).containsExactly(
+                new AbilityStagePower(1, new BigDecimal("2"), new BigDecimal("1.2")),
+                new AbilityStagePower(2, new BigDecimal("2.2"), new BigDecimal("1.2")));
     }
 
     @Test
@@ -112,7 +142,12 @@ record TechniqueApiWebMvcTest(MockMvcTester mvc, TechniqueFinder techniqueFinder
         String missingCostPerTick = CHANGCHUN_JSON.replace("\"costPerTick\":false,", "");
         String missingBodyRefining = CHANGCHUN_JSON.replace("\"bodyRefining\":false,", "");
 
-        for (String json : List.of(wrongKind, nullStartRealm, nullKind, missingCostPerTick, missingBodyRefining)) {
+        // 단계별 값의 세 칸은 꼭 보내야 한다
+        String nullStage = CHANGCHUN_JSON.replace("{\"stage\":1,", "{\"stage\":null,");
+        String missingCoefficient = CHANGCHUN_JSON.replace(",\"coefficient\":1.2}", "}");
+
+        for (String json : List.of(wrongKind, nullStartRealm, nullKind, missingCostPerTick, missingBodyRefining,
+                nullStage, missingCoefficient)) {
             assertThat(json).isNotEqualTo(CHANGCHUN_JSON);
             assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/techniques")
                     .contentType(MediaType.APPLICATION_JSON)

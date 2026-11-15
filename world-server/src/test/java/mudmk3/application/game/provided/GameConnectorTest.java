@@ -2580,12 +2580,14 @@ class GameConnectorTest extends BaseGameTest {
     private static AbilityRequest withCooldown(AbilityRequest ability, BigDecimal cooldownSeconds) {
         return new AbilityRequest(ability.name(), ability.learnStage(), ability.kind(), ability.elements(),
                 ability.bodyRefining(), ability.target(), ability.costStat(), ability.costAmount(),
-                ability.costPerTick(), ability.castSeconds(), cooldownSeconds, ability.usableWhen());
+                ability.costPerTick(), ability.castSeconds(), cooldownSeconds, ability.usableWhen(),
+                ability.effectLines(), ability.stagePowers());
     }
 
     private static AbilityRequest withLearnStage(AbilityRequest ability, int learnStage) {
         return new AbilityRequest(ability.name(), learnStage, ability.kind(), ability.elements(),
                 ability.bodyRefining(), ability.target(), ability.costStat(), ability.costAmount(),
-                ability.costPerTick(), ability.castSeconds(), ability.cooldownSeconds(), ability.usableWhen());
+                ability.costPerTick(), ability.castSeconds(), ability.cooldownSeconds(), ability.usableWhen(),
+                ability.effectLines(), ability.stagePowers());
     }
 }

@@ -410,6 +410,22 @@
                     <join-column name="ability_id"/>
                 </collection-table>
             </element-collection>
+            <!-- 6차: 쓸 때 하나가 무작위로 보이는 문장 1~5개(입력 순서) -->
+            <element-collection name="effectLines">
+                <order-column name="position"/>
+                <column name="text" length="100" nullable="false"/>
+                <collection-table name="ability_effect_line">
+                    <join-column name="ability_id"/>
+                </collection-table>
+            </element-collection>
+            <!-- 6차: 공격 신통의 단계별 값(배우는 단계부터 마지막 단계까지, 단계 오름차순).
+                 bag 이 둘이 되지 않게 순서 열을 둔다 -->
+            <element-collection name="stagePowers">
+                <order-column name="position"/>
+                <collection-table name="ability_stage_power">
+                    <join-column name="ability_id"/>
+                </collection-table>
+            </element-collection>
         </attributes>
     </entity>
 
@@ -586,6 +602,20 @@
             </basic>
             <basic name="aptitudeGain">
                 <column name="aptitude_gain" nullable="false"/>
+            </basic>
+        </attributes>
+    </embeddable>
+
+    <embeddable class="mudmk3.domain.technique.AbilityStagePower">
+        <attributes>
+            <basic name="stage">
+                <column name="stage" nullable="false"/>
+            </basic>
+            <basic name="basePower">
+                <column name="base_power" nullable="false" precision="7" scale="2"/>
+            </basic>
+            <basic name="coefficient">
+                <column name="coefficient" nullable="false" precision="6" scale="3"/>
             </basic>
         </attributes>
     </embeddable>

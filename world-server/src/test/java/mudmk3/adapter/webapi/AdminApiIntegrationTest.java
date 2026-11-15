@@ -177,7 +177,9 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
                 {"name":"장춘공","elements":["WOOD"],"startRealm":"MORTAL","stages":[{}],
                  "abilities":[{"name":"화탄술","learnStage":1,"kind":"ATTACK","elements":["FIRE"],"bodyRefining":false,
                                "target":"SINGLE","costStat":"MANA","costAmount":5,"costPerTick":false,
-                               "cooldownSeconds":3,"usableWhen":"COMBAT_ONLY"}]}"""));
+                               "cooldownSeconds":3,"usableWhen":"COMBAT_ONLY",
+                               "effectLines":["{대상}에게 불꽃이 튄다!"],
+                               "stagePowers":[{"stage":1,"basePower":2,"coefficient":1.2}]}]}"""));
         var scroll = assertThat(post("/api/admin/item-types", """
                 {"name":"장춘공 옥간","category":"SCROLL","baseValue":30,"techniqueId":%d}""".formatted(techniqueId)))
                 .hasStatus(HttpStatus.CREATED).bodyJson();
@@ -195,6 +197,9 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
         detail.extractingPath("$.scrollItems[0].id").isEqualTo((int) jadeId);
         detail.extractingPath("$.scrollItems[0].name").isEqualTo("장춘공 옥간");
         detail.extractingPath("$.abilities[0].kindName").isEqualTo("공격");
+        detail.extractingPath("$.abilities[0].effectLines").isEqualTo(java.util.List.of("{대상}에게 불꽃이 튄다!"));
+        detail.extractingPath("$.abilities[0].stagePowers[0].basePower").isEqualTo(2.00);
+        detail.extractingPath("$.abilities[0].usableInGame").isEqualTo(true);
         assertThat(mvc.get().with(admin()).uri("/api/admin/item-types/%d".formatted(jadeId))).hasStatusOk().bodyJson()
                 .extractingPath("$.techniqueName").isEqualTo("장춘공");
         assertThat(mvc.get().with(admin()).uri("/api/admin/techniques")).hasStatusOk().bodyJson()
