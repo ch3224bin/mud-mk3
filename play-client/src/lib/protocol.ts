@@ -56,7 +56,10 @@ export type RoomMessage = {
   items: FloorItem[];
 };
 
-/** tone growth 는 읽기 성공·관리 툴 경지 지정 알림(4차 D71), combat 은 교전 시작·침·맞음·처치·질 때(5차 D90) */
+/**
+ * tone growth 는 읽기 성공·관리 툴 경지 지정 알림(4차 D71), combat 은 교전 시작·침·맞음·처치·질 때(5차 D90)와
+ * 6차 신통 시전 시작·발동(이펙트 줄)·흩어짐·`중지` 로 거둠. 신통·`중지` 거절은 error, 깨달음 한 상대 상한은 info
+ */
 export type SystemMessage = { type: "system"; text: string; tone: "info" | "error" | "item" | "growth" | "combat" };
 
 /**
@@ -99,9 +102,14 @@ export type InventoryMessage = {
 /** 현재·최대 수치 한 쌍 */
 export type Gauge = { current: number; max: number };
 
+/** 깨달음 한 갈래(6차). name 은 금·목·수·화·토·연체, amount 는 소수점 버린 정수 */
+export type InsightEntry = { kind: "METAL" | "WOOD" | "WATER" | "FIRE" | "EARTH" | "BODY"; name: string; amount: number };
+
 /**
  * 상태(묻는 사람에게만, 4차 D71). 필드 순서는 서버 StatusMessage 와 같다.
  * roots 는 오행 순, aptitude 는 소수점 버린 정수. cultivation 은 범인이면 null. text 는 그린 줄들(\n).
+ * stats.mana.current 는 저장된 현재 법력(6차). insight 는 여섯 갈래가 늘 금·목·수·화·토·연체 순(6차) —
+ * 6차 화면은 쓰지 않고 text 를 그린다.
  */
 export type StatusMessage = {
   type: "status";
@@ -118,6 +126,7 @@ export type StatusMessage = {
     strength: number;
   };
   cultivation: { current: number; required: number } | null;
+  insight: InsightEntry[];
   text: string;
   tone: "status";
 };

@@ -271,6 +271,14 @@ describe("Terminal", () => {
         strength: 1,
       },
       cultivation: null,
+      insight: [
+        { kind: "METAL", name: "금", amount: 0 },
+        { kind: "WOOD", name: "목", amount: 0 },
+        { kind: "WATER", name: "수", amount: 0 },
+        { kind: "FIRE", name: "화", amount: 0 },
+        { kind: "EARTH", name: "토", amount: 0 },
+        { kind: "BODY", name: "연체", amount: 0 },
+      ],
       text: "한백 · 범인 · 화 천영근 (화 100)\n기혈  10 / 10     법력  0 / 0",
       tone: "status",
     });

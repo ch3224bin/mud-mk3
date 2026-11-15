@@ -235,6 +235,14 @@ describe("renderMessage", () => {
         strength: 3,
       },
       cultivation: { current: 0, required: 190 },
+      insight: [
+        { kind: "METAL", name: "금", amount: 0 },
+        { kind: "WOOD", name: "목", amount: 0 },
+        { kind: "WATER", name: "수", amount: 0 },
+        { kind: "FIRE", name: "화", amount: 0 },
+        { kind: "EARTH", name: "토", amount: 0 },
+        { kind: "BODY", name: "연체", amount: 0 },
+      ],
       text:
         "한백 · 연기 1층 · 목·화 진영근 (목 50, 화 50)\n" +
         "기혈  60 / 60     법력  25 / 25\n" +
@@ -271,6 +279,14 @@ describe("renderMessage", () => {
         strength: 1,
       },
       cultivation: null,
+      insight: [
+        { kind: "METAL", name: "금", amount: 0 },
+        { kind: "WOOD", name: "목", amount: 0 },
+        { kind: "WATER", name: "수", amount: 0 },
+        { kind: "FIRE", name: "화", amount: 0 },
+        { kind: "EARTH", name: "토", amount: 0 },
+        { kind: "BODY", name: "연체", amount: 0 },
+      ],
       text: "한백 · 범인 · 화 천영근 (화 100)\n기혈  10 / 10     법력  0 / 0",
       tone: "status",
     });
@@ -328,6 +344,71 @@ describe("renderMessage", () => {
     });
 
     expect(lines).toEqual([{ text: "한백이 청모랑을 쓰러뜨린다.", style: "combat" }]);
+  });
+
+  it("status: insight 가 있어도 text 의 줄(쌓인 깨달음 줄 포함)을 그대로 그린다(6차)", () => {
+    const lines = renderMessage({
+      type: "status",
+      characterName: "한백",
+      realm: { code: "QI_1", name: "연기 1층" },
+      spiritRoot: { name: "화 천영근", roots: [{ element: "FIRE", elementName: "화", aptitude: 100 }] },
+      stats: {
+        qiBlood: { current: 60, max: 60 },
+        mana: { current: 20, max: 25 },
+        sense: { current: 20, max: 20 },
+        essence: { current: 20, max: 20 },
+        spirit: { current: 5, max: 5 },
+        body: 6,
+        strength: 3,
+      },
+      cultivation: { current: 0, required: 190 },
+      insight: [
+        { kind: "METAL", name: "금", amount: 0 },
+        { kind: "WOOD", name: "목", amount: 0 },
+        { kind: "WATER", name: "수", amount: 0 },
+        { kind: "FIRE", name: "화", amount: 1234 },
+        { kind: "EARTH", name: "토", amount: 0 },
+        { kind: "BODY", name: "연체", amount: 0 },
+      ],
+      text: "기혈  60 / 60     법력  20 / 25\n깨달음  금 0 · 목 0 · 수 0 · 화 1,234 · 토 0 · 연체 0",
+      tone: "status",
+    });
+
+    expect(lines).toEqual([
+      { text: "기혈  60 / 60     법력  20 / 25", style: "status" },
+      { text: "깨달음  금 0 · 목 0 · 수 0 · 화 1,234 · 토 0 · 연체 0", style: "status" },
+    ]);
+  });
+
+  it("system: 신통 시전 시작·이펙트 줄·흩어짐·거둠(tone combat)은 style combat(6차)", () => {
+    expect(renderMessage({ type: "system", text: "낙뢰술을 펼치기 시작한다… (2초)", tone: "combat" })).toEqual([
+      { text: "낙뢰술을 펼치기 시작한다… (2초)", style: "combat" },
+    ]);
+    expect(
+      renderMessage({
+        type: "system",
+        text: "손끝에서 붉은 불덩이가 피어올라 청모랑을 덮친다! (피해 8, 법력 20/25)",
+        tone: "combat",
+      }),
+    ).toEqual([{ text: "손끝에서 붉은 불덩이가 피어올라 청모랑을 덮친다! (피해 8, 법력 20/25)", style: "combat" }]);
+    expect(renderMessage({ type: "system", text: "펼치던 술법을 거두었습니다.", tone: "combat" })).toEqual([
+      { text: "펼치던 술법을 거두었습니다.", style: "combat" },
+    ]);
+  });
+
+  it("system: 신통·중지 거절(tone error)은 style error(6차)", () => {
+    expect(renderMessage({ type: "system", text: "화탄술은 아직 쓸 수 없습니다. (1.4초)", tone: "error" })).toEqual([
+      { text: "화탄술은 아직 쓸 수 없습니다. (1.4초)", style: "error" },
+    ]);
+    expect(renderMessage({ type: "system", text: "펼치는 술법이 없습니다.", tone: "error" })).toEqual([
+      { text: "펼치는 술법이 없습니다.", style: "error" },
+    ]);
+  });
+
+  it("system: 깨달음 한 상대 상한 줄(tone info)은 style info(6차)", () => {
+    expect(renderMessage({ type: "system", text: "같은 상대에게서는 더 깨닫는 것이 없습니다.", tone: "info" })).toEqual([
+      { text: "같은 상대에게서는 더 깨닫는 것이 없습니다.", style: "info" },
+    ]);
   });
 
   it("talk: text 를 줄마다 나누고 style 은 talk", () => {

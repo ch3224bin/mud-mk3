@@ -19,9 +19,9 @@ describe("Completer", () => {
     expect(new Completer().complete("소", [])).toBe("소지품");
   });
 
-  it("COMMANDS 는 D92 순서", () => {
+  it("COMMANDS 는 6차 도움말 순서(공격 다음 중지)", () => {
     expect(COMMANDS).toEqual([
-      "보기", "말하기", "대화", "공격", "수습", "상태", "공법", "신통", "읽기", "소지품", "줍기", "버리기", "주기", "목록", "사기",
+      "보기", "말하기", "대화", "공격", "중지", "수습", "상태", "공법", "신통", "읽기", "소지품", "줍기", "버리기", "주기", "목록", "사기",
       "팔기", "값", "확인", "취소", "누구", "도움말", "종료",
       "동", "서", "남", "북", "북동", "북서", "남동", "남서", "위", "아래",
     ]);
@@ -41,6 +41,15 @@ describe("Completer", () => {
 
     expect([first, second]).toEqual(["공격", "공법"]);
     expect(new Completer().complete("수", [])).toBe("수습");
+  });
+
+  it("6차 명령을 채운다: '중' 은 중지", () => {
+    expect(new Completer().complete("중", [])).toBe("중지");
+  });
+
+  it("배운 신통 이름은 명령 후보에 없다", () => {
+    expect(COMMANDS).not.toContain("화탄술");
+    expect(new Completer().complete("화", [])).toBe("화");
   });
 
   it("공격 뒤 낱말은 몹 이름, 수습 뒤 낱말은 시체 이름에서 채운다", () => {
