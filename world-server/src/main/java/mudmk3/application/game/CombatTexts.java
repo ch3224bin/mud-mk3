@@ -155,7 +155,7 @@ class CombatTexts {
 
     /** 다른 사람 몫: {@code 그 시체는 아직 다른 사람의 몫입니다. (34초 뒤 수습할 수 있습니다)} — 남은 시간은 올림한 초 */
     String otherShare(Duration lockedFor) {
-        long seconds = (lockedFor.toMillis() + 999) / 1000;
+        long seconds = Math.ceilDiv(lockedFor.toNanos(), 1_000_000_000L);
         return "그 시체는 아직 다른 사람의 몫입니다. (" + Durations.korean(BigDecimal.valueOf(seconds)) + " 뒤 수습할 수 있습니다)";
     }
 

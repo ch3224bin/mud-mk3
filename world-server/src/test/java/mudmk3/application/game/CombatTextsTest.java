@@ -6,6 +6,7 @@ import mudmk3.domain.combat.MobProfile;
 import mudmk3.domain.mob.MobFixture;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -16,6 +17,14 @@ class CombatTextsTest {
     private static final Instant NOW = Instant.parse("2026-11-15T00:00:00Z");
 
     private final CombatTexts texts = new CombatTexts();
+
+    @Test
+    void otherShareRoundsSubMillisecondRemainderUpToOneSecond() {
+        assertThat(texts.otherShare(Duration.ofNanos(1)))
+                .isEqualTo("그 시체는 아직 다른 사람의 몫입니다. (1초 뒤 수습할 수 있습니다)");
+        assertThat(texts.otherShare(Duration.ofMillis(34_001)))
+                .isEqualTo("그 시체는 아직 다른 사람의 몫입니다. (35초 뒤 수습할 수 있습니다)");
+    }
 
     @Test
     void particles() {
