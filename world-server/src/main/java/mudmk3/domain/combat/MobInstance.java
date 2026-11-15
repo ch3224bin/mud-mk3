@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -52,6 +53,12 @@ public final class MobInstance {
     private @Nullable Instant refillAt;
     /** 지금 교전을 시작한 순번(같은 시각 행동의 순서, D86). 교전하지 않으면 뜻이 없다 */
     private long engageOrder;
+    /** 캐릭터마다 이 몹에게서 더 얻을 수 있는 깨달음(한 상대 상한). 처음은 기혈 최대치 */
+    @Getter(AccessLevel.NONE)
+    private final Map<Long, Double> insightRemaining = new HashMap<>();
+    /** 한 상대 상한에 닿았다고 이미 알린 캐릭터 */
+    @Getter(AccessLevel.NONE)
+    private final Set<Long> insightCapNotified = new HashSet<>();
 
     private MobInstance(long id, Long placementId, int slot, Long roomId, int placementCount, MobProfile profile) {
         this.id = id;
@@ -109,6 +116,7 @@ public final class MobInstance {
             return;
         }
         released.put(characterId, engagement);
+        clearInsightCap(characterId);
         if (characterId.equals(targetCharacterId)) {
             targetCharacterId = null;
         }
@@ -205,6 +213,7 @@ public final class MobInstance {
         }
         qiBlood = profile.stats().qiBlood();
         clearRecords();
+        clearInsightCaps();
         refillAt = null;
     }
 
@@ -222,7 +231,35 @@ public final class MobInstance {
         this.respawnAt = null;
         this.killerCharacterId = null;
         clearRecords();
+        clearInsightCaps();
         this.refillAt = null;
+    }
+
+    /**
+     * 깨달음 {@code requested} 를 한 상대 상한(처음 기혈 최대치)까지만 주고 준 만큼을 돌려준다. 남은 상한은 준 만큼 준다.
+     * 교전 상대가 아니어도(쓰러뜨린 일격 뒤) 부를 수 있다
+     */
+    public double grantInsight(Long characterId, double requested) {
+        requireNonNull(characterId);
+        double remaining = insightRemaining.getOrDefault(characterId, (double) profile.stats().qiBlood());
+        double granted = Math.clamp(requested, 0, Math.max(0, remaining));
+        insightRemaining.put(characterId, remaining - granted);
+        return granted;
+    }
+
+    /** 그 캐릭터의 남은 상한이 0 이 되었고 아직 알리지 않았으면 알린 것으로 적고 true */
+    public boolean insightCapReachedFirstTime(Long characterId) {
+        Double remaining = insightRemaining.get(characterId);
+        if (remaining == null || remaining > 0) {
+            return false;
+        }
+        return insightCapNotified.add(characterId);
+    }
+
+    /** 모든 캐릭터의 한 상대 상한을 지운다(몹이 쓰러질 때 깨달음을 쌓은 뒤, 다시 찰 때, 다시 나타날 때) */
+    public void clearInsightCaps() {
+        insightRemaining.clear();
+        insightCapNotified.clear();
     }
 
     /** {@code due} 에 할 행동을 했다. 다음은 {@link CombatRules#next} */
@@ -248,6 +285,11 @@ public final class MobInstance {
         Map<Long, Engagement> all = new LinkedHashMap<>(released);
         all.putAll(engagements);
         return all;
+    }
+
+    private void clearInsightCap(Long characterId) {
+        insightRemaining.remove(characterId);
+        insightCapNotified.remove(characterId);
     }
 
     private void clearRecords() {

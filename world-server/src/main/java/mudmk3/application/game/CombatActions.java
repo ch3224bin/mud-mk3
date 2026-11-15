@@ -33,7 +33,7 @@ import java.util.function.BiConsumer;
 
 /**
  * 5차 {@code 공격} 과 신통이 함께 쓰는 교전 경로(D110, 이슈 #15): 칠 몹 찾기, 교전 시작, 몹 치기, 몹 처치, 같은 방 알림.
- * 교전 시작 순번도 여기서 매긴다. {@link GameService} 의 게임 락과 트랜잭션 안에서만 불린다
+ * 교전 시작 순번과 시전 시작 순번도 여기서 매긴다. {@link GameService} 의 게임 락과 트랜잭션 안에서만 불린다
  */
 @Component
 @RequiredArgsConstructor
@@ -49,6 +49,8 @@ class CombatActions {
 
     /** 교전 시작 순번(같은 시각 행동의 순서). 늘기만 한다 */
     private final AtomicLong engageOrders = new AtomicLong();
+    /** 시전 시작 순번(F20). 늘기만 한다 */
+    private final AtomicLong castingSeqs = new AtomicLong();
 
     /**
      * 같은 방에서 칠 몹을 찾는다(5차 {@code 공격} 찾기 순서): 몹(방 보기 순서, 이름·번호)이 없으면 NPC(2차 {@code 대화}
@@ -122,7 +124,8 @@ class CombatActions {
     /**
      * 몹이 쓰러졌다: 그 자리에 시체를 남기고(드롭은 지금 굴림, D87) 처치자 {@code 청모랑을 쓰러뜨렸습니다.},
      * 교전하던 다른 사람 {@code 청모랑이 쓰러졌다.}, 같은 방의 교전하지 않은 사람 {@code 한백이 청모랑을 쓰러뜨렸다.}
-     * (event {@code kill}) → 교전하던 플레이어마다 그 몹과의 교전을 끝낸다.
+     * (event {@code kill}) → 교전하던 플레이어마다 그 몹과의 교전을 끝낸다 → 맨 끝에 그 몹의 깨달음 한 상대 상한을 지운다
+     * (쓰러뜨린 일격의 깨달음을 쌓은 뒤, F1).
      * 처치자는 피해가 가장 많은 사람이라 마지막 일격을 한 사람과 다를 수 있다. {@code opponents} 는 쓰러지기 전에 읽은
      * 교전 상대다(쓰러지면 몹의 상대 목록이 비므로)
      */
@@ -150,6 +153,8 @@ class CombatActions {
                 playerCombatRepository.save(combat);
             });
         }
+        mob.clearInsightCaps();
+        mobInstanceRepository.save(mob);
     }
 
     /** 플레이어와 몹이 같은 방에서 서로 교전 중이다 */
@@ -166,6 +171,11 @@ class CombatActions {
         presenceRepository.findAllInRoom(actor.getRoomId()).stream()
                 .filter(other -> !other.getCharacterId().equals(actor.getCharacterId()))
                 .forEach(other -> send.accept(other.getSessionId(), notice));
+    }
+
+    /** 다음 시전 시작 순번(같은 시각에 발동하는 아직 교전하지 않은 캐릭터의 시전 순서) */
+    long nextCastingSeq() {
+        return castingSeqs.incrementAndGet();
     }
 
     /** 방 보기 묶음 키 */

@@ -101,6 +101,14 @@ public final class PlayerCombat {
         nextAttackAt = CombatRules.next(due, now);
     }
 
+    /** 다음 공격 시각을 적어도 {@code at} 까지 미룬다(지금 것이 더 늦으면 그대로) */
+    public void delayAttackUntil(Instant at) {
+        requireNonNull(at);
+        if (nextAttackAt == null || nextAttackAt.isBefore(at)) {
+            nextAttackAt = at;
+        }
+    }
+
     public boolean isFighting() {
         return !mobIds.isEmpty();
     }

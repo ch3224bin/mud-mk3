@@ -811,6 +811,20 @@ class GameConnectorTest extends BaseGameTest {
     }
 
     @Test
+    void abilityAndStopAnswerUnknownUntilConnected() {
+        prepareMap();
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "화탄술 청모랑");
+        gameConnector.handle("a", "대화왕씨");
+        gameConnector.handle("a", "중지");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                SystemMessage.error(UNKNOWN), SystemMessage.error(UNKNOWN), SystemMessage.error(UNKNOWN));
+    }
+
+    @Test
     void emptyLineIgnored() {
         prepareMap();
         enter("a", "한백");

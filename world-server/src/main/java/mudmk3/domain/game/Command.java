@@ -115,6 +115,19 @@ public sealed interface Command {
     record Collect(@Nullable ItemQuery corpse) implements Command {
     }
 
+    /**
+     * 신통 쓰기: 첫 낱말이 명령어가 아니면 신통 이름으로 본다. 인자 전체가 대상 이름(번호 허용, 수량 없음), 빠졌으면 null
+     */
+    record UseAbility(String name, @Nullable ItemQuery target) implements Command {
+        public UseAbility {
+            requireNonNull(name);
+        }
+    }
+
+    /** 시전 중인 신통 그만두기 */
+    record Stop() implements Command {
+    }
+
     record Who() implements Command {
     }
 

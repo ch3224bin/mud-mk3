@@ -19,9 +19,11 @@ import mudmk3.domain.game.Command.Quit;
 import mudmk3.domain.game.Command.Read;
 import mudmk3.domain.game.Command.Say;
 import mudmk3.domain.game.Command.Status;
+import mudmk3.domain.game.Command.Stop;
 import mudmk3.domain.game.Command.Talk;
 import mudmk3.domain.game.Command.Techniques;
 import mudmk3.domain.game.Command.Unknown;
+import mudmk3.domain.game.Command.UseAbility;
 import mudmk3.domain.game.Command.Who;
 import mudmk3.domain.item.ItemQuery;
 import mudmk3.domain.room.Direction;
@@ -68,9 +70,9 @@ class CommandParserTest {
     }
 
     @Test
-    void talkWithoutSpaceFail() {
-        assertThat(parse("대화왕씨")).isEqualTo(new Unknown("대화왕씨"));
-        assertThat(parse("말 왕씨")).isEqualTo(new Unknown("말"));
+    void talkWithoutSpaceIsAbility() {
+        assertThat(parse("대화왕씨")).isEqualTo(new UseAbility("대화왕씨", null));
+        assertThat(parse("말 왕씨")).isEqualTo(new UseAbility("말", new ItemQuery("왕씨", 0)));
     }
 
     @Test
@@ -83,10 +85,9 @@ class CommandParserTest {
     }
 
     @Test
-    void unknownFail() {
-        assertThat(parse("말 안녕")).isEqualTo(new Unknown("말"));
-        assertThat(parse("보")).isEqualTo(new Unknown("보"));
-        assertThat(parse("북 가자")).isEqualTo(new Unknown("북"));
+    void notCommandIsAbility() {
+        assertThat(parse("말 안녕")).isEqualTo(new UseAbility("말", new ItemQuery("안녕", 0)));
+        assertThat(parse("보")).isEqualTo(new UseAbility("보", null));
     }
 
     @Test
@@ -184,10 +185,35 @@ class CommandParserTest {
     }
 
     @Test
-    void removedBindIsUnknown() {
-        assertThat(parse("귀속 비검")).isEqualTo(new Unknown("귀속"));
-        assertThat(parse("귀속")).isEqualTo(new Unknown("귀속"));
-        assertThat(parse("귀속 해제 비검")).isEqualTo(new Unknown("귀속"));
+    void removedBindIsAbility() {
+        assertThat(parse("귀속 비검")).isEqualTo(new UseAbility("귀속", new ItemQuery("비검", 0)));
+        assertThat(parse("귀속")).isEqualTo(new UseAbility("귀속", null));
+        assertThat(parse("귀속 해제 비검")).isEqualTo(new UseAbility("귀속", new ItemQuery("해제 비검", 0)));
+    }
+
+    @Test
+    void useAbility() {
+        assertThat(parse("화탄술 청모랑")).isEqualTo(new UseAbility("화탄술", new ItemQuery("청모랑", 0)));
+        assertThat(parse("화탄술 2.청모랑")).isEqualTo(new UseAbility("화탄술", new ItemQuery("청모랑", 2)));
+        assertThat(parse("화탄술   쌍두  흑망 ")).isEqualTo(new UseAbility("화탄술", new ItemQuery("쌍두 흑망", 0)));
+        assertThat(parse("화탄술")).isEqualTo(new UseAbility("화탄술", null));
+        assertThat(parse("Bolt wolf")).isEqualTo(new UseAbility("Bolt", new ItemQuery("wolf", 0)));
+    }
+
+    @Test
+    void commandWordIsNotAbility() {
+        assertThat(parse("탐지")).isEqualTo(new Unknown("탐지"));
+        assertThat(parse("탐지 청모랑")).isEqualTo(new Unknown("탐지"));
+        assertThat(parse("상태 한립")).isEqualTo(new Unknown("상태"));
+        assertThat(parse("북 가자")).isEqualTo(new Unknown("북"));
+        assertThat(parse("N 가자")).isEqualTo(new Unknown("N"));
+    }
+
+    @Test
+    void stop() {
+        assertThat(parse("중지")).isEqualTo(new Stop());
+        assertThat(parse(" 중지 ")).isEqualTo(new Stop());
+        assertThat(parse("중지 지금")).isEqualTo(new Unknown("중지"));
     }
 
     @Test

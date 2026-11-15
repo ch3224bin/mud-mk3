@@ -161,4 +161,20 @@ class PlayerCombatTest {
         assertThat(combat.manaRegenSeconds(T.plusMillis(500))).isEqualTo(0.5);
         assertThat(combat.manaRegenSeconds(T.plusMillis(1_500))).isEqualTo(1);
     }
+
+    @Test
+    void delayAttackUntilKeepsLater() {
+        PlayerCombat combat = new PlayerCombat(7L);
+
+        combat.delayAttackUntil(T.plusSeconds(2));
+        assertThat(combat.getNextAttackAt()).isEqualTo(T.plusSeconds(2));
+
+        combat.attackedAt(T.plusSeconds(2), T.plusSeconds(2)); // 다음 5초
+        combat.delayAttackUntil(T.plusSeconds(4));
+        assertThat(combat.getNextAttackAt()).isEqualTo(T.plusSeconds(5));
+
+        combat.delayAttackUntil(T.plusSeconds(6));
+        assertThat(combat.getNextAttackAt()).isEqualTo(T.plusSeconds(6));
+        assertThat(combat.readyAt(T.plusSeconds(5))).isFalse();
+    }
 }

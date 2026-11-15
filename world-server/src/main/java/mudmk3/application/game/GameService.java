@@ -497,7 +497,8 @@ public class GameService implements GameConnector, GameTicker {
             case Command.Quit _ -> quit(sessionId, player);
             case Command.Empty _ -> {
             }
-            case Command.Unknown _ -> send(sessionId, SystemMessage.error(UNKNOWN));
+            // 신통 쓰기·중지는 아직 게임에 잇지 않아 4차 '모르는 명령' 응답이다
+            case Command.Unknown _, Command.UseAbility _, Command.Stop _ -> send(sessionId, SystemMessage.error(UNKNOWN));
         }
     }
 

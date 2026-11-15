@@ -4,13 +4,14 @@ import mudmk3.domain.item.ItemNames;
 import mudmk3.domain.item.ItemQuery;
 import mudmk3.domain.room.Direction;
 import mudmk3.domain.shared.Names;
+import mudmk3.domain.technique.ReservedWords;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Optional;
 
 /**
  * 입력 한 줄을 명령으로 바꾼다. 앞뒤 공백을 자르고 여러 공백은 하나로 본다.
- * 명령어는 정해진 이름과 줄임말로만 알아듣는다(앞부분 일치 없음).
+ * 명령어는 정해진 이름과 줄임말로만 알아듣는다(앞부분 일치 없음). 명령어가 아닌 첫 낱말은 신통 이름으로 본다.
  */
 public final class CommandParser {
 
@@ -53,7 +54,8 @@ public final class CommandParser {
             case "누구" -> rest.isEmpty() ? new Command.Who() : new Command.Unknown(word);
             case "도움말" -> rest.isEmpty() ? new Command.Help() : new Command.Unknown(word);
             case "종료" -> rest.isEmpty() ? new Command.Quit() : new Command.Unknown(word);
-            default -> parseMove(word, rest);
+            case "중지" -> rest.isEmpty() ? new Command.Stop() : new Command.Unknown(word);
+            default -> parseOther(word, rest);
         };
     }
 
@@ -80,11 +82,18 @@ public final class CommandParser {
         return new Command.Give(rest.substring(0, space), rest.substring(space + 1));
     }
 
-    private static Command parseMove(String word, String rest) {
+    /**
+     * 방위 명령이면 이동(인자가 있으면 알 수 없음), 아직 없는 명령어(예약어)면 알 수 없음, 그 밖의 첫 낱말은 신통 이름이다
+     * (command.md 신통 쓰기 이름 해석 1)
+     */
+    private static Command parseOther(String word, String rest) {
         Optional<Direction> direction = Direction.fromCommand(word);
-        if (direction.isPresent() && rest.isEmpty()) {
-            return new Command.Move(direction.get());
+        if (direction.isPresent()) {
+            return rest.isEmpty() ? new Command.Move(direction.get()) : new Command.Unknown(word);
         }
-        return new Command.Unknown(word);
+        if (ReservedWords.contains(word)) {
+            return new Command.Unknown(word);
+        }
+        return new Command.UseAbility(word, wholeName(rest));
     }
 }

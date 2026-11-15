@@ -312,4 +312,88 @@ class MobInstanceTest {
 
         assertThat(mob.getNextActionAt()).isEqualTo(T.plusMillis(4500));
     }
+
+    @Test
+    void grantInsightCapsAtMaxQiBlood() {
+        MobInstance mob = CombatFixture.wolf(T); // 기혈 49
+        mob.engage(A, T);
+
+        assertThat(mob.grantInsight(A, 45)).isEqualTo(45);
+        assertThat(mob.insightCapReachedFirstTime(A)).isFalse();
+        assertThat(mob.grantInsight(A, 7.5)).isEqualTo(4);
+        assertThat(mob.grantInsight(A, 3)).isZero();
+    }
+
+    @Test
+    void capNotifiedOnce() {
+        MobInstance mob = CombatFixture.wolf(T);
+        mob.engage(A, T);
+        mob.grantInsight(A, 60);
+
+        assertThat(mob.insightCapReachedFirstTime(A)).isTrue();
+        assertThat(mob.insightCapReachedFirstTime(A)).isFalse();
+        mob.grantInsight(A, 1);
+        assertThat(mob.insightCapReachedFirstTime(A)).isFalse();
+    }
+
+    @Test
+    void capClearedOnDisengage() {
+        MobInstance mob = CombatFixture.wolf(T);
+        mob.engage(A, T);
+        mob.engage(B, T);
+        mob.grantInsight(A, 49);
+        mob.grantInsight(B, 49);
+        mob.insightCapReachedFirstTime(A);
+
+        mob.disengage(A, T);
+        mob.engage(A, T.plusSeconds(1));
+
+        assertThat(mob.insightCapReachedFirstTime(A)).isFalse();
+        assertThat(mob.grantInsight(A, 7.5)).isEqualTo(7.5);
+        assertThat(mob.grantInsight(B, 7.5)).isZero();
+    }
+
+    @Test
+    void capClearedOnRefillAndRespawn() {
+        MobInstance refilled = CombatFixture.wolf(T);
+        refilled.engage(A, T);
+        refilled.disengage(A, T);
+        refilled.grantInsight(A, 49); // 교전이 끝난 뒤 받은 깨달음도 상한을 깎는다
+        refilled.refillIfDue(T.plusSeconds(10));
+        assertThat(refilled.grantInsight(A, 7.5)).isEqualTo(7.5);
+
+        MobInstance respawned = CombatFixture.wolf(T);
+        respawned.engage(A, T);
+        respawned.receive(A, 200, AttackNature.NONE, T);
+        respawned.grantInsight(A, 49); // 쓰러뜨린 일격의 깨달음
+        respawned.respawn(CombatFixture.wolfProfile(), T.plusSeconds(90));
+        assertThat(respawned.grantInsight(A, 7.5)).isEqualTo(7.5);
+    }
+
+    @Test
+    void capClearedExplicitly() {
+        MobInstance mob = CombatFixture.wolf(T);
+        mob.engage(A, T);
+        mob.receive(A, 200, AttackNature.NONE, T);
+        mob.grantInsight(A, 49);
+        mob.insightCapReachedFirstTime(A);
+
+        mob.clearInsightCaps();
+
+        assertThat(mob.grantInsight(A, 7.5)).isEqualTo(7.5);
+    }
+
+    @Test
+    void capPerCharacter() {
+        MobInstance mob = CombatFixture.wolf(T);
+        mob.engage(A, T);
+        mob.engage(B, T);
+
+        mob.grantInsight(A, 49);
+
+        assertThat(mob.insightCapReachedFirstTime(A)).isTrue();
+        assertThat(mob.insightCapReachedFirstTime(B)).isFalse();
+        assertThat(mob.grantInsight(B, 45)).isEqualTo(45);
+        assertThat(mob.grantInsight(A, 1)).isZero();
+    }
 }
