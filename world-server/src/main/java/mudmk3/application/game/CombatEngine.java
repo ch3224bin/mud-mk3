@@ -18,7 +18,6 @@ import mudmk3.domain.combat.Corpse;
 import mudmk3.domain.combat.Damage;
 import mudmk3.domain.combat.MobHit;
 import mudmk3.domain.combat.MobInstance;
-import mudmk3.domain.combat.MobProfile;
 import mudmk3.domain.combat.PlayerCombat;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.game.OnlinePlayer;
@@ -30,13 +29,11 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -45,8 +42,8 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * 몹·교전·시체 메모리 상태를 다룬다(D85·D86). {@link GameService} 가 게임 락과 트랜잭션 안에서 부른다.
- * 서버 틱은 platform.md {@code #### 서버 틱} 순서대로 처리한다: 1 배치 맞추기 → 법력 회복({@link ManaRecovery}) → 2 행동(시전 발동 포함) →
- * 3 다시 차기 → 4 시체 사라짐 → 5 재등장.
+ * 서버 틱은 platform.md {@code #### 서버 틱} 순서대로 처리한다: 1 배치 맞추기({@link MobSpawner}) → 법력 회복({@link ManaRecovery}) →
+ * 2 행동(시전 발동 포함) → 3 다시 차기(몹은 {@link MobSpawner}) → 4 시체 사라짐({@link CorpseHandler}) → 5 재등장({@link MobSpawner}).
  * <p>
  * 틱이 중간에 실패하면 트랜잭션(깎인 기혈 쓰기)은 롤백되지만 메모리 상태는 되돌리지 않고 보낼 줄도 버려진다
  * ({@link GameService} 의 1차 한계). 기혈 쓰기는 몹 행동 하나에서 메모리를 바꾸기 전에 하므로, 어긋나도 "몹이 친 것이 DB에
@@ -68,23 +65,22 @@ class CombatEngine {
     private final CombatActions combatActions;
     private final AbilityTimersRepository abilityTimersRepository;
     private final AbilityCaster abilityCaster;
-
-    /** 몹 id. 서버가 돌아가는 동안 늘기만 한다 */
-    private final AtomicLong mobIds = new AtomicLong();
+    private final MobSpawner mobSpawner;
+    private final RoomNotifier roomNotifier;
 
     /** 틱 하나. send 는 (연결 id, 메시지)로 보낼 것을 모은다. 이번 틱에 진 캐릭터를 돌려준다 */
     CombatOutcome tick(Instant now, BiConsumer<String, GameMessage> send) {
         Map<Long, MobPlacement> placements = mobPlacementFinder.findAll().stream()
                 .collect(Collectors.toMap(placement -> requireNonNull(placement.getId()), Function.identity(),
                         (a, b) -> a, LinkedHashMap::new));
-        reconcile(placements, now, send);
+        mobSpawner.reconcile(placements, now, send);
         manaRecovery.recover(now);
         List<Long> defeated = new ArrayList<>();
         act(now, send, defeated);
-        refillMobs(now);
+        mobSpawner.refill(now);
         refillPlayers(now, send);
         corpseHandler.removeExpired(now);
-        respawnMobs(placements, now, send);
+        mobSpawner.respawn(placements, now, send);
         return new CombatOutcome(defeated);
     }
 
@@ -147,19 +143,11 @@ class CombatEngine {
      * 공격 간격이 줄지 않게 하고(D84), 다시 차기 예약은 지운다(세계 밖에서는 차지 않음 — 들어올 때 {@link #entered} 가 다시 예약)
      */
     void leave(Long characterId, Instant now) {
-        clearCasting(characterId);
+        abilityTimersRepository.clearCasting(characterId, casting -> true);
         endAll(characterId, now);
         playerCombatRepository.find(characterId).ifPresent(combat -> {
             combat.clearRefill();
             playerCombatRepository.save(combat);
-        });
-    }
-
-    /** 시전 중이면 지운다(끊김·질 때. 방 삭제로 옮겨질 때는 지우지 않는다 — 발동 때 다른 방이라 흩어짐) */
-    private void clearCasting(Long characterId) {
-        abilityTimersRepository.find(characterId).ifPresent(timers -> {
-            timers.clearCasting();
-            abilityTimersRepository.save(timers);
         });
     }
 
@@ -199,52 +187,20 @@ class CombatEngine {
         return corpseHandler.inRoom(roomId);
     }
 
-    // ---- 1. 배치 맞추기
-
-    /**
-     * 배치가 없어졌거나 서명(방, 몹 유형, 수)이 바뀐 몹을 지우고(교전 중이던 플레이어는 교전에서 뺌, 알림 없음),
-     * 배치의 빈 자리에 지금 정의로 몹을 나타나게 한다
-     */
-    private void reconcile(Map<Long, MobPlacement> placements, Instant now, BiConsumer<String, GameMessage> send) {
-        Map<Long, Set<Integer>> filledSlots = new LinkedHashMap<>();
-        for (MobInstance mob : mobInstanceRepository.findAll()) {
-            MobPlacement placement = placements.get(mob.getPlacementId());
-            if (placement == null || !matches(mob, placement)) {
-                remove(mob, now);
-                continue;
-            }
-            filledSlots.computeIfAbsent(mob.getPlacementId(), id -> new HashSet<>()).add(mob.getSlot());
-        }
-        for (MobPlacement placement : placements.values()) {
-            Long placementId = requireNonNull(placement.getId());
-            Set<Integer> filled = filledSlots.getOrDefault(placementId, Set.of());
-            for (int slot = 0; slot < placement.getCount(); slot++) {
-                if (filled.contains(slot)) continue;
-                MobInstance mob = MobInstance.spawn(mobIds.incrementAndGet(), placementId, slot,
-                        placement.getRoomId(), placement.getCount(), MobProfile.of(placement.getMobType()), now);
-                mobInstanceRepository.save(mob);
-                notifyAppeared(mob, send);
-            }
-        }
-    }
-
-    private static boolean matches(MobInstance mob, MobPlacement placement) {
-        return mob.getRoomId().equals(placement.getRoomId())
-                && mob.getProfile().mobTypeId().equals(placement.getMobType().getId())
-                && mob.getPlacementCount() == placement.getCount();
-    }
-
-    private void remove(MobInstance mob, Instant now) {
-        for (Long characterId : mob.opponentIds()) {
-            playerCombatRepository.find(characterId).ifPresent(combat -> {
-                combat.disengage(mob.getId(), now);
-                playerCombatRepository.save(combat);
-            });
-        }
-        mobInstanceRepository.delete(mob.getId());
-    }
-
     // ---- 2. 행동
+
+    /** 정렬 무리: 교전 중인 행동 */
+    private static final int ENGAGED_GROUP = 0;
+    /** 정렬 무리: 아직 교전하지 않은 캐릭터의 시전 */
+    private static final int NOT_ENGAGED_GROUP = 1;
+    /** 정렬 종류: 자동 공격(플레이어·몹)이 시전보다 먼저 */
+    private static final int AUTO_ATTACK = 0;
+    private static final int CASTING = 1;
+
+    /** 이번 틱에 할 행동 하나: 플레이어(characterId)·몹(mobId)의 자동 공격, 또는 캐릭터의 시전 발동(casting) */
+    private record Action(Instant at, int group, long order, int kind, @Nullable Long characterId, @Nullable Long mobId,
+                          @Nullable Casting casting) {
+    }
 
     /**
      * 행동 시각이 된 플레이어·몹의 행동과 발동 시각이 된 시전을 정렬 키 (시각, 무리, 순번, 종류)로 하나씩 처리한다(D113, F20).
@@ -278,8 +234,9 @@ class CombatEngine {
         due.sort(Comparator.comparing(Action::at).thenComparingInt(Action::group).thenComparingLong(Action::order)
                 .thenComparingInt(Action::kind));
         for (Action action : due) {
-            if (action.casting() != null) {
-                abilityCaster.fire(requireNonNull(action.characterId()), action.casting(), now, send);
+            Casting casting = action.casting();
+            if (casting != null) {
+                abilityCaster.fire(requireNonNull(action.characterId()), casting, now, send);
             } else if (action.characterId() != null) {
                 playerTurn(action.characterId(), action.at(), now, send);
             } else {
@@ -356,35 +313,14 @@ class CombatEngine {
     private void onPlayerDefeated(OnlinePlayer player, int maxQiBlood, Instant now, BiConsumer<String, GameMessage> send) {
         Long characterId = player.getCharacterId();
         characterVitalsEditor.setQiBlood(characterId, 1, maxQiBlood);
-        clearCasting(characterId);
+        abilityTimersRepository.clearCasting(characterId, casting -> true);
         endAll(characterId, now);
         send.accept(player.getSessionId(), SystemMessage.combat(CombatTexts.DEFEATED));
-        combatActions.notifyOthers(player, combatTexts.defeatedNotice(player.getName()), "defeated", send);
+        roomNotifier.notifyOthers(player,
+                NoticeMessage.combat(combatTexts.defeatedNotice(player.getName()), player.getName(), "defeated"), send);
     }
 
-    /** 정렬 무리: 교전 중인 행동 */
-    private static final int ENGAGED_GROUP = 0;
-    /** 정렬 무리: 아직 교전하지 않은 캐릭터의 시전 */
-    private static final int NOT_ENGAGED_GROUP = 1;
-    /** 정렬 종류: 자동 공격(플레이어·몹)이 시전보다 먼저 */
-    private static final int AUTO_ATTACK = 0;
-    private static final int CASTING = 1;
-
-    /** 이번 틱에 할 행동 하나: 플레이어(characterId)·몹(mobId)의 자동 공격, 또는 캐릭터의 시전 발동(casting) */
-    private record Action(Instant at, int group, long order, int kind, @Nullable Long characterId, @Nullable Long mobId,
-                          @Nullable Casting casting) {
-    }
-
-    // ---- 3. 다시 차기
-
-    /** 교전 상대가 모두 사라진 지 10초가 된 몹은 기혈이 다 차고 위협·피해 기록을 지운다 */
-    private void refillMobs(Instant now) {
-        for (MobInstance mob : mobInstanceRepository.findAll()) {
-            if (mob.isAlive()) {
-                mob.refillIfDue(now);
-            }
-        }
-    }
+    // ---- 3. 플레이어 다시 차기(몹은 MobSpawner.refill)
 
     /**
      * 교전 상대가 모두 사라진 지 10초가 된 플레이어는 기혈이 다 찬다(command.md {@code ### 교전 뒤 기혈}). 깎인 것이 있었을 때만
@@ -400,31 +336,6 @@ class CombatEngine {
             if (player.isEmpty() || !characterVitalsEditor.restoreQiBlood(characterId)) continue;
             int max = cultivationFinder.stats(characterId).qiBlood();
             send.accept(player.get().getSessionId(), SystemMessage.info(combatTexts.refilled(max)));
-        }
-    }
-
-    // ---- 4. 시체 사라짐은 CorpseHandler.removeExpired
-
-    // ---- 5. 재등장
-
-    /** 재등장 시각이 된 몹을 배치의 지금 정의로 같은 자리에 기혈이 다 찬 채 나타나게 한다 */
-    private void respawnMobs(Map<Long, MobPlacement> placements, Instant now, BiConsumer<String, GameMessage> send) {
-        for (MobInstance mob : mobInstanceRepository.findAll()) {
-            if (!mob.respawnDue(now)) continue;
-            // 배치 맞추기가 서명이 다른 몹을 이미 지웠으므로 배치가 있다
-            MobPlacement placement = requireNonNull(placements.get(mob.getPlacementId()));
-            mob.respawn(MobProfile.of(placement.getMobType()), now);
-            mobInstanceRepository.save(mob);
-            notifyAppeared(mob, send);
-        }
-    }
-
-    /** 그 방 사람에게 {@code 청모랑이 나타난다.}(event {@code respawn}) */
-    private void notifyAppeared(MobInstance mob, BiConsumer<String, GameMessage> send) {
-        String name = mob.getProfile().name();
-        GameMessage notice = NoticeMessage.combat(combatTexts.appears(name), name, "respawn");
-        for (OnlinePlayer player : presenceRepository.findAllInRoom(mob.getRoomId())) {
-            send.accept(player.getSessionId(), notice);
         }
     }
 }

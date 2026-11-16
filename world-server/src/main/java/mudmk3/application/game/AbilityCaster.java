@@ -116,11 +116,7 @@ class AbilityCaster {
      * 아니면 {@link #cast}(공통 대기는 시작 때 걸렸으므로 다시 걸지 않음, 발휘 비율은 발동 순간의 법력)
      */
     void fire(Long characterId, Casting casting, Instant now, BiConsumer<String, GameMessage> send) {
-        Optional<AbilityTimers> timers = abilityTimersRepository.find(characterId)
-                .filter(t -> t.casting().filter(casting::equals).isPresent());
-        if (timers.isEmpty()) return;
-        timers.get().clearCasting();
-        abilityTimersRepository.save(timers.get());
+        if (!abilityTimersRepository.clearCasting(characterId, casting::equals)) return;
         Optional<OnlinePlayer> found = presenceRepository.findByCharacterId(characterId);
         if (found.isEmpty()) return;
         OnlinePlayer caster = found.get();

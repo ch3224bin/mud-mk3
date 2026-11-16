@@ -39,7 +39,7 @@ final class RoomViewAssembler {
      * viewer 는 방 사람 목록에서 뺀다. occupants 는 들어온 순서, npcs 는 만든 순서(id 순)여야 한다.
      * floorStacks 는 방 보기 묶음 순서(D40)여야 한다. 사람 다음에 NPC를 놓고, 몹·시체·바닥 물건은 따로 목록이다.
      * mobs 는 그 방의 살아 있는 몹(방 보기 순서, {@link CombatEngine#mobsInRoom}), corpses 는 시체(쓰러진 순)다.
-     * 몹은 (몹 유형, 교전 중)이 같으면 한 줄로 묶고, 급·경지는 보는 사람의 경지로 정한다(D89)
+     * 몹은 묶음 키({@link MobGroupKey})가 같으면 한 줄로 묶고, 급·경지는 보는 사람의 경지로 정한다(D89)
      */
     static RoomMessage assemble(
             Room room, boolean zoneEntered, List<OnlinePlayer> occupants, List<Npc> npcs, List<FloorStack> floorStacks,
@@ -71,10 +71,9 @@ final class RoomViewAssembler {
     }
 
     private static List<MobView> mobViews(List<MobInstance> mobs, Realm viewerRealm) {
-        Map<MobGroup, List<MobInstance>> groups = new LinkedHashMap<>();
+        Map<MobGroupKey, List<MobInstance>> groups = new LinkedHashMap<>();
         for (MobInstance mob : mobs) {
-            groups.computeIfAbsent(new MobGroup(mob.getProfile().mobTypeId(), mob.isFighting()), key -> new ArrayList<>())
-                    .add(mob);
+            groups.computeIfAbsent(MobGroupKey.of(mob), key -> new ArrayList<>()).add(mob);
         }
         return groups.entrySet().stream()
                 .map(group -> {
@@ -83,9 +82,6 @@ final class RoomViewAssembler {
                             first.getProfile().tier().badge(), group.getValue().size(), group.getKey().fighting());
                 })
                 .toList();
-    }
-
-    private record MobGroup(Long mobTypeId, boolean fighting) {
     }
 
     private static OwnerView ownerView(Faction owner) {

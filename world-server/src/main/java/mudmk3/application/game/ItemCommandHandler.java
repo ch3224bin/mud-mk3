@@ -82,6 +82,7 @@ class ItemCommandHandler {
     private final InventoryEditor inventoryEditor;
     private final NpcFinder npcFinder;
     private final PresenceRepository presenceRepository;
+    private final RoomNotifier roomNotifier;
     private final TechniqueReader techniqueReader;
     private final TechniqueFinder techniqueFinder;
     private final CultivationTexts cultivationTexts;
@@ -217,7 +218,8 @@ class ItemCommandHandler {
         send.accept(sessionId, SystemMessage.item(count < wanted
                 ? "저물대에 자리가 없어 " + name + " " + Numbers.count(wanted) + "개 중 " + Numbers.count(count) + "개만 주웠습니다."
                 : Josa.withEulReul(things) + " 주웠습니다."));
-        notifyOthers(player, Josa.withIGa(player.getName()) + " " + Josa.withEulReul(things) + " 줍는다.", "pick", send);
+        roomNotifier.notifyOthers(player, NoticeMessage.item(
+                Josa.withIGa(player.getName()) + " " + Josa.withEulReul(things) + " 줍는다.", player.getName(), "pick"), send);
     }
 
     // ---- 버리기
@@ -264,7 +266,8 @@ class ItemCommandHandler {
 
         String things = name + " " + Numbers.count(count) + "개";
         send.accept(sessionId, SystemMessage.item(Josa.withEulReul(things) + " 버렸습니다."));
-        notifyOthers(player, Josa.withIGa(player.getName()) + " " + Josa.withEulReul(things) + " 버린다.", "drop", send);
+        roomNotifier.notifyOthers(player, NoticeMessage.item(
+                Josa.withIGa(player.getName()) + " " + Josa.withEulReul(things) + " 버린다.", player.getName(), "drop"), send);
     }
 
     // ---- 보기
@@ -468,12 +471,5 @@ class ItemCommandHandler {
     /** 입력한 이름(번호 포함). 영석 등급 낱말은 전체 이름으로 바뀐 뒤다 */
     static String inputOf(ItemQuery query) {
         return query.hasOrdinal() ? query.ordinal() + "." + query.name() : query.name();
-    }
-
-    private void notifyOthers(OnlinePlayer actor, String text, String event, BiConsumer<String, GameMessage> send) {
-        NoticeMessage notice = NoticeMessage.item(text, actor.getName(), event);
-        presenceRepository.findAllInRoom(actor.getRoomId()).stream()
-                .filter(other -> !other.getCharacterId().equals(actor.getCharacterId()))
-                .forEach(other -> send.accept(other.getSessionId(), notice));
     }
 }

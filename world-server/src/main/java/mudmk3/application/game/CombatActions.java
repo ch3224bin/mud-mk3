@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 
 /**
- * 5차 {@code 공격} 과 신통이 함께 쓰는 교전 경로(D110, 이슈 #15): 칠 몹 찾기, 교전 시작, 몹 치기, 몹 처치, 같은 방 알림.
+ * 5차 {@code 공격} 과 신통이 함께 쓰는 교전 경로(D110, 이슈 #15): 칠 몹 찾기, 교전 시작, 몹 치기, 몹 처치(같은 방 알림은 {@link RoomNotifier}).
  * 교전 시작 순번과 시전 시작 순번도 여기서 매긴다. {@link GameService} 의 게임 락과 트랜잭션 안에서만 불린다
  */
 @Component
@@ -46,6 +46,7 @@ class CombatActions {
     private final NpcFinder npcFinder;
     private final CharacterFinder characterFinder;
     private final CombatTexts combatTexts;
+    private final RoomNotifier roomNotifier;
 
     /** 교전 시작 순번(같은 시각 행동의 순서). 늘기만 한다 */
     private final AtomicLong engageOrders = new AtomicLong();
@@ -81,13 +82,13 @@ class CombatActions {
     }
 
     /**
-     * 그 방의 살아 있는 몹을 방 보기 순서로: 묶음 키 (몹 유형, 교전 중)가 처음 나온 순서대로 묶음을 놓고,
+     * 그 방의 살아 있는 몹을 방 보기 순서로: 묶음 키({@link MobGroupKey})가 처음 나온 순서대로 묶음을 놓고,
      * 묶음 안은 (배치 id, 자리) 순. 이름·번호로 고를 때도 이 순서다(D86·D89)
      */
     List<MobInstance> mobsInRoom(Long roomId) {
-        Map<GroupKey, List<MobInstance>> groups = new LinkedHashMap<>();
+        Map<MobGroupKey, List<MobInstance>> groups = new LinkedHashMap<>();
         for (MobInstance mob : mobInstanceRepository.findAllInRoom(roomId)) {
-            groups.computeIfAbsent(GroupKey.of(mob), key -> new ArrayList<>()).add(mob);
+            groups.computeIfAbsent(MobGroupKey.of(mob), key -> new ArrayList<>()).add(mob);
         }
         return groups.values().stream().flatMap(List::stream).toList();
     }
@@ -111,7 +112,8 @@ class CombatActions {
         mobInstanceRepository.save(mob);
         String mobName = mob.getProfile().name();
         send.accept(player.getSessionId(), SystemMessage.combat(combatTexts.engaged(mobName)));
-        notifyOthers(player, combatTexts.engagedNotice(player.getName(), mobName), "engage", send);
+        roomNotifier.notifyOthers(player,
+                NoticeMessage.combat(combatTexts.engagedNotice(player.getName(), mobName), player.getName(), "engage"), send);
     }
 
     /** 몹이 교전 상대 {@code characterId} 의 공격을 받는다(받는 쪽 배율 → 육신 층 → 기혈) */
@@ -165,23 +167,8 @@ class CombatActions {
                 .map(combat -> combat.getMobIds().contains(mob.getId())).orElse(false);
     }
 
-    /** 같은 방 다른 사람에게 {@code notice}(tone {@code combat}) */
-    void notifyOthers(OnlinePlayer actor, String text, String event, BiConsumer<String, GameMessage> send) {
-        NoticeMessage notice = NoticeMessage.combat(text, actor.getName(), event);
-        presenceRepository.findAllInRoom(actor.getRoomId()).stream()
-                .filter(other -> !other.getCharacterId().equals(actor.getCharacterId()))
-                .forEach(other -> send.accept(other.getSessionId(), notice));
-    }
-
     /** 다음 시전 시작 순번(같은 시각에 발동하는 아직 교전하지 않은 캐릭터의 시전 순서) */
     long nextCastingSeq() {
         return castingSeqs.incrementAndGet();
-    }
-
-    /** 방 보기 묶음 키 */
-    private record GroupKey(Long mobTypeId, boolean fighting) {
-        static GroupKey of(MobInstance mob) {
-            return new GroupKey(mob.getProfile().mobTypeId(), mob.isFighting());
-        }
     }
 }

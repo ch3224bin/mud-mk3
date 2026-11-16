@@ -8,7 +8,6 @@ import mudmk3.application.cultivation.provided.CultivationFinder;
 import mudmk3.application.floor.provided.RoomFloor;
 import mudmk3.application.game.provided.GameConnector;
 import mudmk3.application.game.provided.GameTicker;
-import mudmk3.application.game.required.AbilityTimersRepository;
 import mudmk3.application.game.required.GameCloseReason;
 import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.NoticeMessage;
@@ -115,7 +114,7 @@ public class GameService implements GameConnector, GameTicker {
     private final CombatEngine combatEngine;
     private final CombatCommandHandler combatCommandHandler;
     private final AbilityCommandHandler abilityCommandHandler;
-    private final AbilityTimersRepository abilityTimersRepository;
+    private final RoomNotifier roomNotifier;
     private final Clock clock;
     private final GameMessageSender sender;
     private final TransactionTemplate transactionTemplate;
@@ -142,7 +141,7 @@ public class GameService implements GameConnector, GameTicker {
             CombatEngine combatEngine,
             CombatCommandHandler combatCommandHandler,
             AbilityCommandHandler abilityCommandHandler,
-            AbilityTimersRepository abilityTimersRepository,
+            RoomNotifier roomNotifier,
             Clock clock,
             GameMessageSender sender,
             PlatformTransactionManager transactionManager
@@ -162,7 +161,7 @@ public class GameService implements GameConnector, GameTicker {
         this.combatEngine = combatEngine;
         this.combatCommandHandler = combatCommandHandler;
         this.abilityCommandHandler = abilityCommandHandler;
-        this.abilityTimersRepository = abilityTimersRepository;
+        this.roomNotifier = roomNotifier;
         this.clock = clock;
         this.sender = sender;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -321,7 +320,8 @@ public class GameService implements GameConnector, GameTicker {
         Long roomId = requireNonNull(room.getId());
         OnlinePlayer player = OnlinePlayer.enter(session.requireCharacterId(), accountId, name, roomId, sessionId);
         presenceRepository.save(player);
-        notifyOthers(player, roomId, Josa.withIGa(name) + " 나타난다.", "appear");
+        roomNotifier.notifyOthers(player, roomId, NoticeMessage.movement(Josa.withIGa(name) + " 나타난다.", name, "appear"),
+                this::send);
         sendRoom(sessionId, session, room);
         combatEngine.entered(player.getCharacterId(), clock.instant());
     }
@@ -337,7 +337,8 @@ public class GameService implements GameConnector, GameTicker {
     private void leaveWorld(OnlinePlayer player) {
         combatEngine.leave(player.getCharacterId(), clock.instant());
         presenceRepository.delete(player.getCharacterId());
-        notifyOthers(player, player.getRoomId(), Josa.withIGa(player.getName()) + " 사라진다.", "disappear");
+        roomNotifier.notifyOthers(player, NoticeMessage.movement(Josa.withIGa(player.getName()) + " 사라진다.",
+                player.getName(), "disappear"), this::send);
     }
 
     // ---- 입력
@@ -499,7 +500,7 @@ public class GameService implements GameConnector, GameTicker {
                     cultivationFinder.insight(player.getCharacterId()))));
             case Command.Abilities _ -> send(sessionId, SystemMessage.info(cultivationTexts.abilities(
                     cultivationFinder.findLearned(player.getCharacterId()),
-                    abilityTimersRepository.find(player.getCharacterId()).orElse(null), clock.instant())));
+                    abilityCommandHandler.timers(player.getCharacterId()).orElse(null), clock.instant())));
             case Command.Who _ -> who(sessionId);
             case Command.Help _ -> send(sessionId, SystemMessage.info(HELP));
             case Command.Quit _ -> quit(sessionId, player);
@@ -553,10 +554,12 @@ public class GameService implements GameConnector, GameTicker {
         String actor = Josa.withIGa(player.getName());
 
         characterMover.moveTo(player.getCharacterId(), targetId);
-        notifyOthers(player, fromId, actor + " " + direction.towardPhrase() + " 떠난다.", "leave");
+        roomNotifier.notifyOthers(player, fromId, NoticeMessage.movement(
+                actor + " " + direction.towardPhrase() + " 떠난다.", player.getName(), "leave"), this::send);
         player.moveTo(targetId);
         presenceRepository.save(player);
-        notifyOthers(player, targetId, actor + " " + direction.opposite().fromPhrase() + " 다가온다.", "arrive");
+        roomNotifier.notifyOthers(player, targetId, NoticeMessage.movement(
+                actor + " " + direction.opposite().fromPhrase() + " 다가온다.", player.getName(), "arrive"), this::send);
         sendRoom(sessionId, session, roomFinder.find(targetId));
     }
 
@@ -652,7 +655,8 @@ public class GameService implements GameConnector, GameTicker {
             characterMover.moveTo(characterId, roomId);
             player.moveTo(roomId);
             presenceRepository.save(player);
-            notifyOthers(player, roomId, Josa.withIGa(player.getName()) + " 나타난다.", "appear");
+            roomNotifier.notifyOthers(player, roomId, NoticeMessage.movement(Josa.withIGa(player.getName()) + " 나타난다.",
+                    player.getName(), "appear"), this::send);
         }
         String sessionId = player.getSessionId();
         GameSession session = sessions.get(sessionId);
@@ -719,11 +723,6 @@ public class GameService implements GameConnector, GameTicker {
                 npcFinder.findAllInRoom(roomId), roomFloor.look(roomId), viewerCharacterId,
                 combatEngine.mobsInRoom(roomId), combatEngine.corpsesInRoom(roomId),
                 characterFinder.find(viewerCharacterId).getRealm(), clock.instant());
-    }
-
-    private void notifyOthers(OnlinePlayer actor, Long roomId, String text, String event) {
-        GameMessage notice = NoticeMessage.movement(text, actor.getName(), event);
-        othersInRoom(actor, roomId).forEach(other -> send(other.getSessionId(), notice));
     }
 
     private List<OnlinePlayer> othersInRoom(OnlinePlayer self, Long roomId) {

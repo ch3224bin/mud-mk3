@@ -92,15 +92,16 @@ class AbilityCommandHandler {
      * ({@code error}). 공통 대기와 상관없고, 이미 걸린 공통 대기는 남는다
      */
     void stop(OnlinePlayer player, BiConsumer<String, GameMessage> send) {
-        Optional<AbilityTimers> timers = abilityTimersRepository.find(player.getCharacterId())
-                .filter(t -> t.casting().isPresent());
-        if (timers.isEmpty()) {
+        if (!abilityTimersRepository.clearCasting(player.getCharacterId(), casting -> true)) {
             send.accept(player.getSessionId(), SystemMessage.error(AbilityTexts.NOT_CASTING));
             return;
         }
-        timers.get().clearCasting();
-        abilityTimersRepository.save(timers.get());
         send.accept(player.getSessionId(), SystemMessage.combat(AbilityTexts.STOPPED));
+    }
+
+    /** 그 캐릭터의 대기시간·시전({@code 신통} 목록) */
+    Optional<AbilityTimers> timers(Long characterId) {
+        return abilityTimersRepository.find(characterId);
     }
 
     /** 시전 중인가(검사 2, 이동 막힘) */
