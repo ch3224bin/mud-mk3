@@ -43,8 +43,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * 몹·교전·시체 메모리 상태를 다룬다(D85·D86). {@link GameService} 가 게임 락과 트랜잭션 안에서 부른다.
  * 서버 틱은 platform.md {@code #### 서버 틱} 순서대로 처리한다: 1 배치 맞추기({@link MobSpawner}) → 법력 회복({@link ManaRecovery}) →
- * 2 행동(시전 발동 포함) → 3 다시 차기(몹은 {@link MobSpawner}) → 4 시체 사라짐({@link CorpseHandler}) → 5 재등장({@link MobSpawner})
- * → 끝으로 세계에 없는 캐릭터의 다 쓴 교전·대기시간 기록 지우기({@link #sweepOffline}).
+ * 2 행동(시전 발동 포함) → 3 다시 차기(몹은 {@link MobSpawner}) → 4 시체 사라짐({@link CorpseHandler}) → 5 재등장({@link MobSpawner}) → 끊긴 기록 정리({@link OfflineSweeper}).
  * <p>
  * 틱이 중간에 실패하면 트랜잭션(깎인 기혈 쓰기)은 롤백되지만 메모리 상태는 되돌리지 않고 보낼 줄도 버려진다
  * ({@link GameService} 의 1차 한계). 기혈 쓰기는 몹 행동 하나에서 메모리를 바꾸기 전에 하므로, 어긋나도 "몹이 친 것이 DB에
@@ -68,6 +67,7 @@ class CombatEngine {
     private final AbilityCaster abilityCaster;
     private final MobSpawner mobSpawner;
     private final RoomNotifier roomNotifier;
+    private final OfflineSweeper offlineSweeper;
 
     /** 틱 하나. send 는 (연결 id, 메시지)로 보낼 것을 모은다. 이번 틱에 진 캐릭터를 돌려준다 */
     CombatOutcome tick(Instant now, BiConsumer<String, GameMessage> send) {
@@ -82,29 +82,8 @@ class CombatEngine {
         refillPlayers(now, send);
         corpseHandler.removeExpired(now);
         mobSpawner.respawn(placements, now, send);
-        sweepOffline(now);
+        offlineSweeper.sweep(now);
         return new CombatOutcome(defeated);
-    }
-
-    /**
-     * 틱 끝 정리(L-D4): 세계에 없는 캐릭터의 교전 기록은 교전 상대·다시 차기 예약이 없고 다음 공격 시각이 지나면, 대기시간
-     * 기록은 시전이 없고 공통·재사용 대기시간이 모두 끝나면 지운다. 다시 들어오면 새 기록과 같다
-     */
-    private void sweepOffline(Instant now) {
-        for (PlayerCombat combat : playerCombatRepository.findAll()) {
-            if (offline(combat.getCharacterId()) && combat.isIdle(now)) {
-                playerCombatRepository.delete(combat.getCharacterId());
-            }
-        }
-        for (AbilityTimers timers : abilityTimersRepository.findAll()) {
-            if (offline(timers.getCharacterId()) && timers.isIdle(now)) {
-                abilityTimersRepository.delete(timers.getCharacterId());
-            }
-        }
-    }
-
-    private boolean offline(Long characterId) {
-        return presenceRepository.findByCharacterId(characterId).isEmpty();
     }
 
     // ---- 공격 명령
@@ -188,10 +167,7 @@ class CombatEngine {
         });
     }
 
-    /**
-     * 방이 지워졌다: 그 방의 시체와 몹(쓰러진 것 포함)을 지운다(알리지 않음). 그 방 사람은 먼저 {@link #endAll} 로 교전을
-     * 끝냈고, 다른 방 사람은 그 몹과 교전 중일 수 없다
-     */
+    /** 방이 지워졌다: 그 방의 시체·몹(쓰러진 것 포함)을 알리지 않고 지운다(그 방 사람의 교전은 {@link #endAll} 이 끝냄) */
     void forgetRoom(Long roomId) {
         corpseHandler.removeInRoom(roomId);
         mobInstanceRepository.deleteAllInRoom(roomId);
