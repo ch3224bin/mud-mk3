@@ -180,7 +180,8 @@ record CharacterRepositoryTest(CharacterRepository characterRepository, EntityMa
         characterRepository.save(character);
         flushAndClear();
 
-        assertThat(characterRepository.findById(saved.getId()).orElseThrow().getRoomId()).isEqualTo(20L);
+        // 엔티티 저장은 방 열도 쓰지 않는다(방은 writeRoomId 로만)
+        assertThat(characterRepository.findById(saved.getId()).orElseThrow().getRoomId()).isEqualTo(10L);
         assertThat(characterRepository.readQiBloodLost(saved.getId())).contains(30.0);
     }
 
@@ -207,9 +208,56 @@ record CharacterRepositoryTest(CharacterRepository characterRepository, EntityMa
         characterRepository.save(character);
         flushAndClear();
 
-        assertThat(characterRepository.findById(saved.getId()).orElseThrow().getRoomId()).isEqualTo(20L);
+        // 엔티티 저장은 방 열도 쓰지 않는다(방은 writeRoomId 로만)
+        assertThat(characterRepository.findById(saved.getId()).orElseThrow().getRoomId()).isEqualTo(10L);
         assertThat(characterRepository.readManaLost(saved.getId())).contains(5.5);
         assertThat(characterRepository.readQiBloodLost(saved.getId())).contains(0.0);
+    }
+
+    @Test
+    void writeRoomIdAndRealm() {
+        PlayerCharacter character = characterRepository.save(createCharacter(1L, "한백", 10L));
+        flushAndClear();
+
+        assertThat(characterRepository.writeRoomId(character.getId(), 20L)).isEqualTo(1);
+        assertThat(characterRepository.writeRealm(character.getId(), Realm.QI_3)).isEqualTo(1);
+        flushAndClear();
+
+        PlayerCharacter found = characterRepository.findById(character.getId()).orElseThrow();
+        assertThat(found.getRoomId()).isEqualTo(20L);
+        assertThat(found.getRealm()).isEqualTo(Realm.QI_3);
+        assertThat(characterRepository.writeRoomId(999L, 20L)).isZero();
+        assertThat(characterRepository.writeRealm(999L, Realm.QI_3)).isZero();
+    }
+
+    /** 엔티티 저장은 경지 열을 쓰지 않는다(경지는 writeRealm 으로만) */
+    @Test
+    void entitySaveDoesNotWriteRealm() {
+        PlayerCharacter saved = characterRepository.save(createCharacter(1L, "한백", 10L));
+        flushAndClear();
+        PlayerCharacter character = characterRepository.findById(saved.getId()).orElseThrow();
+
+        character.changeRealm(Realm.QI_3);
+        characterRepository.save(character);
+        flushAndClear();
+
+        assertThat(characterRepository.findById(saved.getId()).orElseThrow().getRealm()).isEqualTo(Realm.MORTAL);
+    }
+
+    @Test
+    void writeRoomIdForAll() {
+        PlayerCharacter hanbaek = characterRepository.save(createCharacter(1L, "한백", 10L));
+        PlayerCharacter hanli = characterRepository.save(createCharacter(2L, "한립", 10L));
+        PlayerCharacter stayer = characterRepository.save(createCharacter(3L, "남궁완", 30L));
+        flushAndClear();
+
+        assertThat(characterRepository.writeRoomIdForAll(10L, 20L)).isEqualTo(2);
+        flushAndClear();
+
+        assertThat(characterRepository.findById(hanbaek.getId()).orElseThrow().getRoomId()).isEqualTo(20L);
+        assertThat(characterRepository.findById(hanli.getId()).orElseThrow().getRoomId()).isEqualTo(20L);
+        assertThat(characterRepository.findById(stayer.getId()).orElseThrow().getRoomId()).isEqualTo(30L);
+        assertThat(characterRepository.writeRoomIdForAll(10L, 20L)).isZero();
     }
 
     private void flushAndClear() {

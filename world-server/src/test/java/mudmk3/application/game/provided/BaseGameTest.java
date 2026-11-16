@@ -270,7 +270,7 @@ abstract class BaseGameTest {
     protected void setRealm(Long accountId, Realm realm) {
         PlayerCharacter character = characterRepository.findByAccountId(accountId).orElseThrow();
         character.changeRealm(realm);
-        characterRepository.save(character);
+        characterRepository.writeRealm(requireNonNull(character.getId()), realm);
         entityManager.flush();
     }
 

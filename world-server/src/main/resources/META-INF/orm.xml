@@ -128,13 +128,15 @@
             <basic name="accountId">
                 <column name="account_id" nullable="false"/>
             </basic>
-            <!-- 방은 지울 때 캐릭터를 다른 방으로 옮기므로 FK를 두지 않는다 -->
+            <!-- 방은 지울 때 캐릭터를 다른 방으로 옮기므로 FK를 두지 않는다.
+                 전용 쿼리로만 고치고 엔티티 저장은 이 열을 고치지 않는다(만들 때는 씀) -->
             <basic name="roomId">
-                <column name="room_id" nullable="false"/>
+                <column name="room_id" nullable="false" updatable="false"/>
             </basic>
-            <!-- 4차 전 행은 비어 있다가 서버가 뜰 때 채운다(기존 DB에 열을 더할 수 있게 nullable) -->
+            <!-- 4차 전 행은 비어 있다가 서버가 뜰 때 채운다(기존 DB에 열을 더할 수 있게 nullable).
+                 전용 쿼리로만 고치고 엔티티 저장은 이 열을 고치지 않는다(만들 때는 씀) -->
             <basic name="realm">
-                <column name="realm" length="32" nullable="true" column-definition="varchar(32)"/>
+                <column name="realm" length="32" nullable="true" updatable="false" column-definition="varchar(32)"/>
                 <enumerated>STRING</enumerated>
             </basic>
             <!-- 깎인 기혈(5차). 비어 있으면 0(기존 행). 전용 네이티브 쿼리로만 쓰고 엔티티 저장은 이 열을 쓰지 않는다 -->

@@ -85,7 +85,7 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
             return;
         }
         character.changeRealm(realm);
-        characterRepository.save(character);
+        writeRealm(characterId, realm);
         // 엔티티 저장은 깎인 기혈·법력 열을 쓰지 않으므로 그 열만 따로 맞춘다(경지를 내리면 최대가 준 만큼 줄임)
         writeQiBloodLost(characterId, QiBlood.lostAfterDemotion(qiBloodLost(characterId), from, realm));
         writeManaLost(characterId, Mana.lostAfterDemotion(manaLost(characterId), from, realm));
@@ -99,7 +99,7 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
             return;
         }
         character.changeRealm(Realm.QI_1);
-        characterRepository.save(character);
+        writeRealm(characterId, Realm.QI_1);
     }
 
     /** 서버가 뜰 때 경지 열이 비어 있는 기존 캐릭터를 연기 1층으로 채운다(영석 심기보다 먼저) */
@@ -117,17 +117,17 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
     public void moveTo(Long characterId, Long roomId) {
         PlayerCharacter character = characterFinder.find(characterId);
         character.moveTo(roomId);
-        characterRepository.save(character);
+        if (characterRepository.writeRoomId(characterId, roomId) == 0) {
+            throw new IllegalArgumentException("캐릭터를 찾을 수 없습니다. id: " + characterId);
+        }
     }
 
     @Override
     public List<Long> relocateAll(Long fromRoomId, Long toRoomId) {
-        return characterRepository.findAllByRoomId(fromRoomId).stream()
-                .map(character -> {
-                    character.moveTo(toRoomId);
-                    return requireNonNull(characterRepository.save(character).getId());
-                })
-                .toList();
+        List<PlayerCharacter> characters = characterRepository.findAllByRoomId(fromRoomId);
+        characters.forEach(character -> character.moveTo(toRoomId));
+        characterRepository.writeRoomIdForAll(fromRoomId, toRoomId);
+        return characters.stream().map(character -> requireNonNull(character.getId())).toList();
     }
 
     @Override
@@ -178,6 +178,13 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
         }
         writeManaLost(characterId, Mana.lostAfterRecover(lost, amount));
         return true;
+    }
+
+    /** 엔티티 저장은 경지 열을 쓰지 않으므로(이동과 서로 되돌리지 않게) 그 열만 따로 쓴다 */
+    private void writeRealm(Long characterId, Realm realm) {
+        if (characterRepository.writeRealm(characterId, realm) == 0) {
+            throw new IllegalArgumentException("캐릭터를 찾을 수 없습니다. id: " + characterId);
+        }
     }
 
     private void writeQiBloodLost(Long characterId, double lost) {

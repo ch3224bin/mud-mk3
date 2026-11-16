@@ -33,6 +33,21 @@ public interface CharacterRepository extends Repository<PlayerCharacter, Long> {
     @Query("update PlayerCharacter c set c.realm = :realm where c.realm is null")
     int fillMissingRealms(Realm realm);
 
+    /** 방을 쓴다(그 열만, 영속성 컨텍스트는 비우지 않음). 쓴 행 수를 돌려준다 */
+    @Modifying(flushAutomatically = true)
+    @Query("update PlayerCharacter c set c.roomId = :roomId where c.id = :id")
+    int writeRoomId(Long id, Long roomId);
+
+    /** 한 방에 있는 캐릭터를 모두 다른 방으로 쓴다(그 열만, 영속성 컨텍스트는 비우지 않음). 쓴 행 수를 돌려준다 */
+    @Modifying(flushAutomatically = true)
+    @Query("update PlayerCharacter c set c.roomId = :toRoomId where c.roomId = :fromRoomId")
+    int writeRoomIdForAll(Long fromRoomId, Long toRoomId);
+
+    /** 경지를 쓴다(그 열만, 영속성 컨텍스트는 비우지 않음). 쓴 행 수를 돌려준다 */
+    @Modifying(flushAutomatically = true)
+    @Query("update PlayerCharacter c set c.realm = :realm where c.id = :id")
+    int writeRealm(Long id, Realm realm);
+
     /** 깎인 기혈을 쓴다(그 열만, 영속성 컨텍스트는 비우지 않음). 쓴 행 수를 돌려준다 */
     @Modifying(flushAutomatically = true)
     @Query(value = "update player_character set qi_blood_lost = :lost where id = :id", nativeQuery = true)
