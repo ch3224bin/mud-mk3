@@ -111,6 +111,29 @@ class ManaRecoveryTest extends BaseGameTest {
         assertThat(manaLost(han)).isZero();
     }
 
+    /**
+     * 공법 몫이 줄어 깎인 법력(30)이 최대(25)를 넘으면 보이지 않는 몫을 먹지 않고 0 에서 바로 찬다: 1초 뒤 현재 0.125(깎인 양 24.875),
+     * 게이지는 0 초과 1 미만이라 1
+     */
+    @Test
+    void recoversFromZeroWhenLostAboveMax() {
+        prepareMap();
+        Long han = enterAs("a", "한백", Realm.QI_1);
+        setManaLost(han, 30);
+        gameConnector.handle("a", "상태");
+        assertThat(sender.lastTo("a", StatusMessage.class).stats().mana()).isEqualTo(new GaugeView(0, 25));
+
+        advanceAndTick(1);
+
+        assertThat(manaLost(han)).isEqualTo(24.875);
+        gameConnector.handle("a", "상태");
+        assertThat(sender.lastTo("a", StatusMessage.class).stats().mana()).isEqualTo(new GaugeView(1, 25));
+
+        advanceAndTick(7);
+
+        assertThat(manaLost(han)).isEqualTo(24.0);
+    }
+
     @Test
     void manaRegenDuringCombat() {
         GameMap map = prepareMap();

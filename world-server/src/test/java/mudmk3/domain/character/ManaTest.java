@@ -17,10 +17,10 @@ class ManaTest {
     }
 
     @Test
-    void recoverNotBelowZero() {
-        assertThat(Mana.lostAfterRecover(0.1, 0.125)).isZero();
-        assertThat(Mana.lostAfterRecover(10, 1)).isEqualTo(9);
-        assertThat(Mana.lostAfterRecover(10, -1)).isEqualTo(10);
+    void lostForClamps() {
+        assertThat(Mana.lostFor(30, 25)).isZero();
+        assertThat(Mana.lostFor(-1, 25)).isEqualTo(25);
+        assertThat(Mana.lostFor(10, 25)).isEqualTo(15);
     }
 
     /** 연기 7층(영력 11, 경지 몫 55)에서 40 깎임 → 연기 1층(영력 5, 25): 경지 몫이 준 30만큼 줄여 10, 현재 15 */

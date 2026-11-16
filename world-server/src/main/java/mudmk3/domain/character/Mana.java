@@ -22,9 +22,9 @@ public final class Mana {
         return Math.min(max, lost + Math.max(0, amount));
     }
 
-    /** 법력을 채운 뒤 깎인 양. 0 아래로 내려가지 않고(최대를 넘는 몫은 버림), 음수는 0 으로 본다 */
-    public static double lostAfterRecover(double lost, double amount) {
-        return Math.max(0, lost - Math.max(0, amount));
+    /** 현재 법력을 그 값으로 맞출 때의 깎인 양(0~최대) */
+    public static double lostFor(double current, int max) {
+        return max - Math.clamp(current, 0, max);
     }
 
     /**

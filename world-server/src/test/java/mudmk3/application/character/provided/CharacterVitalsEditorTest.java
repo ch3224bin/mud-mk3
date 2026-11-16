@@ -86,19 +86,16 @@ record CharacterVitalsEditorTest(CharacterVitalsEditor characterVitalsEditor, Ch
     }
 
     @Test
-    void recoverManaFalseWhenFull() {
+    void setMana() {
         Long han = prepareCharacter(Realm.QI_1);
 
-        assertThat(characterVitalsEditor.recoverMana(han, 1)).isFalse();
-
         characterVitalsEditor.spendMana(han, 3, 25);
-        assertThat(characterVitalsEditor.recoverMana(han, 1)).isTrue();
+        characterVitalsEditor.setMana(han, 23, 25);
         assertThat(characterVitalsEditor.manaLost(han)).isEqualTo(2);
-        assertThat(characterVitalsEditor.recoverMana(han, 5)).isTrue();
+        characterVitalsEditor.setMana(han, 30, 25);
         flushAndClear();
 
         assertThat(characterVitalsEditor.manaLost(han)).isZero();
-        assertThat(characterVitalsEditor.recoverMana(han, 1)).isFalse();
     }
 
     /** 법력 쓰기와 기혈 쓰기는 서로의 열을 건드리지 않는다 */
@@ -108,7 +105,7 @@ record CharacterVitalsEditorTest(CharacterVitalsEditor characterVitalsEditor, Ch
         characterVitalsEditor.takeDamage(han, 12.5, 60);
 
         characterVitalsEditor.spendMana(han, 5, 25);
-        characterVitalsEditor.recoverMana(han, 1);
+        characterVitalsEditor.setMana(han, 21, 25);
         flushAndClear();
 
         assertThat(characterVitalsEditor.qiBloodLost(han)).isEqualTo(12.5);
@@ -124,7 +121,7 @@ record CharacterVitalsEditorTest(CharacterVitalsEditor characterVitalsEditor, Ch
                 .isInstanceOf(IllegalArgumentException.class).hasMessage(UNKNOWN);
         assertThatThrownBy(() -> characterVitalsEditor.spendMana(999L, 1, 25))
                 .isInstanceOf(IllegalArgumentException.class).hasMessage(UNKNOWN);
-        assertThatThrownBy(() -> characterVitalsEditor.recoverMana(999L, 1))
+        assertThatThrownBy(() -> characterVitalsEditor.setMana(999L, 1, 25))
                 .isInstanceOf(IllegalArgumentException.class).hasMessage(UNKNOWN);
     }
 

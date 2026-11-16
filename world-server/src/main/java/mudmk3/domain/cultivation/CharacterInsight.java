@@ -33,8 +33,11 @@ public class CharacterInsight extends AbstractEntity {
         return insight;
     }
 
-    /** 깨달음을 더한다 */
+    /** 깨달음을 더한다. 0 이상 유한한 값만 받는다(깨달음은 줄지 않음) */
     public void add(double gain) {
+        if (!Double.isFinite(gain) || gain < 0) {
+            throw new IllegalArgumentException("깨달음은 0 이상 유한한 값만 더합니다: " + gain);
+        }
         this.amount += gain;
     }
 }

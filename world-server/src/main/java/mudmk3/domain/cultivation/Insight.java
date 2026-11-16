@@ -4,13 +4,15 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
-/** 캐릭터의 깨달음: 여섯 갈래 모두 채운다(쌓인 것이 없으면 0). 양은 소수 그대로 */
+import static java.util.Objects.requireNonNull;
+
+/** 캐릭터의 깨달음: 여섯 갈래 모두 채운다(쌓인 것이 없으면 0, 값이 null 이면 안 됨). 양은 소수 그대로 */
 public record Insight(Map<InsightKind, Double> amounts) {
 
     public Insight {
         EnumMap<InsightKind, Double> filled = new EnumMap<>(InsightKind.class);
         for (InsightKind kind : InsightKind.values()) {
-            filled.put(kind, amounts.getOrDefault(kind, 0.0));
+            filled.put(kind, requireNonNull(amounts.getOrDefault(kind, 0.0), "깨달음 값이 비어 있습니다: " + kind));
         }
         amounts = Collections.unmodifiableMap(filled);
     }

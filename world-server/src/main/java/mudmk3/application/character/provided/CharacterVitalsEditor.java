@@ -24,6 +24,6 @@ public interface CharacterVitalsEditor {
     /** 쓴 만큼 깎고(최대를 넘게 깎이지 않음) 남은 현재 법력을 돌려준다 */
     double spendMana(Long characterId, double amount, int maxMana);
 
-    /** 깎인 법력이 있었으면 그만큼 채워 쓰고(0 아래로 내려가지 않음) true, 이미 가득이면 쓰지 않고 false */
-    boolean recoverMana(Long characterId, double amount);
+    /** 현재 법력을 그 값(0~최대)으로 맞춘다. 읽지 않고 깎인 법력 열만 쓴다 */
+    void setMana(Long characterId, double current, int maxMana);
 }

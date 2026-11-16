@@ -171,13 +171,8 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
     }
 
     @Override
-    public boolean recoverMana(Long characterId, double amount) {
-        double lost = manaLost(characterId);
-        if (lost <= 0) {
-            return false;
-        }
-        writeManaLost(characterId, Mana.lostAfterRecover(lost, amount));
-        return true;
+    public void setMana(Long characterId, double current, int maxMana) {
+        writeManaLost(characterId, Mana.lostFor(current, maxMana));
     }
 
     /** 엔티티 저장은 경지 열을 쓰지 않으므로(이동과 서로 되돌리지 않게) 그 열만 따로 쓴다 */

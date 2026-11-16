@@ -3,9 +3,11 @@ package mudmk3.domain.cultivation;
 import mudmk3.domain.shared.Element;
 import org.junit.jupiter.api.Test;
 
+import java.util.EnumMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class InsightTest {
 
@@ -25,6 +27,16 @@ class InsightTest {
         assertThat(insight.amount(InsightKind.METAL)).isZero();
         assertThat(insight.floor(InsightKind.BODY)).isZero();
         assertThat(insight.amounts()).containsOnlyKeys(InsightKind.values());
+    }
+
+    @Test
+    void nullAmountFails() {
+        Map<InsightKind, Double> amounts = new EnumMap<>(InsightKind.class);
+        amounts.put(InsightKind.FIRE, null);
+
+        assertThatThrownBy(() -> new Insight(amounts))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("깨달음 값이 비어 있습니다: FIRE");
     }
 
     @Test
