@@ -42,6 +42,11 @@ public class InMemoryCorpseRepository implements CorpseRepository {
     }
 
     @Override
+    public void deleteAllInRoom(Long roomId) {
+        corpses.values().removeIf(corpse -> corpse.getRoomId().equals(roomId));
+    }
+
+    @Override
     public void deleteAll() {
         corpses.clear();
     }

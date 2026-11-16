@@ -258,6 +258,30 @@ class CombatDefeatTest extends BaseGameTest {
         assertThat(characterVitalsEditor.qiBloodLost(characterIdOf(hanbaek))).isZero();
     }
 
+    /** 끊긴 동안 틱이 교전 기록을 지워도(L-D4) 다시 들어온 뒤 10초에 차고, 법력 회복은 들어온 때부터 다시 센다 */
+    @Test
+    void reconnectAfterSweepRefills() {
+        prepareMap();
+        Long hanbaek = enterAs("a", "한백");
+        characterVitalsEditor.setQiBlood(characterIdOf(hanbaek), 30, 60);
+        setManaLost(hanbaek, 10);
+        gameConnector.disconnect("a");
+        advanceAndTick(30);
+        assertThat(playerCombatRepository.find(characterIdOf(hanbaek))).isEmpty();
+        connect("a2", hanbaek);
+        sender.clear();
+
+        assertThat(manaLost(hanbaek)).isEqualTo(10);
+        assertThat(playerCombatRepository.find(characterIdOf(hanbaek))).isPresent();
+
+        advanceAndTick(9.5);
+        assertThat(sender.messagesTo("a2")).isEmpty();
+
+        advanceAndTick(0.5);
+        assertThat(sender.messagesTo("a2")).containsExactly(SystemMessage.info(REFILLED));
+        assertThat(characterVitalsEditor.qiBloodLost(characterIdOf(hanbaek))).isZero();
+    }
+
     // ---- 도우미
 
     /** 연기 1층으로 시작 방에 들어온다 */

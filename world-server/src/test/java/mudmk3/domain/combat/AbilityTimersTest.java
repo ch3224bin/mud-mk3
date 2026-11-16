@@ -61,4 +61,21 @@ class AbilityTimersTest {
 
         assertThat(casting).isEqualTo(new Casting(1L, "낙뢰술", 3, T.plusMillis(2500), 4));
     }
+
+    @Test
+    void isIdle() {
+        AbilityTimers timers = new AbilityTimers(7L);
+        assertThat(timers.isIdle(T)).isTrue();
+
+        timers.startGlobal(T);
+        timers.startCooldown(FIREBALL, new BigDecimal("3"), T);
+        assertThat(timers.isIdle(T.plusMillis(1499))).isFalse();
+        assertThat(timers.isIdle(T.plusMillis(1500))).isFalse();
+        assertThat(timers.isIdle(T.plusSeconds(3))).isTrue();
+
+        timers.startCasting(new Casting(1L, "화탄술", 3, T.plusSeconds(5), 1));
+        assertThat(timers.isIdle(T.plusSeconds(60))).isFalse();
+        timers.clearCasting();
+        assertThat(timers.isIdle(T.plusSeconds(60))).isTrue();
+    }
 }

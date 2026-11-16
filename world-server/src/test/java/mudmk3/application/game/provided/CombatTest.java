@@ -460,6 +460,47 @@ class CombatTest extends BaseGameTest {
         assertThat(onlyMob(map.entranceId()).getQiBlood()).isEqualTo(33);
     }
 
+    /** 끊긴 캐릭터의 교전 기록은 다음 공격 시각(3초)이 지난 틱에 지운다(L-D4) */
+    @Test
+    void idleOfflineCombatRecordRemoved() {
+        GameMap map = prepareMap();
+        Long hanbaek = enterAs("a", "한백", Realm.QI_1);
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "공격 청모랑");
+        advance(1);
+        gameConnector.disconnect("a");
+
+        advanceAndTick(1.5); // 2.5초: 다음 공격 시각 전
+        assertThat(playerCombatRepository.find(characterIdOf(hanbaek))).isPresent();
+
+        advanceAndTick(0.5); // 3초
+        assertThat(playerCombatRepository.find(characterIdOf(hanbaek))).isEmpty();
+    }
+
+    /** 다음 공격 시각 전의 틱은 기록을 남겨, 다시 접속해 곧바로 쳐도 간격이 줄지 않는다(D84) */
+    @Test
+    void offlineRecordKeptUntilAttackReady() {
+        GameMap map = prepareMap();
+        Long hanbaek = enterAs("a", "한백", Realm.QI_1);
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "공격 청모랑");
+        advance(1);
+        gameConnector.disconnect("a");
+        advanceAndTick(1); // 2초
+        assertThat(playerCombatRepository.find(characterIdOf(hanbaek))).isPresent();
+        connect("a2", hanbaek);
+        sender.clear();
+
+        gameConnector.handle("a2", "공격 청모랑");
+
+        assertThat(combatLines("a2")).containsExactly("청모랑과 싸움이 벌어진다.");
+        assertThat(onlyMob(map.entranceId()).getQiBlood()).isEqualTo(41);
+
+        advanceAndTick(1); // 3초: 처음 일격의 다음 시각
+        assertThat(combatLines("a2")).contains(HIT_WOLF);
+        assertThat(onlyMob(map.entranceId()).getQiBlood()).isEqualTo(33);
+    }
+
     @Test
     void placementRemovedMidCombatEndsCombat() {
         GameMap map = prepareMap();
@@ -495,10 +536,7 @@ class CombatTest extends BaseGameTest {
         PlayerCombat combat = playerCombatRepository.find(characterIdOf(hanbaek)).orElseThrow();
         assertThat(combat.isFighting()).isFalse();
         assertThat(combat.getRefillAt()).isNotNull();
-        assertThat(mobInstanceRepository.findById(mob.getId()).orElseThrow().isFighting()).isFalse();
-
-        tick();
-        assertThat(mobInstanceRepository.findById(mob.getId())).isEmpty();
+        assertThat(mobInstanceRepository.findById(mob.getId())).isEmpty(); // 방 삭제와 함께 지움(다음 틱을 기다리지 않음)
     }
 
     // ---- 같은 틱의 행동 순서·취소·밀림

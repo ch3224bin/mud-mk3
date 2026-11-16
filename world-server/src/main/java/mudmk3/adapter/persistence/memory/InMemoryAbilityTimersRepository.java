@@ -32,6 +32,11 @@ public class InMemoryAbilityTimersRepository implements AbilityTimersRepository 
     }
 
     @Override
+    public void delete(Long characterId) {
+        timers.remove(characterId);
+    }
+
+    @Override
     public void deleteAll() {
         timers.clear();
     }

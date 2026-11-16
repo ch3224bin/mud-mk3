@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Objects.requireNonNull;
@@ -38,6 +39,11 @@ public class MobTypeQueryService implements MobTypeFinder {
     public MobType find(Long mobTypeId) {
         return mobTypeRepository.findById(mobTypeId)
                 .orElseThrow(() -> new IllegalArgumentException("몹을 찾을 수 없습니다. id: " + mobTypeId));
+    }
+
+    @Override
+    public Optional<MobType> findOptional(Long mobTypeId) {
+        return mobTypeRepository.findById(mobTypeId);
     }
 
     @Override

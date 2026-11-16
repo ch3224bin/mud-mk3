@@ -34,6 +34,7 @@ import mudmk3.application.mob.provided.MobPlacementSaveRequest;
 import mudmk3.application.mob.provided.MobTypeEditor;
 import mudmk3.application.mob.provided.MobTypeView;
 import mudmk3.application.npc.provided.NpcEditor;
+import mudmk3.application.room.provided.RoomDeletedEvent;
 import mudmk3.application.room.provided.RoomEditor;
 import mudmk3.application.world.provided.WorldSettingsEditor;
 import mudmk3.application.zone.provided.ZoneEditor;
@@ -43,6 +44,7 @@ import mudmk3.domain.combat.MobInstance;
 import mudmk3.domain.combat.PlayerCombat;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
+import mudmk3.domain.room.Room;
 import mudmk3.domain.shared.Realm;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
@@ -51,12 +53,15 @@ import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Objects.requireNonNull;
 import static mudmk3.domain.mob.MobFixture.atRealm;
 import static mudmk3.domain.mob.MobFixture.described;
 import static mudmk3.domain.mob.MobFixture.request;
 import static mudmk3.domain.mob.MobFixture.snake;
 import static mudmk3.domain.mob.MobFixture.turtle;
 import static mudmk3.domain.mob.MobFixture.wolf;
+import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
+import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** 서버 틱의 배치 맞추기·몹 나타나기와 방 보기·{@code 보기 <몹>}(D85·D89) */
@@ -69,6 +74,8 @@ class CombatSpawnTest extends BaseGameTest {
     private final CorpseRepository corpseRepository;
     private final PlayerCombatRepository playerCombatRepository;
     private final ApplicationContext applicationContext;
+    /** 방 삭제 반영({@link GameService#onRoomDeleted}). 테스트 트랜잭션은 커밋되지 않아 직접 넘긴다 */
+    private final GameService gameService;
 
     CombatSpawnTest(
             GameConnector gameConnector,
@@ -107,6 +114,7 @@ class CombatSpawnTest extends BaseGameTest {
         this.corpseRepository = corpseRepository;
         this.playerCombatRepository = playerCombatRepository;
         this.applicationContext = applicationContext;
+        this.gameService = gameService;
     }
 
     @Test
@@ -207,6 +215,41 @@ class CombatSpawnTest extends BaseGameTest {
 
         assertThat(sender.messagesTo("s1")).isEmpty();
         assertThat(playerCombatRepository.find(characterId).orElseThrow().isFighting()).isFalse();
+    }
+
+    /** 처치한 몹(쓰러진 채 재등장을 기다림)·시체·살아 있는 몹이 모두 다음 틱을 기다리지 않고 메모리에서 사라진다 */
+    @Test
+    void roomDeletionRemovesCorpsesAndMobs() {
+        GameMap map = prepareMap();
+        Long hanbaek = enterAt("s1", "한백", map.wellId());
+        setRealm(hanbaek, Realm.FOUNDATION_EARLY);
+        placeMob(map.wellId(), wolf(), 2);
+        placeMob(map, snake(), 1);
+        gameConnector.handle("s1", "공격 청모랑"); // 한 번에 쓰러뜨림
+        assertThat(corpseRepository.findAllInRoom(map.wellId())).hasSize(1);
+        assertThat(mobsIn(map.wellId())).hasSize(2);
+        roomEditor.delete(map.wellId());
+
+        gameConnector.handle("s1", "보기"); // 테스트 트랜잭션은 커밋되지 않아 다음 명령이 옮기기를 한다(4차 관례)
+
+        assertThat(sender.lastTo("s1", RoomMessage.class).room().id()).isEqualTo(map.entranceId());
+        assertThat(corpseRepository.findAllInRoom(map.wellId())).isEmpty();
+        assertThat(mobsIn(map.wellId())).isEmpty();
+        assertThat(mobsIn(map.entranceId())).hasSize(1);
+    }
+
+    /** 시작 방이 없어 옮길 사람이 없어도(P11) 그 방의 몹은 지운다 */
+    @Test
+    void roomDeletionWithoutStartRoomRemovesMobs() {
+        Long zoneId = requireNonNull(zoneEditor.create(createZoneSaveRequest("청석숲")).getId());
+        Room room = roomEditor.create(createRoomSaveRequest(zoneId, "숲 입구"));
+        Long roomId = requireNonNull(room.getId());
+        placeMob(roomId, wolf(), 1);
+        roomEditor.delete(roomId);
+
+        gameService.onRoomDeleted(new RoomDeletedEvent(roomId));
+
+        assertThat(mobsIn(roomId)).isEmpty();
     }
 
     @Test
@@ -349,6 +392,11 @@ class CombatSpawnTest extends BaseGameTest {
     private SystemMessage lookAt(String sessionId, String target) {
         gameConnector.handle(sessionId, "보기 " + target);
         return sender.lastTo(sessionId, SystemMessage.class);
+    }
+
+    /** 그 방의 몹(쓰러진 것 포함) */
+    private List<MobInstance> mobsIn(Long roomId) {
+        return mobInstanceRepository.findAll().stream().filter(mob -> mob.getRoomId().equals(roomId)).toList();
     }
 
     private List<Long> mobIdsIn(Long roomId) {

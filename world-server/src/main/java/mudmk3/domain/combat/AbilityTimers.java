@@ -72,6 +72,12 @@ public final class AbilityTimers {
         casting = null;
     }
 
+    /** 더 들고 있을 것이 없다: 시전이 없고 공통·재사용 대기시간이 모두 끝났다(platform.md 메모리 정리) */
+    public boolean isIdle(Instant now) {
+        return casting == null && globalRemaining(now).isEmpty()
+                && cooldowns.values().stream().allMatch(readyAt -> !now.isBefore(readyAt));
+    }
+
     private static Optional<Duration> remaining(@Nullable Instant readyAt, Instant now) {
         requireNonNull(now);
         if (readyAt == null || !now.isBefore(readyAt)) {

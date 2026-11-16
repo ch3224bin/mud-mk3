@@ -18,6 +18,8 @@ public interface AbilityTimersRepository {
     /** 모든 대기시간·시전(캐릭터 id 순) */
     List<AbilityTimers> findAll();
 
+    void delete(Long characterId);
+
     void deleteAll();
 
     /** 그 캐릭터의 시전이 {@code which} 에 맞으면 지우고 저장한다(대기시간은 남음). 지웠으면 true */

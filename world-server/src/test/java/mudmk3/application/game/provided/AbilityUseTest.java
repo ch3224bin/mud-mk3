@@ -566,6 +566,39 @@ class AbilityUseTest extends BaseGameTest {
         assertThat(manaLost(han)).isEqualTo(10);
     }
 
+    /** 끊긴 캐릭터의 대기시간 기록은 공통·재사용 대기가 모두 끝난 틱에 지운다(L-D4) */
+    @Test
+    void expiredOfflineTimersRemoved() {
+        GameMap map = prepareMap();
+        Long han = hanbaek("a");
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "화탄술 청모랑");
+        gameConnector.disconnect("a");
+
+        advanceAndTick(2.5); // 공통 대기는 끝났고 재사용 대기(3초)는 남음
+        assertThat(abilityTimersRepository.find(characterIdOf(han))).isPresent();
+
+        advanceAndTick(0.5);
+        assertThat(abilityTimersRepository.find(characterIdOf(han))).isEmpty();
+    }
+
+    /** 대기시간이 남은 동안의 틱은 기록을 남겨, 다시 접속해도 대기시간이 그대로다(룰북) */
+    @Test
+    void offlineCooldownKeptUntilExpired() {
+        GameMap map = prepareMap();
+        Long han = hanbaek("a");
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "화탄술 청모랑");
+        gameConnector.disconnect("a");
+        advanceAndTick(1.6);
+        connect("a2", han);
+
+        gameConnector.handle("a2", "화탄술 청모랑");
+
+        assertThat(sender.lastTo("a2", SystemMessage.class))
+                .isEqualTo(SystemMessage.error("화탄술은 아직 쓸 수 없습니다. (1.4초)"));
+    }
+
     @Test
     void insufficientManaRejected() {
         GameMap map = prepareMap();

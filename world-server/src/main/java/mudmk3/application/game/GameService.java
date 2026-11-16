@@ -678,11 +678,14 @@ public class GameService implements GameConnector, GameTicker {
         return true;
     }
 
+    /** 그 방 사람을 시작 방으로 옮기고, 그 방의 시체·몹을 메모리에서 지운다 */
     private void relocateFrom(Long deletedRoomId) {
         // 시작 방은 지울 수 없고, 시작 방이 없으면 아무도 세계에 들어올 수 없으므로 옮길 사람이 없다
-        Optional<Room> startRoom = worldSettingsFinder.findStartRoom();
-        if (startRoom.isEmpty()) return;
-        Room start = startRoom.get();
+        worldSettingsFinder.findStartRoom().ifPresent(start -> relocatePlayers(deletedRoomId, start));
+        combatEngine.forgetRoom(deletedRoomId);
+    }
+
+    private void relocatePlayers(Long deletedRoomId, Room start) {
         Long startId = requireNonNull(start.getId());
 
         characterMover.relocateAll(deletedRoomId, startId);

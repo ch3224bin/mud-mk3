@@ -48,6 +48,11 @@ public class InMemoryMobInstanceRepository implements MobInstanceRepository {
     }
 
     @Override
+    public void deleteAllInRoom(Long roomId) {
+        mobs.values().removeIf(mob -> mob.getRoomId().equals(roomId));
+    }
+
+    @Override
     public void deleteAll() {
         mobs.clear();
     }

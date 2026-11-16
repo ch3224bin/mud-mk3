@@ -21,5 +21,8 @@ public interface MobInstanceRepository {
 
     void delete(long id);
 
+    /** 그 방의 몹을 모두 지운다(쓰러진 것 포함) */
+    void deleteAllInRoom(Long roomId);
+
     void deleteAll();
 }

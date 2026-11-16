@@ -387,6 +387,31 @@ class CombatRewardTest extends BaseGameTest {
         assertThat(corpseRepository.findAllInRoom(map.entranceId())).isEmpty();
     }
 
+    /** 배치·몹 유형을 지운 뒤 다음 틱 전에 처치: 쓰러지는 순간의 드롭 표가 없어 드롭 없는 시체(L-D3) */
+    @Test
+    void killAfterMobTypeDeletedLeavesEmptyCorpse() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long wolfHide = wolfHide();
+        enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        PlacedMob placed = placeMob(map, wolfWithDrops(wolfHide, items.fang()), 1);
+        mobPlacementEditor.delete(placed.placementId());
+        mobTypeEditor.delete(placed.mobTypeId());
+        entityManager.flush();
+        sender.clear();
+
+        gameConnector.handle("a", KILL_WOLF);
+
+        assertThat(combatLines("a")).containsExactly(
+                "청모랑과 싸움이 벌어진다.", "청모랑에게 일격을 날린다. (피해 60)", "청모랑을 쓰러뜨렸습니다.");
+        assertThat(onlyCorpse(map.entranceId()).name()).isEqualTo("청모랑의 시체");
+        sender.clear();
+
+        gameConnector.handle("a", "수습 청모랑");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("청모랑의 시체에는 거둘 것이 없습니다."));
+    }
+
     // ---- 시체 사라짐·재등장
 
     @Test

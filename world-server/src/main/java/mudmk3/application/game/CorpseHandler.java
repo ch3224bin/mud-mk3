@@ -58,23 +58,36 @@ class CorpseHandler {
     /** 시체 id. 서버가 돌아가는 동안 늘기만 한다 */
     private final AtomicLong corpseIds = new AtomicLong();
 
-    /** 쓰러진 몹의 시체를 그 방에 남긴다. 드롭은 지금 굴려 정한다(비어도 시체는 남는다) */
+    /**
+     * 쓰러진 몹의 시체를 그 방에 남긴다. 드롭은 쓰러지는 순간의 드롭 표로 지금 굴려 정한다(비어도 시체는 남는다).
+     * 몹 유형이 이미 지워졌으면(배치·유형 삭제 뒤 다음 틱 전) 표가 없으므로 드롭 없는 시체다(L-D3)
+     */
     void leaveCorpse(MobInstance mob, @Nullable Long killerCharacterId, Instant now) {
-        MobType type = mobTypeFinder.find(mob.getProfile().mobTypeId());
+        List<DropLine> drops = mobTypeFinder.findOptional(mob.getProfile().mobTypeId())
+                .map(this::rollDrops)
+                .orElse(List.of());
+        corpseRepository.save(new Corpse(corpseIds.incrementAndGet(), mob.getRoomId(), mob.getProfile().name(),
+                killerCharacterId, now, drops));
+    }
+
+    private List<DropLine> rollDrops(MobType type) {
         List<Long> itemTypeIds = Stream.concat(
                         type.getFixedDrops().stream().map(MobFixedDrop::itemTypeId),
                         type.getTierDrops().stream().map(MobTierDrop::itemTypeId))
                 .distinct()
                 .toList();
-        List<DropLine> drops = DropRoll.roll(type, itemTypeFinder.findAllById(itemTypeIds),
+        return DropRoll.roll(type, itemTypeFinder.findAllById(itemTypeIds),
                 itemTypeFinder.spiritStone(SpiritStoneGrade.LOW), random);
-        corpseRepository.save(new Corpse(corpseIds.incrementAndGet(), mob.getRoomId(), mob.getProfile().name(),
-                killerCharacterId, now, drops));
     }
 
     /** 그 방의 시체(쓰러진 순) */
     List<Corpse> inRoom(Long roomId) {
         return corpseRepository.findAllInRoom(roomId);
+    }
+
+    /** 그 방의 시체를 남은 것과 함께 지운다(방 삭제, 알리지 않음) */
+    void removeInRoom(Long roomId) {
+        corpseRepository.deleteAllInRoom(roomId);
     }
 
     /** 쓰러진 지 3분이 된 시체를 남은 것과 함께 지운다(알리지 않음) */

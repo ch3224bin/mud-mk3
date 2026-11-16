@@ -177,4 +177,25 @@ class PlayerCombatTest {
         assertThat(combat.getNextAttackAt()).isEqualTo(T.plusSeconds(6));
         assertThat(combat.readyAt(T.plusSeconds(5))).isFalse();
     }
+
+    @Test
+    void isIdle() {
+        PlayerCombat fresh = new PlayerCombat(7L);
+        assertThat(fresh.isIdle(T)).isTrue();
+
+        PlayerCombat fighting = new PlayerCombat(7L);
+        fighting.engage(3);
+        assertThat(fighting.isIdle(T.plusSeconds(60))).isFalse();
+
+        PlayerCombat waiting = new PlayerCombat(7L);
+        waiting.attackedAt(T, T);
+        assertThat(waiting.isIdle(T.plusMillis(2999))).isFalse();
+        assertThat(waiting.isIdle(T.plusSeconds(3))).isTrue();
+
+        PlayerCombat refilling = new PlayerCombat(7L);
+        refilling.scheduleRefill(T);
+        assertThat(refilling.isIdle(T.plusSeconds(60))).isFalse();
+        refilling.clearRefill();
+        assertThat(refilling.isIdle(T.plusSeconds(60))).isTrue();
+    }
 }

@@ -113,6 +113,14 @@ public final class PlayerCombat {
         return !mobIds.isEmpty();
     }
 
+    /**
+     * 더 들고 있을 것이 없다: 교전 상대가 없고, 다음 공격 시각이 지났고, 다시 차기 예약이 없다. 세계에 없는 캐릭터의 기록은
+     * 이때 지워도 다시 들어올 때 새로 만든 것과 같다(platform.md 메모리 정리)
+     */
+    public boolean isIdle(Instant now) {
+        return !isFighting() && readyAt(now) && refillAt == null;
+    }
+
     /** 10초 뒤 기혈 다시 차기를 예약한다 */
     public void scheduleRefill(Instant now) {
         refillAt = now.plus(CombatRules.REFILL_DELAY);

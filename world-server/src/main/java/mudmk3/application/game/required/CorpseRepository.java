@@ -18,5 +18,8 @@ public interface CorpseRepository {
 
     void delete(long id);
 
+    /** 그 방의 시체를 모두 지운다 */
+    void deleteAllInRoom(Long roomId);
+
     void deleteAll();
 }
