@@ -3,7 +3,7 @@ package mudmk3.adapter.webapi.dto;
 import mudmk3.application.technique.provided.TechniqueView;
 import mudmk3.application.technique.provided.TechniqueView.AbilityView;
 import mudmk3.application.technique.provided.TechniqueView.StagePowerView;
-import mudmk3.application.technique.required.ScrollItem;
+import mudmk3.application.technique.provided.ScrollItem;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
 import mudmk3.domain.technique.AbilityKind;

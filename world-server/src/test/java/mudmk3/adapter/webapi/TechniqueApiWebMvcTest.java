@@ -6,7 +6,7 @@ import mudmk3.application.technique.provided.TechniqueFinder;
 import mudmk3.application.technique.provided.TechniqueInUseException;
 import mudmk3.application.technique.provided.TechniqueSaveRequest;
 import mudmk3.application.technique.provided.TechniqueView;
-import mudmk3.application.technique.required.ScrollItem;
+import mudmk3.application.technique.provided.ScrollItem;
 import mudmk3.domain.technique.AbilityStagePower;
 import mudmk3.domain.technique.DuplicateTechniqueNameException;
 import mudmk3.domain.technique.Technique;

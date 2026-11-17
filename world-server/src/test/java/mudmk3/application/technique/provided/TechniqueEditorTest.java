@@ -4,7 +4,7 @@ import jakarta.persistence.EntityManager;
 import mudmk3.ApplicationServiceTest;
 import mudmk3.application.item.provided.ItemTypeEditor;
 import mudmk3.application.item.provided.ItemTypeSaveRequest;
-import mudmk3.application.technique.required.ScrollItem;
+import mudmk3.application.technique.provided.ScrollItem;
 import mudmk3.domain.character.CharacterFixture;
 import mudmk3.domain.character.PlayerCharacter;
 import mudmk3.domain.cultivation.CharacterTechnique;

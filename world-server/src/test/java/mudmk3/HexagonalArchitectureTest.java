@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 import static com.tngtech.archunit.base.DescribedPredicate.alwaysTrue;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
@@ -53,6 +54,12 @@ class HexagonalArchitectureTest {
     static final ArchRule applicationUsesOnlyProvidedOfOtherSlices = classes()
             .that().resideInAPackage("mudmk3.application..")
             .should(useOnlyProvidedOfOtherApplicationSlices());
+
+    /** 웹 어댑터는 required 포트(Repository 등 서비스가 필요로 하는 쪽)를 모른다. 구현하는 어댑터(persistence 등)는 대상이 아니다 */
+    @ArchTest
+    static final ArchRule webAdapterUsesOnlyProvidedPorts = noClasses()
+            .that().resideInAPackage("mudmk3.adapter.webapi..")
+            .should().dependOnClassesThat().resideInAPackage("mudmk3.application..required..");
 
     private static final Pattern APPLICATION_SLICE = Pattern.compile("^mudmk3\\.application\\.([^.]+)(\\..*)?$");
 
