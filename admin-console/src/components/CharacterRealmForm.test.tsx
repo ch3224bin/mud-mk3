@@ -93,6 +93,20 @@ describe("CharacterRealmForm", () => {
     expect(onSaved).toHaveBeenCalledWith(qi7);
   });
 
+  it("저장 응답의 경지가 요청과 다르면 선택 상자와 스탯 표 모두 응답 값을 보인다", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.designateRealm).mockResolvedValue(qi7);
+    render(<CharacterRealmForm character={garam} realms={realms} onSaved={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText("경지"), "MORTAL");
+    await user.click(screen.getByRole("button", { name: "경지 지정" }));
+
+    expect(api.designateRealm).toHaveBeenCalledWith(3, "MORTAL");
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    expect(screen.getByLabelText("경지")).toHaveValue("QI_7");
+    expect(statOf("기혈 최대치")).toBe("180");
+  });
+
   it("실패하면 서버의 detail 을 보이고 스탯 표는 그대로다", async () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();

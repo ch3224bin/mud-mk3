@@ -23,8 +23,10 @@ type Props = {
  * 저장하면 받은 상세로 스탯 표를 다시 그린다. 값 검사는 서버에 맡기고 서버의 detail 을 보인다
  */
 export default function CharacterRealmForm({ character, realms, onSaved }: Props) {
-  const [shown, setShown] = useState(character);
-  const [realm, setRealm] = useState<RealmCode>(character.realm);
+  // 받은 상세 하나가 경지 선택과 스탯 표의 원본이다. 고르는 중인 값만 따로 두고, 저장하면 비워 상세에서 다시 파생한다
+  const [detail, setDetail] = useState(character);
+  const [picked, setPicked] = useState<RealmCode | null>(null);
+  const realm = picked ?? detail.realm;
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,9 +37,9 @@ export default function CharacterRealmForm({ character, realms, onSaved }: Props
     setMessage(null);
     setError(null);
     try {
-      const saved = await designateRealm(shown.id, realm);
-      setShown(saved);
-      setRealm(saved.realm);
+      const saved = await designateRealm(detail.id, realm);
+      setDetail(saved);
+      setPicked(null);
       setMessage("경지를 지정했습니다.");
       onSaved(saved);
     } catch (e) {
@@ -52,7 +54,7 @@ export default function CharacterRealmForm({ character, realms, onSaved }: Props
       <form className="form" onSubmit={handleSubmit}>
         <label>
           경지
-          <select value={realm} onChange={(e) => setRealm(e.target.value as RealmCode)}>
+          <select value={realm} onChange={(e) => setPicked(e.target.value as RealmCode)}>
             {realms.map((option) => (
               <option key={option.code} value={option.code}>
                 {option.name}
@@ -83,7 +85,7 @@ export default function CharacterRealmForm({ character, realms, onSaved }: Props
           {STAT_ROWS.map((row) => (
             <tr key={row.key}>
               <th scope="row">{row.label}</th>
-              <td>{shown.stats[row.key]}</td>
+              <td>{detail.stats[row.key]}</td>
             </tr>
           ))}
         </tbody>
