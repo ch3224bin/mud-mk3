@@ -83,6 +83,7 @@ record TechniqueApiWebMvcTest(MockMvcTester mvc, TechniqueFinder techniqueFinder
         body.extractingPath("$.abilities[0].stagePowers[0].stage").isEqualTo(1);
         body.extractingPath("$.abilities[0].stagePowers[0].basePower").isEqualTo(2.00);
         body.extractingPath("$.abilities[0].stagePowers[0].coefficient").isEqualTo(1.2);
+        assertThat(body.actual().getJson()).contains("\"basePower\":2.00", "\"coefficient\":1.200");
         body.extractingPath("$.description").isEqualTo("범인도 수련을 시작할 수 있는 목 속성 입문 공법.");
     }
 

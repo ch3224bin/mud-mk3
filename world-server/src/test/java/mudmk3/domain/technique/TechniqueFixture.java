@@ -182,27 +182,32 @@ public final class TechniqueFixture {
     }
 
     public static AbilitySaveInfo withEffectLines(AbilitySaveInfo info, List<String> effectLines) {
-        return new AbilitySaveInfo(info.name(), info.learnStage(), info.kind(), info.elements(), info.bodyRefining(),
-                info.target(), info.costStat(), info.costAmount(), info.costPerTick(), info.castSeconds(),
-                info.cooldownSeconds(), info.usableWhen(), effectLines, info.stagePowers());
+        return copy(info, info.costStat(), info.costAmount(), info.costPerTick(), info.castSeconds(), effectLines,
+                info.stagePowers());
     }
 
     public static AbilitySaveInfo withStagePowers(AbilitySaveInfo info, List<AbilityStagePower> stagePowers) {
-        return new AbilitySaveInfo(info.name(), info.learnStage(), info.kind(), info.elements(), info.bodyRefining(),
-                info.target(), info.costStat(), info.costAmount(), info.costPerTick(), info.castSeconds(),
-                info.cooldownSeconds(), info.usableWhen(), info.effectLines(), stagePowers);
+        return copy(info, info.costStat(), info.costAmount(), info.costPerTick(), info.castSeconds(),
+                info.effectLines(), stagePowers);
     }
 
     public static AbilitySaveInfo withCast(AbilitySaveInfo info, String castSeconds) {
-        return new AbilitySaveInfo(info.name(), info.learnStage(), info.kind(), info.elements(), info.bodyRefining(),
-                info.target(), info.costStat(), info.costAmount(), info.costPerTick(), new BigDecimal(castSeconds),
-                info.cooldownSeconds(), info.usableWhen(), info.effectLines(), info.stagePowers());
+        return copy(info, info.costStat(), info.costAmount(), info.costPerTick(), new BigDecimal(castSeconds),
+                info.effectLines(), info.stagePowers());
     }
 
     public static AbilitySaveInfo withCost(AbilitySaveInfo info, CostStat costStat, String amount, boolean perTick) {
+        return copy(info, costStat, new BigDecimal(amount), perTick, info.castSeconds(), info.effectLines(),
+                info.stagePowers());
+    }
+
+    /** 14칸을 나열하는 한 곳: 바꿀 칸만 받고 나머지는 {@code info} 그대로 */
+    private static AbilitySaveInfo copy(AbilitySaveInfo info, CostStat costStat, BigDecimal costAmount,
+                                        boolean costPerTick, BigDecimal castSeconds, List<String> effectLines,
+                                        List<AbilityStagePower> stagePowers) {
         return new AbilitySaveInfo(info.name(), info.learnStage(), info.kind(), info.elements(), info.bodyRefining(),
-                info.target(), costStat, new BigDecimal(amount), perTick, info.castSeconds(),
-                info.cooldownSeconds(), info.usableWhen(), info.effectLines(), info.stagePowers());
+                info.target(), costStat, costAmount, costPerTick, castSeconds, info.cooldownSeconds(),
+                info.usableWhen(), effectLines, stagePowers);
     }
 
     /** 단계별 값을 {@code stageCount}성까지로 자른다(단계 수를 줄인 공법에 넣을 때) */

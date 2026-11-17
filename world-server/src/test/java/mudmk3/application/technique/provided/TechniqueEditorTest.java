@@ -21,7 +21,6 @@ import mudmk3.domain.technique.TechniqueFixture;
 import mudmk3.domain.technique.TechniqueSaveInfo;
 import mudmk3.domain.technique.TechniqueStage;
 import mudmk3.domain.technique.UsableWhen;
-import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Propagation;
