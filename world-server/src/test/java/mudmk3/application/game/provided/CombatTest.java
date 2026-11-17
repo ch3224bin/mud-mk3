@@ -404,6 +404,40 @@ class CombatTest extends BaseGameTest {
         assertThat(combatLines("a")).isEmpty();
     }
 
+    /**
+     * 몹 대상은 새 상대 위협이 지금 대상의 1.1배를 넘을 때만 바뀐다(룰북 몹의 대상 고르기). 한백(연기 1층, 위력 12)이 먼저 쳐
+     * 위협 1 + 12 = 13, 한립(연기 2층, 위력 13.8)이 위협 13.8 — 14.3 을 넘지 않아 1.5초 뒤 몹은 한백을 친다. 3초 뒤 둘이 다시 쳐
+     * 25 와 27.6 — 27.5 를 넘어 4.5초 뒤 몹은 한립을 친다
+     */
+    @Test
+    void targetSwitchTo110Percent() {
+        GameMap map = prepareMap();
+        Long hanbaek = enterAs("a", "한백", Realm.QI_1);
+        Long hanrip = enterAs("b", "한립", Realm.QI_2);
+        placeMob(map, boss(), 1);
+        gameConnector.handle("a", "공격 쌍두");
+        gameConnector.handle("b", "공격 쌍두");
+        MobInstance mob = onlyMob(map.entranceId());
+        assertThat(mob.engagementOf(characterIdOf(hanbaek)).orElseThrow().threat()).isEqualTo(13);
+        assertThat(mob.engagementOf(characterIdOf(hanrip)).orElseThrow().threat()).isCloseTo(13.8, offset(1e-9));
+        sender.clear();
+
+        advanceAndTick(1.5);
+
+        assertThat(mob.getTargetCharacterId()).isEqualTo(characterIdOf(hanbaek));
+        assertThat(combatLines("a")).filteredOn(line -> line.startsWith("쌍두 흑망이")).hasSize(1);
+        assertThat(combatLines("b")).filteredOn(line -> line.startsWith("쌍두 흑망이")).isEmpty();
+        sender.clear();
+
+        advanceAndTick(3);
+
+        assertThat(mob.engagementOf(characterIdOf(hanbaek)).orElseThrow().threat()).isEqualTo(25);
+        assertThat(mob.engagementOf(characterIdOf(hanrip)).orElseThrow().threat()).isCloseTo(27.6, offset(1e-9));
+        assertThat(mob.getTargetCharacterId()).isEqualTo(characterIdOf(hanrip));
+        assertThat(combatLines("a")).filteredOn(line -> line.startsWith("쌍두 흑망이")).isEmpty();
+        assertThat(combatLines("b")).filteredOn(line -> line.startsWith("쌍두 흑망이")).hasSize(1);
+    }
+
     @Test
     void disconnectEndsEngagement() {
         GameMap map = prepareMap();

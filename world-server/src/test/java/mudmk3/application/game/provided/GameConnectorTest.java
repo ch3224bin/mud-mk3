@@ -626,6 +626,48 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(characterFinder.findByAccountId(accountId).orElseThrow().findSpiritRoot()).isEmpty();
     }
 
+    /** 영근을 고르는 사이 시작 방 설정이 비면(관리 툴로는 만들 수 없는 DB 상태) 확인에서 접속을 닫고 영근을 저장하지 않는다 */
+    @Test
+    void existingCharacterRootConfirmWithoutStartRoom() {
+        GameMap map = prepareMap();
+        Long accountId = prepareLegacyCharacter("한백", map.wellId());
+        connect("s1", accountId);
+        gameConnector.handle("s1", "목 화");
+        entityManager.createQuery("update WorldSettings w set w.startRoom = null").executeUpdate();
+        entityManager.clear();
+        sender.clear();
+
+        gameConnector.handle("s1", "확인");
+
+        assertThat(sender.messagesTo("s1")).containsExactly(new SystemMessage(
+                "아직 세계가 열리지 않았습니다. 관리자가 시작 방을 정해야 합니다.", "error"));
+        assertThat(sender.closeReasonOf("s1")).contains(GameCloseReason.WORLD_NOT_READY);
+        assertThat(presenceFinder.onlineCharacterIds()).doesNotContain(characterIdOf(accountId));
+        assertThat(characterFinder.findByAccountId(accountId).orElseThrow().findSpiritRoot()).isEmpty();
+    }
+
+    /** 영근을 고르는 사이 저장된 방이 지워지면(반영 전) 확인 뒤 시작 방으로 들어가고 그 방을 저장한다 */
+    @Test
+    void existingCharacterRootConfirmWhenSavedRoomDeleted() {
+        GameMap map = prepareMap();
+        Long accountId = prepareLegacyCharacter("한백", map.wellId());
+        connect("s1", accountId);
+        gameConnector.handle("s1", "목 화");
+        roomEditor.delete(map.wellId()); // 테스트 트랜잭션은 커밋되지 않아 삭제 반영(AFTER_COMMIT)이 오지 않는다
+        sender.clear();
+
+        gameConnector.handle("s1", "확인");
+
+        List<GameMessage> messages = sender.messagesTo("s1");
+        assertThat(messages).hasSize(3);
+        assertThat(messages.get(0)).isEqualTo(new SystemMessage("영근을 정했습니다.", "info"));
+        assertThat(messages.get(1)).isEqualTo(new SessionMessage("playing", "한백"));
+        assertThat(((RoomMessage) messages.get(2)).room().id()).isEqualTo(map.entranceId());
+        assertThat(roomIdOf(accountId)).isEqualTo(map.entranceId());
+        assertThat(characterFinder.findByAccountId(accountId).orElseThrow().findSpiritRoot())
+                .map(SpiritRoot::name).contains("목·화 진영근");
+    }
+
     @Test
     void connectExistingCharacter() {
         GameMap map = prepareMap();
@@ -1023,6 +1065,24 @@ class GameConnectorTest extends BaseGameTest {
 
         assertThat(sender.lastTo("a2", RoomMessage.class).room().id()).isEqualTo(map.entranceId());
         assertThat(roomIdOf(hanbaek)).isEqualTo(map.entranceId());
+    }
+
+    /** 지워진 방 id 를 가진 캐릭터 행(삭제 반영이 옮기지 못한 상태)을 직접 만들어 접속하면 시작 방에서 시작하고 그 방을 저장한다 */
+    @Test
+    void characterRowWithDeletedRoomStartsInStartRoom() {
+        GameMap map = prepareMap();
+        roomEditor.delete(map.wellId());
+        entityManager.flush();
+        Long accountId = prepareAccount("hanbaek@example.com");
+        characterRepository.save(createCharacter(accountId, "한백", map.wellId(), spiritRoot()));
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(roomIdOf(accountId)).isEqualTo(map.wellId());
+
+        connect("s1", accountId);
+
+        assertThat(sender.lastTo("s1", RoomMessage.class).room().id()).isEqualTo(map.entranceId());
+        assertThat(roomIdOf(accountId)).isEqualTo(map.entranceId());
     }
 
     /** 테스트 트랜잭션은 커밋되지 않아 삭제 반영(AFTER_COMMIT)이 오지 않는다 — "지워졌지만 반영 전" 상태다 */
@@ -1921,6 +1981,52 @@ class GameConnectorTest extends BaseGameTest {
         assertError("a", "팔기 회춘단", "왕씨: \"값이 너무 적어 사 줄 수가 없소. 더 모아 오시오.\"");
     }
 
+    /** 저물대 3개(62칸)를 다 쓴 채 잡화점에서 넷째 저물대를 사면 저물대 한도(사기에는 칸 줄어듦 결과가 없다) */
+    @Test
+    void buyWithThreeBagsInUse() {
+        GameMap map = prepareMap();
+        NpcMap npcs = prepareNpcs(map);
+        Items items = prepareItems();
+        prepareGeneralStore(npcs, items);
+        Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
+        give(hanbaek, items.bag(), 3);
+        give(hanbaek, items.lowStone(), 30);
+        give(hanbaek, items.hide(), 99 * 61);
+
+        assertError("a", "사기 저물대", "저물대는 세 개까지만 찰 수 있습니다.");
+
+        gameConnector.handle("a", "소지품");
+        InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
+        assertThat(inventory.usedSlots()).isEqualTo(62);
+        assertThat(inventory.totalSlots()).isEqualTo(62);
+        assertThat(inventory.stones()).containsExactly(new StoneView("하품 영석", 30));
+    }
+
+    /** 저물대 3개를 찬 채 저물대를 팔 때: 팔면 칸이 모자라면 저물대 칸, 칸은 맞아도 받을 하품이 새 칸을 쓰면 자리 없음 */
+    @Test
+    void sellWithThreeBags() {
+        GameMap map = prepareMap();
+        NpcMap npcs = prepareNpcs(map);
+        Items items = prepareItems();
+        prepareGeneralStore(npcs, items);
+        Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
+        give(hanbaek, items.bag(), 3);
+        give(hanbaek, items.hide(), 99 * 42);
+
+        assertError("a", "팔기 저물대", "저물대에 자리가 없습니다.");
+
+        give(hanbaek, items.hide(), 99 * 20);
+        assertError("a", "팔기 저물대", "저물대에 든 물건을 먼저 비우십시오.");
+
+        gameConnector.handle("a", "소지품");
+        InventoryMessage inventory = sender.lastTo("a", InventoryMessage.class);
+        assertThat(inventory.usedSlots()).isEqualTo(62);
+        assertThat(inventory.totalSlots()).isEqualTo(62);
+        assertThat(inventory.stones()).isEmpty();
+    }
+
     @Test
     void appraise() {
         GameMap map = prepareMap();
@@ -2183,6 +2289,12 @@ class GameConnectorTest extends BaseGameTest {
 
         gameConnector.handle("a", "소지품");
         assertThat(sender.lastTo("a", InventoryMessage.class).totalSlots()).isEqualTo(102);
+    }
+
+    /** {@link #prepareNpcs} 의 왕씨에게 잡화점을 연다: 하급 저물대 기준가(매입가 30 × 25% = 7) */
+    private void prepareGeneralStore(NpcMap npcs, Items items) {
+        npcEditor.openShop(npcs.wangId(), new ShopSaveRequest(ShopKind.GENERAL_STORE, List.of(
+                new ShopItemRequest(items.bag(), null))));
     }
 
     private void assertError(String sessionId, String command, String text) {

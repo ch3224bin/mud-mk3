@@ -17,10 +17,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ItemTypeQueryService implements ItemTypeFinder {
 
-    /** 영석이 먼저(등급 순), 나머지는 이름순 */
+    /** 영석이 먼저(등급 순), 나머지는 이름순(영문 대소문자 무시), 같으면 id 순 */
     private static final Comparator<ItemType> LIST_ORDER = Comparator
             .comparing((ItemType itemType) -> itemType.findSpiritStoneGrade().map(Enum::ordinal).orElse(Integer.MAX_VALUE))
-            .thenComparing(ItemType::getName);
+            .thenComparing(ItemType::getName, String.CASE_INSENSITIVE_ORDER)
+            .thenComparing(ItemType::getId, Comparator.nullsLast(Comparator.naturalOrder()));
 
     private final ItemTypeRepository itemTypeRepository;
 

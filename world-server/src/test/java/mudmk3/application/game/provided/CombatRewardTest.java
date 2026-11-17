@@ -387,6 +387,50 @@ class CombatRewardTest extends BaseGameTest {
         assertThat(corpseRepository.findAllInRoom(map.entranceId())).isEmpty();
     }
 
+    /** 고정 재료 매입가 합이 0(기준가 0)이어도 영석 굴림(0.1 < 0.3)이 되면 floor(0 × 1.5) = 0 이 아니라 하품 영석 1개 */
+    @Test
+    void zeroBaseValueDropsOneLowStone() {
+        GameMap map = prepareMap();
+        Long bonePowder = material("뼛가루", 0);
+        enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        placeMob(map, withDrops(wolf(), List.of(new MobFixedDrop(bonePowder, 1)), List.of()), 1);
+        random.enqueueDoubles(0.1, 0.5);
+        gameConnector.handle("a", KILL_WOLF);
+        sender.clear();
+
+        gameConnector.handle("a", "수습 청모랑");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                SystemMessage.item("청모랑의 시체를 수습했습니다: 뼛가루 1, 하품 영석 1"));
+    }
+
+    /** 시체의 드롭 줄이 모두 그 뒤에 지워진 종류면 거둘 것이 없는 빈 시체로 수습되고 시체가 사라진다 */
+    @Test
+    void corpseOfDeletedItemTypesShowsEmpty() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long wolfHide = wolfHide();
+        Long hanbaek = enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        PlacedMob placed = placeMob(map, wolfWithDrops(wolfHide, items.fang()), 1);
+        random.enqueueDoubles(0.9);
+        gameConnector.handle("a", KILL_WOLF);
+        assertThat(onlyCorpse(map.entranceId()).getRemaining()).hasSize(2);
+        // 게임이 읽어 둔 몹 유형을 비우고 관리 툴처럼 새로 읽어 고친다(같은 테스트 트랜잭션에서는 드롭 표를 다 비운 것이 쓰이지 않는다)
+        entityManager.flush();
+        entityManager.clear();
+        mobTypeEditor.update(placed.mobTypeId(), MobFixture.request(wolf()));
+        itemTypeEditor.delete(wolfHide);
+        itemTypeEditor.delete(items.fang());
+        entityManager.flush();
+        sender.clear();
+
+        gameConnector.handle("a", "수습 청모랑");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("청모랑의 시체에는 거둘 것이 없습니다."));
+        assertThat(corpseRepository.findAllInRoom(map.entranceId())).isEmpty();
+        assertThat(inventoryFinder.find(characterIdOf(hanbaek)).getEntries()).isEmpty();
+    }
+
     /** 배치·몹 유형을 지운 뒤 다음 틱 전에 처치: 쓰러지는 순간의 드롭 표가 없어 드롭 없는 시체(L-D3) */
     @Test
     void killAfterMobTypeDeletedLeavesEmptyCorpse() {

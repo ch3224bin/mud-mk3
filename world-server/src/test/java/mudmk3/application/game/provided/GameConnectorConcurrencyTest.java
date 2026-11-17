@@ -199,6 +199,53 @@ class GameConnectorConcurrencyTest {
         assertThat(sender.lastTo("p-a", RoomMessage.class).items()).isEmpty();
     }
 
+    /**
+     * 바닥 3개에서 둘이 동시에 2개씩 주우면 먼저 처리된 쪽이 2개를 줍고, 다음 쪽은 바닥에 1개뿐이라 수 넘침으로 줍지 못한다
+     * (수 넘침은 바닥 수보다 많이 달라는 오류다 — 줍는 수를 줄이지 않는다)
+     */
+    @Test
+    void concurrentPickExactCount() throws Exception {
+        Zone zone = zoneEditor.create(createZoneSaveRequest("정확줍기촌"));
+        Long start = room(zone, "곡식창고");
+        worldSettingsEditor.designateStartRoom(start);
+        ItemType hide = itemTypeEditor.create(
+                new ItemTypeSaveRequest("정확가죽", "", ItemCategory.MATERIAL, 2, null, null));
+        floorPlacementEditor.create(start, new FloorPlacementSaveRequest(id(hide.getId()), 3, null));
+        enterAt("x-a", "정확갑", start);
+        enterAt("x-b", "정확을", start);
+        sender.clear();
+
+        runConcurrently(pick("x-a"), pick("x-b"));
+
+        List<SystemMessage> results = new ArrayList<>();
+        for (String sessionId : List.of("x-a", "x-b")) {
+            results.add(sender.lastTo(sessionId, SystemMessage.class));
+        }
+        assertThat(results).containsExactlyInAnyOrder(
+                SystemMessage.item("정확가죽 2개를 주웠습니다."),
+                SystemMessage.error("정확가죽은 1개뿐입니다."));
+        sender.clear();
+        List<Integer> counts = new ArrayList<>();
+        for (String sessionId : List.of("x-a", "x-b")) {
+            gameConnector.handle(sessionId, "소지품");
+            counts.add(sender.lastTo(sessionId, InventoryMessage.class).items().stream()
+                    .filter(item -> item.name().equals("정확가죽"))
+                    .mapToInt(ItemView::count)
+                    .sum());
+        }
+        assertThat(counts).containsExactlyInAnyOrder(2, 0);
+        gameConnector.handle("x-a", "보기");
+        assertThat(sender.lastTo("x-a", RoomMessage.class).items()).extracting(RoomMessage.FloorItemView::count)
+                .containsExactly(1);
+    }
+
+    private Callable<@Nullable Void> pick(String sessionId) {
+        return () -> {
+            gameConnector.handle(sessionId, "줍기 정확가죽 2");
+            return null;
+        };
+    }
+
     private Callable<@Nullable Void> picks(String sessionId) {
         return () -> {
             for (int i = 0; i < 20; i++) {
