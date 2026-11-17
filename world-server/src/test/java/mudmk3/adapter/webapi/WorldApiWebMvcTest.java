@@ -155,6 +155,19 @@ record WorldApiWebMvcTest(MockMvcTester mvc, WorldSettingsFinder worldSettingsFi
         verifyNoInteractions(worldSettingsEditor);
     }
 
+    /** 정수 칸의 소수는 잘라 저장하지 않고 공통 400 이다 */
+    @Test
+    void replaceStartingItemsFractionalCountFail() {
+        assertThat(mvc.put().with(admin()).with(clientHeader()).uri("/api/admin/world/starting-items")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"items":[{"itemTypeId":1,"count":1.5}]}"""))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .extractingPath("$.detail").isEqualTo("요청 본문을 읽을 수 없습니다");
+        verifyNoInteractions(worldSettingsEditor);
+    }
+
     @Test
     void replaceStartingItemsWithoutItemsFail() {
         assertThat(mvc.put().with(admin()).with(clientHeader()).uri("/api/admin/world/starting-items")

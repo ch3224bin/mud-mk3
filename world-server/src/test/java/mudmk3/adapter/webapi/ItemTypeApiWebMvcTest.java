@@ -161,6 +161,32 @@ record ItemTypeApiWebMvcTest(MockMvcTester mvc, ItemTypeFinder itemTypeFinder, I
         verify(itemTypeEditor, never()).create(any());
     }
 
+    /** 빈 기준가(null)는 0 으로 저장하지 않고 공통 400 이다 */
+    @Test
+    void createNullBaseValueFail() {
+        assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/item-types")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name":"회춘단","category":"PILL","baseValue":null}"""))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .extractingPath("$.detail").isEqualTo("요청 본문을 읽을 수 없습니다");
+        verify(itemTypeEditor, never()).create(any());
+    }
+
+    /** 정수 칸의 소수는 잘라 저장하지 않고 공통 400 이다 */
+    @Test
+    void createFractionalBaseValueFail() {
+        assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/item-types")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name":"회춘단","category":"PILL","baseValue":1.5}"""))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .extractingPath("$.detail").isEqualTo("요청 본문을 읽을 수 없습니다");
+        verify(itemTypeEditor, never()).create(any());
+    }
+
     @Test
     void createUnknownCategoryFail() {
         assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/item-types")

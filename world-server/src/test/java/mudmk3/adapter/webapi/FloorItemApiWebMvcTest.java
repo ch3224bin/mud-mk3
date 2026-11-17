@@ -79,6 +79,19 @@ record FloorItemApiWebMvcTest(MockMvcTester mvc, FloorPlacementEditor floorPlace
         verifyNoInteractions(floorPlacementEditor);
     }
 
+    /** 정수 칸의 소수는 잘라 저장하지 않고 공통 400 이다 */
+    @Test
+    void createFractionalCountFail() {
+        assertThat(mvc.post().with(admin()).with(clientHeader()).uri("/api/admin/rooms/10/floor-items")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"itemTypeId":5,"count":1.5,"respawnMinutes":10}"""))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .extractingPath("$.detail").isEqualTo("요청 본문을 읽을 수 없습니다");
+        verifyNoInteractions(floorPlacementEditor);
+    }
+
     @Test
     void createUnknownRoomFail() {
         when(floorPlacementEditor.create(eq(999L), any())).thenThrow(new IllegalArgumentException("방을 찾을 수 없습니다. id: 999"));
