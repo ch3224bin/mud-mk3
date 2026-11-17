@@ -7,8 +7,13 @@ import mudmk3.application.zone.provided.ZoneFinder;
 import mudmk3.domain.room.Room;
 import mudmk3.support.stereotype.ApplicationService;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+
+import static java.util.Objects.requireNonNull;
 
 @ApplicationService
 @RequiredArgsConstructor
@@ -26,6 +31,26 @@ public class RoomQueryService implements RoomFinder {
     @Override
     public Optional<Room> findOptional(Long roomId) {
         return roomRepository.findById(roomId);
+    }
+
+    @Override
+    public Map<Long, Room> findAllById(Collection<Long> roomIds) {
+        Map<Long, Room> rooms = new HashMap<>();
+        if (roomIds.isEmpty()) return rooms;
+        for (Room room : roomRepository.findWithZoneByIdIn(roomIds)) {
+            rooms.put(requireNonNull(room.getId()), room);
+        }
+        return rooms;
+    }
+
+    @Override
+    public Map<Long, String> findNames(Collection<Long> roomIds) {
+        Map<Long, String> names = new HashMap<>();
+        if (roomIds.isEmpty()) return names;
+        for (Room room : roomRepository.findAllByIdIn(roomIds)) {
+            names.put(requireNonNull(room.getId()), room.getName());
+        }
+        return names;
     }
 
     @Override

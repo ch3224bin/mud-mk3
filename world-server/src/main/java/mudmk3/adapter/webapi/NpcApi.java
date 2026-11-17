@@ -28,6 +28,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** 관리: NPC */
 @WebApiAdapter
@@ -40,10 +42,16 @@ public class NpcApi {
     private final RoomFinder roomFinder;
     private final ItemTypeFinder itemTypeFinder;
 
+    /** 배치된 방은 NPC 수와 상관없이 한 번에 읽는다 */
     @GetMapping
     public List<NpcSummaryResponse> list() {
-        return npcFinder.findAll().stream()
-                .map(npc -> NpcSummaryResponse.of(npc, placedRoom(npc)))
+        List<Npc> npcs = npcFinder.findAll();
+        Set<Long> roomIds = npcs.stream()
+                .flatMap(npc -> npc.findRoomId().stream())
+                .collect(Collectors.toSet());
+        Map<Long, Room> rooms = roomFinder.findAllById(roomIds);
+        return npcs.stream()
+                .map(npc -> NpcSummaryResponse.of(npc, npc.findRoomId().map(rooms::get)))
                 .toList();
     }
 

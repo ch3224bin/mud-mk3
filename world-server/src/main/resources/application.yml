@@ -5,6 +5,9 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: update
+    properties:
+      # 지연 로딩하는 컬렉션·연관을 같은 종류끼리 최대 100개씩 한 쿼리에 묶어 읽는다(공법의 단계·신통 등)
+      hibernate.default_batch_fetch_size: 100
   docker:
     compose:
       enabled: false

@@ -39,9 +39,8 @@ record TechniqueRepositoryTest(TechniqueRepository techniqueRepository, EntityMa
         entityManager.clear();
 
         Technique found = techniqueRepository.findById(technique.getId()).orElseThrow();
-        entityManager.clear();
 
-        // 트랜잭션 밖 응답이 읽을 수 있게 속성·단계·신통·신통 속성을 함께 읽는다
+        // 속성은 함께 읽고 단계·신통·신통 속성은 트랜잭션 안에서 지연 로딩한다
         assertThat(found.getName()).isEqualTo("화토공");
         assertThat(found.getDescription()).isEqualTo("묘사");
         assertThat(found.getElements()).containsExactly(Element.FIRE, Element.EARTH);
@@ -138,7 +137,6 @@ record TechniqueRepositoryTest(TechniqueRepository techniqueRepository, EntityMa
         entityManager.clear();
 
         List<Technique> found = techniqueRepository.findAllByOrderByNameAsc();
-        entityManager.clear();
 
         assertThat(found).extracting(Technique::getName).containsExactly("강체결", "장춘공", "청목결");
         assertThat(found).extracting(technique -> technique.getAbilities().size()).containsExactly(1, 3, 2);

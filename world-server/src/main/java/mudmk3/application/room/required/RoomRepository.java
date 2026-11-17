@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,13 @@ public interface RoomRepository extends Repository<Room, Long> {
     /** 출구 수를 셀 수 있게 출구를 함께 읽는다 */
     @EntityGraph(attributePaths = "exits")
     List<Room> findAllByZoneOrderByIdAsc(Zone zone);
+
+    /** 그 방들. 방 행만 읽는다(지역·출구는 읽지 않음) */
+    List<Room> findAllByIdIn(Collection<Long> ids);
+
+    /** 그 방들과 그 지역(출구는 읽지 않음) */
+    @EntityGraph(attributePaths = "zone")
+    List<Room> findWithZoneByIdIn(Collection<Long> ids);
 
     long countByZone(Zone zone);
 

@@ -6,6 +6,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+    properties:
+      # 쿼리 수 테스트(QueryCounter)가 Hibernate 통계를 읽는다
+      hibernate.generate_statistics: true
   security:
     oauth2:
       client:
@@ -19,3 +22,8 @@ mud:
     admin-emails: admin@example.com
   game:
     tick-enabled: false
+
+logging:
+  level:
+    # 통계를 켜면 세션마다 남기는 지표 로그를 끈다
+    org.hibernate.engine.internal.StatisticalLoggingSessionEventListener: WARN

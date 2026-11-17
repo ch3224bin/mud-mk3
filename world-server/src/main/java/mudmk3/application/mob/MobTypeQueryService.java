@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 
@@ -67,14 +68,17 @@ public class MobTypeQueryService implements MobTypeFinder {
         return MobTypeView.of(mobType, itemNames, placements.getOrDefault(mobType.getId(), List.of()));
     }
 
-    /** 몹 유형 id → 그 몹을 둔 배치(배치 id 순, 방 이름까지). 방 이름은 방마다 한 번 읽는다 */
+    /** 몹 유형 id → 그 몹을 둔 배치(배치 id 순, 방 이름까지). 몹이 없으면 읽지 않고, 방 이름은 한 번에 읽는다 */
     private Map<Long, List<PlacementView>> placements(List<MobType> mobTypes) {
+        if (mobTypes.isEmpty()) return Map.of();
         List<Long> mobTypeIds = mobTypes.stream().map(mobType -> requireNonNull(mobType.getId())).toList();
-        Map<Long, String> roomNames = new HashMap<>();
+        List<MobPlacement> found = mobPlacementRepository.findAllByMobTypeIdInOrderByIdAsc(mobTypeIds);
+        Map<Long, String> roomNames = roomFinder.findNames(
+                found.stream().map(MobPlacement::getRoomId).collect(Collectors.toSet()));
         Map<Long, List<PlacementView>> placements = new HashMap<>();
-        for (MobPlacement placement : mobPlacementRepository.findAllByMobTypeIdInOrderByIdAsc(mobTypeIds)) {
-            String roomName = roomNames.computeIfAbsent(placement.getRoomId(),
-                    roomId -> roomFinder.find(roomId).getName());
+        for (MobPlacement placement : found) {
+            String roomName = Optional.ofNullable(roomNames.get(placement.getRoomId())).orElseThrow(
+                    () -> new IllegalArgumentException("방을 찾을 수 없습니다. id: " + placement.getRoomId()));
             placements.computeIfAbsent(requireNonNull(placement.getMobType().getId()), id -> new ArrayList<>())
                     .add(new PlacementView(requireNonNull(placement.getId()), placement.getRoomId(), roomName,
                             placement.getCount()));

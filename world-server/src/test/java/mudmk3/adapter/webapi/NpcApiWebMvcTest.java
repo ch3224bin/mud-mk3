@@ -31,6 +31,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -169,7 +170,7 @@ record NpcApiWebMvcTest(MockMvcTester mvc, NpcFinder npcFinder, NpcEditor npcEdi
         placed.placeIn(10L);
         Npc unplaced = npc(5L, "이씨");
         when(npcFinder.findAll()).thenReturn(List.of(placed, unplaced));
-        when(roomFinder.findOptional(10L)).thenReturn(Optional.of(room(zone(1L, "청우촌"), 10L, "마을 어귀")));
+        when(roomFinder.findAllById(Set.of(10L))).thenReturn(Map.of(10L, room(zone(1L, "청우촌"), 10L, "마을 어귀")));
 
         assertThat(mvc.get().with(admin()).uri("/api/admin/npcs"))
                 .hasStatusOk()

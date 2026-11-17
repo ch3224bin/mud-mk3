@@ -14,6 +14,9 @@ public interface TechniqueFinder {
     /** 트랜잭션 안에서 만든 공법 보기 값 */
     TechniqueView view(Long techniqueId);
 
+    /** 옥간·서책에 담긴 공법 보기 값(익힌 수·담긴 물건은 세지 않는다) */
+    ContainedTechniqueView viewContained(Long techniqueId);
+
     /** 이름순 */
     List<TechniqueView> viewAll();
 

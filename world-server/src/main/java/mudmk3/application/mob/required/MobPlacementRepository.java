@@ -25,6 +25,7 @@ public interface MobPlacementRepository extends Repository<MobPlacement, Long> {
     List<MobPlacement> findAllByRoomIdOrderByIdAsc(Long roomId);
 
     /** 그 몹 유형들을 둔 배치(id 순) */
+    @EntityGraph(attributePaths = "mobType")
     List<MobPlacement> findAllByMobTypeIdInOrderByIdAsc(Collection<Long> mobTypeIds);
 
     long countByMobTypeId(Long mobTypeId);

@@ -15,8 +15,8 @@ import mudmk3.application.game.required.PresenceRepository;
 import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.npc.provided.NpcFinder;
+import mudmk3.application.technique.provided.ContainedTechniqueView;
 import mudmk3.application.technique.provided.TechniqueFinder;
-import mudmk3.application.technique.provided.TechniqueView;
 import mudmk3.domain.combat.MobInstance;
 import mudmk3.domain.floor.FloorStack;
 import mudmk3.domain.game.Amount;
@@ -313,12 +313,12 @@ class ItemCommandHandler {
         String description = itemType.getDescription();
         String text = description.isEmpty() ? itemType.getName() : itemType.getName() + " — " + description;
         return SystemMessage.item(itemType.findTechnique()
-                .map(technique -> text + "\n" + containedTechnique(techniqueFinder.view(requireNonNull(technique.getId()))))
+                .map(technique -> text + "\n" + containedTechnique(techniqueFinder.viewContained(requireNonNull(technique.getId()))))
                 .orElse(text));
     }
 
     /** {@code 담긴 공법: 장춘공 (목 · 오행 · 9성 · 범인부터)}, 연체술이면 {@code (연체술 · 9성 · 범인부터)} */
-    private static String containedTechnique(TechniqueView technique) {
+    private static String containedTechnique(ContainedTechniqueView technique) {
         String elements = technique.elementNames() == null ? "" : technique.elementNames() + " · ";
         return "담긴 공법: " + technique.name() + " (" + elements + technique.lineName() + " · "
                 + technique.stageCount() + "성 · " + technique.startRealmName() + "부터)";
