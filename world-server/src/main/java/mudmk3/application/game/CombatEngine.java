@@ -153,7 +153,10 @@ class CombatEngine {
         });
     }
 
-    /** 다른 방으로 옮겨진다(방 삭제): 모든 교전을 끝낸다. 교전 중이었으면 10초 뒤 다시 차기를 예약한다 */
+    /**
+     * 다른 방으로 옮겨진다(방 삭제): 모든 교전을 끝낸다. 교전 중이었으면 10초 뒤 다시 차기를 예약한다.
+     * 시전은 지우지 않는다(발동 때 다른 방이라 흩어짐, D113)
+     */
     void endAll(Long characterId, Instant now) {
         playerCombatRepository.find(characterId).ifPresent(combat -> {
             for (Long mobId : combat.getMobIds()) {

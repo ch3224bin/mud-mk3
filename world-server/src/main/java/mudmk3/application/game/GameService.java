@@ -575,7 +575,7 @@ public class GameService implements GameConnector, GameTicker {
         String name = player.getName();
         send(sessionId, SayMessage.speech(name, message, true, name + ": \"" + message + "\""));
         SayMessage heard = SayMessage.speech(name, message, false, Josa.withIGa(name) + " 말한다: \"" + message + "\"");
-        othersInRoom(player, player.getRoomId()).forEach(other -> send(other.getSessionId(), heard));
+        roomNotifier.notifyOthers(player, heard, this::send);
     }
 
     /** 같은 방 NPC에게 말을 건다. 이름 전체가 같은 NPC, 없으면 이름이 입력으로 시작하는 첫 NPC. 묻는 사람에게만 보낸다 */
@@ -726,11 +726,5 @@ public class GameService implements GameConnector, GameTicker {
                 npcFinder.findAllInRoom(roomId), roomFloor.look(roomId), viewerCharacterId,
                 combatEngine.mobsInRoom(roomId), combatEngine.corpsesInRoom(roomId),
                 characterFinder.find(viewerCharacterId).getRealm(), clock.instant());
-    }
-
-    private List<OnlinePlayer> othersInRoom(OnlinePlayer self, Long roomId) {
-        return presenceRepository.findAllInRoom(roomId).stream()
-                .filter(other -> !other.getCharacterId().equals(self.getCharacterId()))
-                .toList();
     }
 }
