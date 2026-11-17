@@ -73,6 +73,22 @@ describe("지역 화면", () => {
     expect(screen.getByRole("button", { name: "지역 만들기" })).toBeInTheDocument();
   });
 
+  it("zoneScreenClearsErrorAfterReload: 성·종문 목록이 실패한 뒤 저장으로 다시 읽어 둘 다 성공하면 오류 줄이 사라진다", async () => {
+    const user = userEvent.setup();
+    factionsResponse = () => json(500, { detail: "성·종문 목록을 읽지 못했습니다." });
+    render(<ZonesPage />);
+
+    const row = (await screen.findByRole("link", { name: "청석숲" })).closest("tr") as HTMLElement;
+    expect(screen.getByRole("alert")).toHaveTextContent("성·종문 목록을 읽지 못했습니다.");
+    factionsResponse = () => json(200, [sect]);
+    await user.click(within(row).getByRole("button", { name: "수정" }));
+    const form = screen.getAllByRole("button", { name: "저장" })[0].closest("form") as HTMLElement;
+    await user.click(within(form).getByRole("button", { name: "저장" }));
+
+    expect(await screen.findByRole("option", { name: "황풍곡 (종문)" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("목록 → 수정 → 폼: 저장한 값으로 고치고 서버가 다듬은 이름을 목록에 보인다", async () => {
     const user = userEvent.setup();
     render(<ZonesPage />);

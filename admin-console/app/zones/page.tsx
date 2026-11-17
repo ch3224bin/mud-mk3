@@ -32,8 +32,9 @@ function ZonesView() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 성·종문 목록이 실패해도 지역 목록·폼은 보이고 실패 detail 을 한 줄로 보인다.
+  // 성·종문 목록이 실패해도 지역 목록·폼은 보이고 실패 detail 을 한 줄로 보인다. 다시 읽을 때는 지난 오류를 지운다.
   const load = useCallback(async () => {
+    setError(null);
     const [zonesResult, factionsResult] = await Promise.allSettled([listZones(), listFactions()]);
     if (zonesResult.status === "fulfilled") {
       setZones(zonesResult.value);
