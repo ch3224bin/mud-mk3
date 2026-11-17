@@ -20,9 +20,15 @@ const ADMIN_ORIGIN = "http://localhost:3001";
 const PLAY_ORIGIN = "http://localhost:3000";
 const TIMEOUT_MS = 5000;
 
+class SmokeFailure extends Error {}
+
 const runId = Date.now().toString(36);
-// NPC 이름은 띄어쓰기 없이 12자까지라 숫자 6자리만 붙인다(성·종문·NPC 이름)
-const runNo = String(Date.now() % 1_000_000).padStart(6, "0");
+// NPC 이름은 띄어쓰기 없이 12자까지라 숫자 6자리만 붙인다(성·종문·NPC 이름).
+// 기존 pgdata 에 같은 번호의 이름이 남아 있으면 409 가 나므로 그 번호의 성·종문이 없을 때까지 1씩 더한다
+const runNo = await pickRunNo().catch((error) => {
+  console.error(`SMOKE FAIL: 실행 번호 고르기 — ${error instanceof SmokeFailure ? error.message : error.stack ?? error}`);
+  process.exit(1);
+});
 const castleName = `청석성${runNo}`;
 const sectName = `황풍곡${runNo}`;
 const npcName = `왕씨${runNo}`;
@@ -56,14 +62,34 @@ const emberName = `염탄${runNo}`;
 const blazeScrollName = `${blazeName} 옥간`;
 const ghostName = `음혼${runNo}`;
 
-class SmokeFailure extends Error {}
-
 function fail(message) {
   throw new SmokeFailure(message);
 }
 
 function step(text) {
   console.log(`- ${text}`);
+}
+
+/** Date.now() 끝 6자리에서 시작해, 관리 API 성·종문 목록에 `청석성<n>`·`황풍곡<n>` 이 없는 번호를 고른다(6자리 그대로) */
+async function pickRunNo() {
+  const session = await devLogin(adminEmail);
+  const taken = new Set((await api(session, "GET", "/api/admin/factions")).map((f) => f.name));
+  const pad = (n) => String(n).padStart(6, "0");
+  let n = Date.now() % 1_000_000;
+  while (taken.has(`청석성${pad(n)}`) || taken.has(`황풍곡${pad(n)}`)) n = (n + 1) % 1_000_000;
+  return pad(n);
+}
+
+/** 마감까지 intervalMs 간격으로 attempt 를 되풀이해 predicate 에 맞는 결과를 돌려준다. 못 받으면 마지막 결과와 함께 실패 */
+async function repeatUntil(attempt, predicate, { intervalMs, timeoutMs, description }) {
+  const deadline = Date.now() + timeoutMs;
+  let last = null;
+  while (Date.now() < deadline) {
+    last = await attempt();
+    if (predicate(last)) return last;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  fail(`${description} 를 ${timeoutMs}ms 안에 받지 못함. 마지막: ${JSON.stringify(last)}`);
 }
 
 /** 끝 글자 받침에 맞춘 이/가. 한글이 아니면 받침 없음으로 본다 */
@@ -842,17 +868,10 @@ async function run() {
 
     step(`37. E 보기 되풀이 → ${rabbitName} 나타남, 보기 ${rabbitName}, 공격 거절 셋`);
     /** 보기를 되풀이해 그 방 room 메시지가 조건에 맞을 때까지 기다린다 */
-    const lookUntil = async (client, roomName, predicate, description, timeoutMs) => {
-      const deadline = Date.now() + timeoutMs;
-      let last = null;
-      while (Date.now() < deadline) {
-        const m = client.send("보기");
-        last = await client.waitFor(isRoom(roomName), `${client.label} 보기 room`, m);
-        if (predicate(last)) return last;
-        await new Promise((resolve) => setTimeout(resolve, 300));
-      }
-      fail(`${client.label}: ${description} 를 ${timeoutMs}ms 안에 보지 못함. 마지막 보기: ${JSON.stringify(last)}`);
-    };
+    const lookUntil = (client, roomName, predicate, description, timeoutMs) => repeatUntil(() => {
+      const m = client.send("보기");
+      return client.waitFor(isRoom(roomName), `${client.label} 보기 room`, m);
+    }, predicate, { intervalMs: 300, timeoutMs, description: `${client.label}: ${description}` });
     const mobLine = (room, name) => room.mobs?.find((mob) => mob.name === name);
     const expectMobLine = (room, expected) => {
       const line = mobLine(room, expected.name);
@@ -892,6 +911,9 @@ async function run() {
       fail(`처치 뒤 광장의 시체·몹이 다름: ${JSON.stringify({ mobs: corpseRoom.mobs, corpses: corpseRoom.corpses })}`);
     }
     await expectSystemTone(e, `버리기 ${springScrollName}`, "item");
+    // 수습이 자리 없음으로 실패하는 경우를 가려내려고 빈칸이 있음을 먼저 본다
+    eInventory = await inventoryOf(e);
+    if (eInventory.usedSlots >= eInventory.totalSlots) fail(`수습 전 E 소지품에 빈칸이 없음: ${JSON.stringify(eInventory)}`);
     const collected = await expectSystemTone(e, `수습 ${rabbitName}`, "item");
     // 칸이 모자라면 "저물대에 자리가 없습니다" 문구는 별도 error 메시지로 오므로 여기서는 첫 줄만 본다
     const [collectedFirst] = collected.text.split("\n");
@@ -1024,16 +1046,8 @@ async function run() {
       return e.waitFor((x) => (x.type === "system" && x.tone === "error") || isEffectLine(x), `${emberCommand} 응답`, m);
     };
     /** 300ms 간격으로 신통 명령을 되풀이해 조건에 맞는 응답을 받는다 */
-    const useEmberUntil = async (predicate, description, timeoutMs) => {
-      const deadline = Date.now() + timeoutMs;
-      let last = null;
-      while (Date.now() < deadline) {
-        last = await useEmber();
-        if (predicate(last)) return last;
-        await new Promise((resolve) => setTimeout(resolve, 300));
-      }
-      fail(`E: ${description} 를 ${timeoutMs}ms 안에 받지 못함. 마지막 응답: ${JSON.stringify(last)}`);
-    };
+    const useEmberUntil = (predicate, description, timeoutMs) =>
+      repeatUntil(useEmber, predicate, { intervalMs: 300, timeoutMs, description: `E: ${description}` });
     const globalRefusal = await useEmber();
     if (globalRefusal.tone !== "error" || !globalRefusal.text.startsWith("아직 기운을 고르는 중입니다. (")) {
       fail(`곧바로 쓴 ${emberName} 가 공통 대기 거절이 아님: ${JSON.stringify(globalRefusal)}`);
@@ -1079,16 +1093,8 @@ async function run() {
     if (ghostEnd.text.startsWith("기혈이 다했습니다.")) fail(`E 가 ${ghostName} 에게 짐: ${JSON.stringify(ghostEnd)}`);
 
     step(`50. 법력 회복 — E 상태 되풀이(≤ 15초) → 법력이 ${manaAfterCasts} 보다 커짐`);
-    {
-      const deadline = Date.now() + 15000;
-      let mana = null;
-      while (Date.now() < deadline) {
-        mana = (await statusOf(e)).stats?.mana;
-        if (mana?.current > manaAfterCasts) break;
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-      if (!(mana?.current > manaAfterCasts)) fail(`15초 안에 E 법력이 ${manaAfterCasts} 보다 커지지 않음: ${JSON.stringify(mana)}`);
-    }
+    await repeatUntil(() => statusOf(e), (s) => s.stats?.mana?.current > manaAfterCasts,
+      { intervalMs: 1000, timeoutMs: 15000, description: `E: 법력이 ${manaAfterCasts} 보다 커진 상태` });
 
     step("51. E 도움말 6차 문구, 관리자 — 이 실행의 몹 배치 지움 → 광장에서 몹이 사라짐, 시작 소지품 되돌림");
     mark = e.send("도움말");
