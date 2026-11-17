@@ -3,8 +3,12 @@ package mudmk3.application.technique.provided;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
 import mudmk3.domain.technique.TechniqueFixture;
+import mudmk3.domain.technique.CostStat;
 import mudmk3.domain.technique.TechniqueSaveInfo;
 
+import org.jspecify.annotations.Nullable;
+
+import java.math.BigDecimal;
 import java.util.List;
 
 /** 관리 REST 모양의 공법 요청 */
@@ -45,5 +49,51 @@ public final class TechniqueRequestFixture {
                                         power.coefficient()))
                                 .toList()))
                 .toList();
+    }
+
+    // ---- AbilityRequest 의 칸 하나만 바꾼 복사본(14칸을 나열하는 곳은 아래 copy 한 곳)
+
+    public static AbilityRequest withEffectLines(AbilityRequest ability, @Nullable List<String> effectLines) {
+        return copy(ability, ability.learnStage(), ability.castSeconds(), ability.cooldownSeconds(),
+                ability.costStat(), ability.costAmount(), ability.costPerTick(), effectLines, ability.stagePowers());
+    }
+
+    public static AbilityRequest withStagePowers(AbilityRequest ability, @Nullable List<StagePowerRequest> stagePowers) {
+        return copy(ability, ability.learnStage(), ability.castSeconds(), ability.cooldownSeconds(),
+                ability.costStat(), ability.costAmount(), ability.costPerTick(), ability.effectLines(), stagePowers);
+    }
+
+    public static AbilityRequest withCast(AbilityRequest ability, @Nullable BigDecimal castSeconds) {
+        return copy(ability, ability.learnStage(), castSeconds, ability.cooldownSeconds(),
+                ability.costStat(), ability.costAmount(), ability.costPerTick(), ability.effectLines(),
+                ability.stagePowers());
+    }
+
+    public static AbilityRequest withCost(AbilityRequest ability, CostStat costStat, @Nullable BigDecimal costAmount,
+                                          boolean costPerTick) {
+        return copy(ability, ability.learnStage(), ability.castSeconds(), ability.cooldownSeconds(),
+                costStat, costAmount, costPerTick, ability.effectLines(), ability.stagePowers());
+    }
+
+    public static AbilityRequest withCooldown(AbilityRequest ability, @Nullable BigDecimal cooldownSeconds) {
+        return copy(ability, ability.learnStage(), ability.castSeconds(), cooldownSeconds,
+                ability.costStat(), ability.costAmount(), ability.costPerTick(), ability.effectLines(),
+                ability.stagePowers());
+    }
+
+    public static AbilityRequest withLearnStage(AbilityRequest ability, @Nullable Integer learnStage) {
+        return copy(ability, learnStage, ability.castSeconds(), ability.cooldownSeconds(),
+                ability.costStat(), ability.costAmount(), ability.costPerTick(), ability.effectLines(),
+                ability.stagePowers());
+    }
+
+    private static AbilityRequest copy(AbilityRequest ability, @Nullable Integer learnStage,
+                                       @Nullable BigDecimal castSeconds, @Nullable BigDecimal cooldownSeconds,
+                                       CostStat costStat, @Nullable BigDecimal costAmount, boolean costPerTick,
+                                       @Nullable List<String> effectLines,
+                                       @Nullable List<StagePowerRequest> stagePowers) {
+        return new AbilityRequest(ability.name(), learnStage, ability.kind(), ability.elements(),
+                ability.bodyRefining(), ability.target(), costStat, costAmount, costPerTick, castSeconds,
+                cooldownSeconds, ability.usableWhen(), effectLines, stagePowers);
     }
 }

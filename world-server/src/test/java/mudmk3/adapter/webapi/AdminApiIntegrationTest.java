@@ -12,6 +12,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
+import java.util.List;
+
 import static mudmk3.adapter.security.SecurityFixture.admin;
 import static mudmk3.adapter.security.SecurityFixture.clientHeader;
 import static java.util.Objects.requireNonNull;
@@ -53,7 +55,7 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
         assertThat(mvc.get().with(admin()).uri("/api/admin/zones/%d/rooms".formatted(zoneId))).hasStatusOk().bodyJson()
                 .extractingPath("$[0].exitCount").isEqualTo(1);
         assertThat(mvc.get().with(admin()).uri("/api/admin/zones")).hasStatusOk().bodyJson()
-                .extractingPath("$[0].roomCount").isEqualTo(1);
+                .extractingPath("$[?(@.id == %d)].roomCount".formatted(zoneId)).asArray().containsExactly(1);
 
         assertThat(mvc.get().with(admin()).uri("/api/admin/world")).hasStatusOk().bodyJson()
                 .extractingPath("$.startRoomId").isNull();
@@ -197,13 +199,13 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
         detail.extractingPath("$.scrollItems[0].id").isEqualTo((int) jadeId);
         detail.extractingPath("$.scrollItems[0].name").isEqualTo("장춘공 옥간");
         detail.extractingPath("$.abilities[0].kindName").isEqualTo("공격");
-        detail.extractingPath("$.abilities[0].effectLines").isEqualTo(java.util.List.of("{대상}에게 불꽃이 튄다!"));
+        detail.extractingPath("$.abilities[0].effectLines").isEqualTo(List.of("{대상}에게 불꽃이 튄다!"));
         detail.extractingPath("$.abilities[0].stagePowers[0].basePower").isEqualTo(2.00);
         detail.extractingPath("$.abilities[0].usableInGame").isEqualTo(true);
         assertThat(mvc.get().with(admin()).uri("/api/admin/item-types/%d".formatted(jadeId))).hasStatusOk().bodyJson()
                 .extractingPath("$.techniqueName").isEqualTo("장춘공");
         assertThat(mvc.get().with(admin()).uri("/api/admin/techniques")).hasStatusOk().bodyJson()
-                .extractingPath("$[0].abilityCount").isEqualTo(1);
+                .extractingPath("$[?(@.id == %d)].abilityCount".formatted(techniqueId)).asArray().containsExactly(1);
 
         assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/techniques/%d".formatted(techniqueId)))
                 .hasStatus(HttpStatus.CONFLICT)
@@ -222,6 +224,11 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
         }
     }
 
+    /** 목록 JSON 에서 그 id 항목의 칸을 고르는 경로(결과는 한 원소 배열) */
+    private static String byId(long id, String field) {
+        return "$[?(@.id == %d)].%s".formatted(id, field);
+    }
+
     @Test
     void manageCharacters() {
         // 방에는 FK가 없으므로 시작 방을 정하지 않고(다른 테스트의 세계 설정을 흐리지 않게) 저장소로 바로 만든다
@@ -230,14 +237,13 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
         long garam = requireNonNull(characterRepository.save(CharacterFixture.createCharacter(
                 9102L, "가람", 1L)).getId());
 
+        // 이 캐릭터들은 지우지 않는다(같은 DB를 쓰는 다른 테스트가 만든 캐릭터도 목록에 있을 수 있어 위치가 아니라 id 로 찾는다)
         var list = assertThat(mvc.get().with(admin()).uri("/api/admin/characters")).hasStatusOk().bodyJson();
-        list.extractingPath("$[0].id").isEqualTo((int) garam);
-        list.extractingPath("$[0].spiritRootName").isNull();
-        list.extractingPath("$[0].realmName").isEqualTo("범인");
-        list.extractingPath("$[0].online").isEqualTo(false);
-        list.extractingPath("$[1].id").isEqualTo((int) yeorim);
-        list.extractingPath("$[1].spiritRootName").isEqualTo("목·화 진영근");
-        list.extractingPath("$[1].techniqueCount").isEqualTo(0);
+        list.extractingPath(byId(garam, "spiritRootName")).asArray().containsExactly((Object) null);
+        list.extractingPath(byId(garam, "realmName")).asArray().containsExactly("범인");
+        list.extractingPath(byId(garam, "online")).asArray().containsExactly(false);
+        list.extractingPath(byId(yeorim, "spiritRootName")).asArray().containsExactly("목·화 진영근");
+        list.extractingPath(byId(yeorim, "techniqueCount")).asArray().containsExactly(0);
 
         // 지정한 뒤 다시 읽은 상세를 트랜잭션 밖에서 만든다(영근은 지연 로딩)
         var designated = assertThat(put("/api/admin/characters/%d/realm".formatted(yeorim), """
@@ -276,7 +282,8 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
     @Test
     void manageStartingItems() {
         var itemTypes = assertThat(mvc.get().with(admin()).uri("/api/admin/item-types")).hasStatusOk().bodyJson();
-        long lowStoneId = ((Number) itemTypes.extractingPath("$[0].id").actual()).longValue();
+        long lowStoneId = ((Number) ((List<?>) itemTypes.extractingPath("$[?(@.name == '하품 영석')].id").actual()).getFirst())
+                .longValue();
         long bagId = id(post("/api/admin/item-types", """
                 {"name":"하급 저물대","category":"BAG","baseValue":10,"bagGrade":"LOW"}"""));
         long pillId = id(post("/api/admin/item-types", """

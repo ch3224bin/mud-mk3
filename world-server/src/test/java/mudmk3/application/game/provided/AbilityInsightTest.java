@@ -197,7 +197,8 @@ class AbilityInsightTest extends BaseGameTest {
         castTimes(han, 7);
         assertThat(totalInsight(han)).isCloseTo(49, offset(1e-9));
         gameConnector.disconnect("a");
-        advanceAndTick(10);
+        // 몹이 다시 차는 REFILL_DELAY(10초) 전이다: 끊을 때 지워진 상한만으로 새로 센다
+        advanceAndTick(1);
         connect("a", han);
         sender.clear();
 
@@ -261,12 +262,5 @@ class AbilityInsightTest extends BaseGameTest {
 
     private double totalInsight(Long accountId) {
         return insightOf(accountId).amounts().values().stream().mapToDouble(Double::doubleValue).sum();
-    }
-
-    private List<String> textsTo(String sessionId) {
-        return sender.messagesTo(sessionId).stream()
-                .filter(SystemMessage.class::isInstance)
-                .map(message -> ((SystemMessage) message).text())
-                .toList();
     }
 }

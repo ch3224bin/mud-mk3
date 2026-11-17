@@ -15,6 +15,7 @@ import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.floor.provided.FloorPlacementSaveRequest;
 import mudmk3.application.game.GameService;
 import mudmk3.application.game.RecordingGameMessageSender;
+import mudmk3.application.game.required.GameMessage.SystemMessage;
 import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.item.provided.ItemTypeEditor;
@@ -275,9 +276,9 @@ abstract class BaseGameTest {
     }
 
     /**
-     * 관리 툴처럼 {@link CharacterRealmEditor#designate} 로 경지를 지정한다. 테스트 트랜잭션은 커밋되지 않아 AFTER_COMMIT 반영이
-     * 오지 않으므로, 이번 지정이 낸 {@link RealmChangedEvent} 를 커밋 뒤처럼 게임 리스너에 넘긴다(접속 중이면 {@code growth} 알림).
-     * 알림 없이 준비만 할 때는 {@link #setRealm}
+     * 관리 툴처럼 {@link CharacterRealmEditor#designate} 로 경지를 지정한다. 테스트 트랜잭션은 커밋되지 않아 AFTER_COMMIT
+     * 리스너가 오지 않으므로, 이번 지정이 낸 {@link RealmChangedEvent} 를 게임 리스너에 직접 넘긴다(접속 중이면 {@code growth} 알림).
+     * 알림 없이 경지만 바꿀 때는 {@link #setRealm}
      */
     protected void designateRealm(Long accountId, Realm realm) {
         ApplicationEvents recorded = requireNonNull(events);
@@ -359,6 +360,14 @@ abstract class BaseGameTest {
         return placeMob(map.entranceId(), info, count);
     }
 
+    /** 그 세션이 받은 시스템 메시지 글(순서대로) */
+    protected List<String> textsTo(String sessionId) {
+        return sender.messagesTo(sessionId).stream()
+                .filter(SystemMessage.class::isInstance)
+                .map(message -> ((SystemMessage) message).text())
+                .toList();
+    }
+
     protected Long characterIdOf(Long accountId) {
         return id(characterFinder.findByAccountId(accountId).orElseThrow().getId());
     }
@@ -400,7 +409,7 @@ abstract class BaseGameTest {
         return "p" + name.codePoints().mapToObj(Integer::toHexString).reduce("", String::concat) + "@example.com";
     }
 
-    private static Long id(@Nullable Long id) {
+    protected static Long id(@Nullable Long id) {
         if (id == null) throw new IllegalStateException("저장된 엔티티에 id가 없습니다");
         return id;
     }

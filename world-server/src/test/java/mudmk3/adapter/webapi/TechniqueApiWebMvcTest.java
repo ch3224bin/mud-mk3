@@ -79,9 +79,10 @@ record TechniqueApiWebMvcTest(MockMvcTester mvc, TechniqueFinder techniqueFinder
                                "stagePowers":[{"stage":1,"basePower":2.00,"coefficient":1.200},{},{},{},{},{},{},{},{}]},
                               {"stagePowers":[],"usableInGame":false},{}]}""");
         body.extractingPath("$.abilities[0].effectLines").isEqualTo(TechniqueFixture.FIRE_BALL_LINES);
-        // 저장한 모양(scale 2·3) 그대로 나간다
-        assertThat(body.actual().getJson())
-                .contains("\"stagePowers\":[{\"stage\":1,\"basePower\":2.00,\"coefficient\":1.200}");
+        // 저장한 모양(scale 2·3)의 값이 나간다
+        body.extractingPath("$.abilities[0].stagePowers[0].stage").isEqualTo(1);
+        body.extractingPath("$.abilities[0].stagePowers[0].basePower").isEqualTo(2.00);
+        body.extractingPath("$.abilities[0].stagePowers[0].coefficient").isEqualTo(1.2);
         body.extractingPath("$.description").isEqualTo("범인도 수련을 시작할 수 있는 목 속성 입문 공법.");
     }
 

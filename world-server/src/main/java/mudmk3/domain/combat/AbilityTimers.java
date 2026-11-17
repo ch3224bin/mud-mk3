@@ -55,6 +55,7 @@ public final class AbilityTimers {
     /** 그 신통의 재사용 대기시간을 지금부터 {@code seconds} 초로 둔다 */
     public void startCooldown(AbilityKey key, BigDecimal seconds, Instant now) {
         requireNonNull(key);
+        requireNonNull(seconds);
         cooldowns.put(key, now.plus(AbilityRules.seconds(seconds)));
     }
 

@@ -2,6 +2,7 @@ package mudmk3.domain.shared;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 
 import static java.util.Objects.requireNonNull;
 
@@ -10,6 +11,9 @@ public final class Durations {
 
     private static final BigDecimal MINUTE = BigDecimal.valueOf(60);
     private static final BigDecimal HOUR = BigDecimal.valueOf(3_600);
+    private static final long NANOS_PER_TENTH = 100_000_000L;
+    private static final long NANOS_PER_SECOND = 1_000_000_000L;
+    private static final long MINUTE_NANOS = 60 * NANOS_PER_SECOND;
 
     private Durations() {
     }
@@ -31,5 +35,17 @@ public final class Durations {
         BigDecimal hours = seconds.divide(HOUR, 0, RoundingMode.DOWN);
         BigDecimal minutes = seconds.subtract(hours.multiply(HOUR)).divide(MINUTE, 0, RoundingMode.DOWN);
         return hours.toPlainString() + "시간" + (minutes.signum() == 0 ? "" : " " + minutes.toPlainString() + "분");
+    }
+
+    /**
+     * 남은 시간(D112): 60초 미만은 0.1초 단위로 올림({@code 0.0초} 가 보이지 않게), 60초 이상은 1초 단위로 올림한 뒤
+     * {@link #korean} 문체
+     */
+    public static String remaining(Duration duration) {
+        long nanos = Math.max(0, duration.toNanos());
+        if (nanos < MINUTE_NANOS) {
+            return korean(BigDecimal.valueOf(Math.ceilDiv(nanos, NANOS_PER_TENTH), 1));
+        }
+        return korean(BigDecimal.valueOf(Math.ceilDiv(nanos, NANOS_PER_SECOND)));
     }
 }

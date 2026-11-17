@@ -236,7 +236,8 @@ public final class MobInstance {
     }
 
     /**
-     * 깨달음 {@code requested} 를 한 상대 상한(처음 기혈 최대치)까지만 주고 준 만큼을 돌려준다. 남은 상한은 준 만큼 준다.
+     * 깨달음 {@code requested} 를 그 캐릭터가 이 몹에게서 받을 수 있는 남은 상한까지만 주고 준 만큼을 돌려준다. 상한은
+     * 캐릭터마다 따로이고 몹의 처음 기혈 최대치에서 시작하며 준 만큼 줄어든다(끊김·다시 참·다시 나타남 때 새로 시작).
      * 교전 상대가 아니어도(쓰러뜨린 일격 뒤) 부를 수 있다
      */
     public double grantInsight(Long characterId, double requested) {

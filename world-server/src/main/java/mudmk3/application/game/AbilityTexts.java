@@ -24,22 +24,6 @@ class AbilityTexts {
     static final String STOPPED = "펼치던 술법을 거두었습니다.";
     static final String NOT_CASTING = "펼치는 술법이 없습니다.";
 
-    private static final long NANOS_PER_TENTH = 100_000_000L;
-    private static final long NANOS_PER_SECOND = 1_000_000_000L;
-    private static final long MINUTE_NANOS = 60 * NANOS_PER_SECOND;
-
-    /**
-     * 남은 시간(D112): 60초 미만은 0.1초 단위로 올림({@code 0.0초} 가 보이지 않게), 60초 이상은 1초 단위로 올림한 뒤
-     * 4차 시간 문체({@link Durations#korean})
-     */
-    static String remaining(Duration duration) {
-        long nanos = Math.max(0, duration.toNanos());
-        if (nanos < MINUTE_NANOS) {
-            return Durations.korean(BigDecimal.valueOf(Math.ceilDiv(nanos, NANOS_PER_TENTH), 1));
-        }
-        return Durations.korean(BigDecimal.valueOf(Math.ceilDiv(nanos, NANOS_PER_SECOND)));
-    }
-
     /** {@code 화탄술은 아직 깨치지 못한 신통입니다.} */
     String notLearned(String abilityName) {
         return Josa.withEunNeun(abilityName) + " 아직 깨치지 못한 신통입니다.";
@@ -57,12 +41,12 @@ class AbilityTexts {
 
     /** {@code 아직 기운을 고르는 중입니다. (0.3초)} */
     String globalCooldown(Duration remaining) {
-        return "아직 기운을 고르는 중입니다. (" + remaining(remaining) + ")";
+        return "아직 기운을 고르는 중입니다. (" + Durations.remaining(remaining) + ")";
     }
 
     /** {@code 화탄술은 아직 쓸 수 없습니다. (1.4초)} */
     String cooldown(String abilityName, Duration remaining) {
-        return Josa.withEunNeun(abilityName) + " 아직 쓸 수 없습니다. (" + remaining(remaining) + ")";
+        return Josa.withEunNeun(abilityName) + " 아직 쓸 수 없습니다. (" + Durations.remaining(remaining) + ")";
     }
 
     /** {@code 법력이 모자랍니다. (필요 5, 남은 것 3)} — 필요는 소모량 그대로(L6-3), 남은 것은 게이지 정수 */

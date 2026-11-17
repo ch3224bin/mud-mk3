@@ -28,9 +28,13 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static mudmk3.application.technique.provided.TechniqueRequestFixture.changchunRequest;
+import static mudmk3.application.technique.provided.TechniqueRequestFixture.withEffectLines;
+import static mudmk3.application.technique.provided.TechniqueRequestFixture.withStagePowers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -341,7 +345,7 @@ record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder tech
     void effectLinesCountFail() {
         AbilityRequest fireBall = changchunRequest("장춘공").abilities().getFirst();
 
-        for (List<String> lines : java.util.Arrays.asList(null, List.<String>of(),
+        for (List<String> lines : Arrays.asList(null, List.<String>of(),
                 List.of("가", "나", "다", "라", "마", "바"))) {
             TechniqueSaveRequest request = changchunRequestWith(withEffectLines(fireBall, lines));
             assertThatThrownBy(() -> techniqueEditor.create(request))
@@ -353,10 +357,7 @@ record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder tech
     @Test
     void missingStagePowersFail() {
         AbilityRequest fireBall = changchunRequest("장춘공").abilities().getFirst();
-        AbilityRequest noPowers = new AbilityRequest(fireBall.name(), fireBall.learnStage(), fireBall.kind(),
-                fireBall.elements(), fireBall.bodyRefining(), fireBall.target(), fireBall.costStat(),
-                fireBall.costAmount(), fireBall.costPerTick(), fireBall.castSeconds(), fireBall.cooldownSeconds(),
-                fireBall.usableWhen(), fireBall.effectLines(), null);
+        AbilityRequest noPowers = withStagePowers(fireBall, null);
 
         assertThatThrownBy(() -> techniqueEditor.create(changchunRequestWith(noPowers)))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -379,7 +380,7 @@ record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder tech
     @Test
     void nullInListsFail() {
         AbilityRequest fireBall = changchunRequest("장춘공").abilities().getFirst();
-        List<String> lines = new java.util.ArrayList<>();
+        List<String> lines = new ArrayList<>();
         lines.add(null);
 
         assertThatThrownBy(() -> withEffectLines(fireBall, lines))
@@ -391,13 +392,6 @@ record TechniqueEditorTest(TechniqueEditor techniqueEditor, TechniqueFinder tech
         TechniqueSaveRequest original = changchunRequest("장춘공");
         return new TechniqueSaveRequest(original.name(), original.description(), original.elements(),
                 original.startRealm(), original.stages(), List.of(fireBall));
-    }
-
-    private static AbilityRequest withEffectLines(AbilityRequest ability, @Nullable List<String> effectLines) {
-        return new AbilityRequest(ability.name(), ability.learnStage(), ability.kind(), ability.elements(),
-                ability.bodyRefining(), ability.target(), ability.costStat(), ability.costAmount(),
-                ability.costPerTick(), ability.castSeconds(), ability.cooldownSeconds(), ability.usableWhen(),
-                effectLines, ability.stagePowers());
     }
 
     /** 공법 정의 쪽 테스트라 익힌 공법은 캐릭터·익힌 행을 직접 넣어 만든다 */

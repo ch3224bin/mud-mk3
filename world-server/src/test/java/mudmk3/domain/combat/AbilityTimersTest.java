@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AbilityTimersTest {
 
@@ -39,6 +40,13 @@ class AbilityTimersTest {
         assertThat(timers.cooldownRemaining(FIREBALL, T.plusSeconds(3))).isEmpty();
         assertThat(timers.cooldownRemaining(new AbilityKey(2L, "화탄술"), T)).isEmpty();
         assertThat(timers.getCooldowns()).containsKeys(FIREBALL, BOLT);
+    }
+
+    @Test
+    void startCooldownNullFails() {
+        AbilityTimers timers = new AbilityTimers(7L);
+
+        assertThatThrownBy(() -> timers.startCooldown(FIREBALL, null, T)).isInstanceOf(NullPointerException.class);
     }
 
     @Test

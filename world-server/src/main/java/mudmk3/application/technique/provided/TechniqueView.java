@@ -1,6 +1,5 @@
 package mudmk3.application.technique.provided;
 
-import mudmk3.application.technique.provided.ScrollItem;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
 import mudmk3.domain.technique.Ability;

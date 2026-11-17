@@ -41,6 +41,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static mudmk3.application.game.provided.BaseGameTest.id;
 import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
@@ -257,10 +258,5 @@ class GameConnectorConcurrencyTest {
 
     private Long roomIdOf(Long accountId) {
         return characterFinder.findByAccountId(accountId).orElseThrow().getRoomId();
-    }
-
-    private static Long id(@Nullable Long id) {
-        if (id == null) throw new IllegalStateException("저장된 엔티티에 id가 없습니다");
-        return id;
     }
 }

@@ -87,7 +87,9 @@ class SpiritStonePaymentTest {
     }
 
     @Test
-    void highUsedUpMiddleBroken() {
+    void middleUsedUpHighBroken() {
+        // 중품 1개와 상품 1개(10,100)로 10,050 을 내면 중품을 다 쓰고도 모자라 상품을 깨고 50 을 거슬러 받는다.
+        // 하품 50개가 더 있어 10,150 이면 정확히 맞아 상품을 깨지 않는다
         SpiritStonePayment payment = SpiritStonePayment.plan(Map.of(MIDDLE, 1L, HIGH, 1L), 10_050).orElseThrow();
 
         assertThat(payment.paid()).isEqualTo(Map.of(MIDDLE, 1L, HIGH, 1L));

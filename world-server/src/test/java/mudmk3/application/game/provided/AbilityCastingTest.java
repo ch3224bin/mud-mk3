@@ -497,11 +497,4 @@ class AbilityCastingTest extends BaseGameTest {
                 .filter(mob -> mob.getProfile().name().equals(name))
                 .findFirst().orElseThrow();
     }
-
-    private List<String> textsTo(String sessionId) {
-        return sender.messagesTo(sessionId).stream()
-                .filter(SystemMessage.class::isInstance)
-                .map(message -> ((SystemMessage) message).text())
-                .toList();
-    }
 }

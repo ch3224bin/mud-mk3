@@ -3,6 +3,7 @@ package mudmk3.domain.shared;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -33,6 +34,15 @@ class DurationsTest {
         assertThat(korean("3900")).isEqualTo("1시간 5분");
         assertThat(korean("3659.5")).isEqualTo("1시간");
         assertThat(korean("7260")).isEqualTo("2시간 1분");
+    }
+
+    @Test
+    void remaining() {
+        assertThat(Durations.remaining(Duration.ofMillis(300))).isEqualTo("0.3초");
+        assertThat(Durations.remaining(Duration.ofMillis(1_350))).isEqualTo("1.4초");
+        assertThat(Durations.remaining(Duration.ofMillis(1))).isEqualTo("0.1초");
+        assertThat(Durations.remaining(Duration.ofMillis(59_950))).isEqualTo("1분");
+        assertThat(Durations.remaining(Duration.ofMillis(61_200))).isEqualTo("1분 2초");
     }
 
     private static String korean(String seconds) {

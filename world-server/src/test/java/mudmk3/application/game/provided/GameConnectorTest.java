@@ -82,6 +82,8 @@ import java.util.Map;
 
 import static mudmk3.application.technique.provided.TechniqueRequestFixture.changchunRequest;
 import static mudmk3.application.technique.provided.TechniqueRequestFixture.requestOf;
+import static mudmk3.application.technique.provided.TechniqueRequestFixture.withCooldown;
+import static mudmk3.application.technique.provided.TechniqueRequestFixture.withLearnStage;
 import static mudmk3.domain.character.CharacterFixture.createCharacter;
 import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
@@ -2073,11 +2075,6 @@ class GameConnectorTest extends BaseGameTest {
         assertError("a", "귀속 해제 비검", "무슨 말인지 모르겠습니다. ('도움말' 로 명령을 볼 수 있습니다)");
     }
 
-    private static Long id(@org.jspecify.annotations.Nullable Long id) {
-        if (id == null) throw new IllegalStateException("저장된 엔티티에 id가 없습니다");
-        return id;
-    }
-
     // ---- 저물탁 (4차)
 
     @Test
@@ -2688,19 +2685,5 @@ class GameConnectorTest extends BaseGameTest {
     private static TechniqueSaveRequest withStartRealm(TechniqueSaveRequest request, Realm startRealm) {
         return new TechniqueSaveRequest(request.name(), request.description(), request.elements(), startRealm,
                 request.stages(), request.abilities());
-    }
-
-    private static AbilityRequest withCooldown(AbilityRequest ability, BigDecimal cooldownSeconds) {
-        return new AbilityRequest(ability.name(), ability.learnStage(), ability.kind(), ability.elements(),
-                ability.bodyRefining(), ability.target(), ability.costStat(), ability.costAmount(),
-                ability.costPerTick(), ability.castSeconds(), cooldownSeconds, ability.usableWhen(),
-                ability.effectLines(), ability.stagePowers());
-    }
-
-    private static AbilityRequest withLearnStage(AbilityRequest ability, int learnStage) {
-        return new AbilityRequest(ability.name(), learnStage, ability.kind(), ability.elements(),
-                ability.bodyRefining(), ability.target(), ability.costStat(), ability.costAmount(),
-                ability.costPerTick(), ability.castSeconds(), ability.cooldownSeconds(), ability.usableWhen(),
-                ability.effectLines(), ability.stagePowers());
     }
 }

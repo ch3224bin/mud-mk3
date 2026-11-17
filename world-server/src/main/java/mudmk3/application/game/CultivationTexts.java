@@ -244,7 +244,7 @@ class CultivationTexts {
         Long techniqueId = technique.getId();
         if (timers == null || techniqueId == null) return "";
         return timers.cooldownRemaining(new AbilityKey(techniqueId, ability.getName()), now)
-                .map(remaining -> GAP + "(" + AbilityTexts.remaining(remaining) + " 남음)")
+                .map(remaining -> GAP + "(" + Durations.remaining(remaining) + " 남음)")
                 .orElse("");
     }
 

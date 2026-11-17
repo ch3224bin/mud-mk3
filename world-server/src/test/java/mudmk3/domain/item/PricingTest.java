@@ -68,6 +68,7 @@ class PricingTest {
 
     @Test
     void isFairSellPriceOverflowFail() {
+        // 반환값을 버리면 SpotBugs(RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT)가 막으므로 단언으로 받는다
         assertThatThrownBy(() -> assertThat(Pricing.isFairSellPrice(ItemCategory.PILL, 1, Long.MAX_VALUE / 10)).isTrue())
                 .isInstanceOf(ArithmeticException.class);
     }
