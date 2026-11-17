@@ -69,4 +69,9 @@ public record StatSheet(int qiBlood, double qiBloodCurrent, int mana, double man
     public double aptitude(Element element) {
         return aptitudes.getOrDefault(element, 0.0);
     }
+
+    /** 화면에 보이는 자질: 소수점을 버린다(52.9 → 52) */
+    public int aptitudeShown(Element element) {
+        return (int) Math.floor(aptitude(element));
+    }
 }

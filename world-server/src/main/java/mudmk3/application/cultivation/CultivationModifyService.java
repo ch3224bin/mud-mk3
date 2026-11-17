@@ -57,7 +57,7 @@ public class CultivationModifyService implements TechniqueReader, InsightEditor 
         if (contained.isEmpty()) {
             return new ReadResult.NoTechnique();
         }
-        // 담긴 공법의 단계·신통은 지연 로딩이라 정의 전체를 읽어 온다
+        // 아이템에 달린 공법은 프록시일 수 있어 공법을 다시 찾는다(속성까지 읽힘, 단계·신통은 이 트랜잭션 안에서 지연 로딩)
         Technique technique = techniqueFinder.find(requireNonNull(contained.get().getId()));
         PlayerCharacter character = characterFinder.find(characterId);
 

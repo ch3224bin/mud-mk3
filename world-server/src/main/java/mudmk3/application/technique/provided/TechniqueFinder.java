@@ -8,7 +8,7 @@ import java.util.Optional;
 /** 공법·신통 정의를 찾는다 */
 public interface TechniqueFinder {
 
-    /** 속성·단계·신통까지 읽힌 공법. 없으면 {@code IllegalArgumentException} */
+    /** 속성까지 읽힌 공법(단계·신통은 지연 로딩이라 부르는 쪽 트랜잭션 안에서 읽는다). 없으면 {@code IllegalArgumentException} */
     Technique find(Long techniqueId);
 
     /** 트랜잭션 안에서 만든 공법 보기 값 */

@@ -38,10 +38,6 @@ record CharacterTechniqueRepositoryTest(CharacterTechniqueRepository characterTe
         assertThat(characterTechniqueRepository.findAllByCharacterIdOrderByIdAsc(han.getId()))
                 .extracting(learned -> learned.getTechnique().getName(), CharacterTechnique::getStage)
                 .containsExactly(tuple("강체결", 1), tuple("청목결", 1), tuple("장춘공", 1));
-        assertThat(characterTechniqueRepository.existsByCharacterIdAndTechniqueId(yeo.getId(), changchun.getId()))
-                .isTrue();
-        assertThat(characterTechniqueRepository.existsByCharacterIdAndTechniqueId(yeo.getId(), ironBody.getId()))
-                .isFalse();
         assertThat(characterTechniqueRepository.countByCharacter()).containsExactlyInAnyOrder(
                 new LearnedCount(han.getId(), 3), new LearnedCount(yeo.getId(), 1));
     }

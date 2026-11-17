@@ -10,8 +10,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PricingTest {
 
     @Test
-    void defaultSellPrice() {
-        assertThat(Pricing.defaultSellPrice(ItemTypeFixture.createPill())).isEqualTo(3);
+    void sellPrice() {
+        assertThat(Pricing.sellPrice(null, ItemTypeFixture.createPill().getBaseValue())).isEqualTo(3);
+        assertThat(Pricing.sellPrice(7, 3)).isEqualTo(7);
     }
 
     @Test

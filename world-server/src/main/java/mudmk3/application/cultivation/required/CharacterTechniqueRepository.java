@@ -16,8 +16,6 @@ public interface CharacterTechniqueRepository extends Repository<CharacterTechni
     @EntityGraph(attributePaths = "technique")
     List<CharacterTechnique> findAllByCharacterIdOrderByIdAsc(Long characterId);
 
-    boolean existsByCharacterIdAndTechniqueId(Long characterId, Long techniqueId);
-
     /** 공법을 하나 이상 익힌 캐릭터마다 익힌 공법 수 */
     @Query("select new mudmk3.application.cultivation.required.LearnedCount(c.character.id, count(c)) "
             + "from CharacterTechnique c group by c.character.id")

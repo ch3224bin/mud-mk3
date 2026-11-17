@@ -1,6 +1,5 @@
 package mudmk3.adapter.webapi.dto;
 
-import mudmk3.adapter.webapi.dto.MobDetailResponse.StatsResponse;
 import mudmk3.application.mob.provided.MobTypeView;
 import mudmk3.domain.mob.MobKind;
 import mudmk3.domain.mob.MobTier;
@@ -14,14 +13,14 @@ public record MobSummaryResponse(
         String rankName,
         MobTier tier,
         String tierName,
-        StatsResponse stats,
+        MobStatsResponse stats,
         int effectiveRespawnSeconds,
         int placementCount
 ) {
 
     public static MobSummaryResponse of(MobTypeView view) {
         return new MobSummaryResponse(view.id(), view.name(), view.kind(), view.kindName(), view.rankName(),
-                view.tier(), view.tierName(), StatsResponse.of(view.stats()), view.effectiveRespawnSeconds(),
+                view.tier(), view.tierName(), MobStatsResponse.of(view.stats()), view.effectiveRespawnSeconds(),
                 view.placementCount());
     }
 }

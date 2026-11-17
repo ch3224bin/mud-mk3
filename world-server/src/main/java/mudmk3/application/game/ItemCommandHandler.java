@@ -1,7 +1,6 @@
 package mudmk3.application.game;
 
 import lombok.RequiredArgsConstructor;
-import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.cultivation.provided.ReadResult;
 import mudmk3.application.cultivation.provided.TechniqueReader;
 import mudmk3.application.floor.provided.RoomFloor;
@@ -77,7 +76,7 @@ class ItemCommandHandler {
     private static final int ITEMS_PER_LINE = 3;
 
     private final RoomFloor roomFloor;
-    private final CharacterFinder characterFinder;
+    private final CharacterRealms realms;
     private final InventoryFinder inventoryFinder;
     private final InventoryEditor inventoryEditor;
     private final NpcFinder npcFinder;
@@ -114,7 +113,7 @@ class ItemCommandHandler {
 
     private InventoryMessage inventory(OnlinePlayer player) {
         Inventory inventory = inventoryFinder.find(player.getCharacterId());
-        boolean braceletOpen = braceletOpen(player.getCharacterId());
+        boolean braceletOpen = realms.braceletOpen(player.getCharacterId());
         List<StoneView> stones = inventory.spiritStones().entrySet().stream()
                 .map(stone -> new StoneView(stone.getKey().itemName(), stone.getValue()))
                 .toList();
@@ -196,7 +195,7 @@ class ItemCommandHandler {
             send.accept(sessionId, SystemMessage.error(tooMany(name, stack.count())));
             return;
         }
-        boolean braceletOpen = braceletOpen(player.getCharacterId());
+        boolean braceletOpen = realms.braceletOpen(player.getCharacterId());
         Inventory inventory = inventoryFinder.find(player.getCharacterId());
         int room = inventory.roomFor(itemType, braceletOpen);
         if (room == 0) {
@@ -257,7 +256,7 @@ class ItemCommandHandler {
 
         Long itemTypeId = requireNonNull(itemType.getId());
         RemoveCheck check = inventoryEditor.remove(player.getCharacterId(), itemTypeId, count,
-                braceletOpen(player.getCharacterId()));
+                realms.braceletOpen(player.getCharacterId()));
         if (check != RemoveCheck.OK) {
             send.accept(sessionId, SystemMessage.error(check == RemoveCheck.BRACELET_IN_USE ? BRACELET_IN_USE : BAG_IN_USE));
             return;
@@ -296,7 +295,7 @@ class ItemCommandHandler {
             ItemType itemType = target.itemType();
             MobInstance mob = target.mob();
             if (mob != null) {
-                Realm viewerRealm = characterFinder.find(player.getCharacterId()).getRealm();
+                Realm viewerRealm = realms.realm(player.getCharacterId());
                 send.accept(sessionId, SystemMessage.info(combatTexts.lookMob(mob, viewerRealm)));
             } else {
                 send.accept(sessionId, itemType == null ? SystemMessage.info(NO_DETAILED_LOOK) : describe(itemType));
@@ -412,7 +411,7 @@ class ItemCommandHandler {
         String receiverName = receiver.getName();
         GiveResult result = inventoryEditor.give(player.getCharacterId(), receiver.getCharacterId(),
                 requireNonNull(itemType.getId()), count,
-                braceletOpen(player.getCharacterId()), braceletOpen(receiver.getCharacterId()));
+                realms.braceletOpen(player.getCharacterId()), realms.braceletOpen(receiver.getCharacterId()));
         switch (result) {
             case GIVER_BAG_IN_USE -> send.accept(sessionId, SystemMessage.error(BAG_IN_USE));
             case GIVER_BRACELET_IN_USE -> send.accept(sessionId, SystemMessage.error(BRACELET_IN_USE));
@@ -452,11 +451,6 @@ class ItemCommandHandler {
     }
 
     // ---- 공통
-
-    /** 그 캐릭터의 저물탁 칸이 열렸는지(경지가 축기 초기 이상). 경지는 메모리에 두지 않고 DB에서 읽는다 */
-    boolean braceletOpen(Long characterId) {
-        return characterFinder.find(characterId).getRealm().opensBracelet();
-    }
 
     /** 소지품(표시 순서)에서 이름으로 고른다(D46 — 버리기·주기·팔기·값). 종류마다 묶음이 하나뿐이다 */
     static Optional<InventoryEntry> selectHeld(Inventory inventory, ItemQuery query) {

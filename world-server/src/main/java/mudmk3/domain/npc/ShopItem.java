@@ -22,6 +22,6 @@ public record ShopItem(Long itemTypeId, @Nullable Integer price) {
 
     /** 실제로 파는 값: 정한 값, 없으면 지금 기준가로 계산한 값 */
     public long effectivePrice(ItemType itemType) {
-        return price != null ? price : Pricing.defaultSellPrice(itemType);
+        return Pricing.sellPrice(price, itemType.getBaseValue());
     }
 }

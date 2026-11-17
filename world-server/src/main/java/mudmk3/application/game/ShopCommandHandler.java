@@ -1,7 +1,6 @@
 package mudmk3.application.game;
 
 import lombok.RequiredArgsConstructor;
-import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.game.GameSession.PendingPurchase;
 import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
@@ -73,7 +72,7 @@ class ShopCommandHandler {
     private final ItemTypeFinder itemTypeFinder;
     private final InventoryFinder inventoryFinder;
     private final InventoryEditor inventoryEditor;
-    private final CharacterFinder characterFinder;
+    private final CharacterRealms realms;
     private final CombatEngine combatEngine;
     private final Clock clock;
 
@@ -216,7 +215,7 @@ class ShopCommandHandler {
         Long itemTypeId = requireNonNull(itemType.getId());
         long total = Math.multiplyExact(offer.price(), count);
         PurchaseResult result = inventoryEditor.purchase(player.getCharacterId(), itemTypeId, count, total, confirmed,
-                braceletOpen(player));
+                realms.braceletOpen(player.getCharacterId()));
         switch (result) {
             case PurchaseResult.Bought _ -> reply.item(Josa.withEulReul(things(itemType, count))
                     + " 샀습니다. (하품 영석 -" + Numbers.count(total) + ")");
@@ -241,9 +240,8 @@ class ShopCommandHandler {
     private static String confirmQuestion(List<SpiritStoneGrade> broken, long change) {
         String stones = broken.stream().map(grade -> grade.itemName() + " 1개").collect(Collectors.joining(", "));
         StringBuilder text = new StringBuilder("값을 치르려면 ").append(Josa.withEulReul(stones)).append(" 깨야 합니다.");
-        if (change > 0) {
-            text.append(" 거스름 하품 ").append(Numbers.count(change)).append("개를 받습니다.");
-        }
+        // 깨는 돌이 있으면 거스름은 늘 1 이상이다(SpiritStonePayment.brokenHighGrades 는 change 가 0 이면 비어 있다)
+        text.append(" 거스름 하품 ").append(Numbers.count(change)).append("개를 받습니다.");
         return text.append(" 계속하려면 '확인'.").toString();
     }
 
@@ -332,7 +330,7 @@ class ShopCommandHandler {
             return;
         }
         SaleResult result = inventoryEditor.sell(player.getCharacterId(), requireNonNull(itemType.getId()), count, payout,
-                braceletOpen(player));
+                realms.braceletOpen(player.getCharacterId()));
         switch (result) {
             case SOLD -> reply.item(Josa.withEulReul(things(itemType, count))
                     + " 팔았습니다. (하품 영석 +" + Numbers.count(payout) + ")");
@@ -407,19 +405,9 @@ class ShopCommandHandler {
         return npc.findShopKind().orElseThrow(() -> new IllegalStateException("상점이 아닙니다: " + npc.getName()));
     }
 
-    /** 지금 경지. 메모리에 두지 않고 명령마다 DB에서 읽는다(관리 툴 지정이 바로 보이게) */
-    private Realm realmOf(OnlinePlayer player) {
-        return characterFinder.find(player.getCharacterId()).getRealm();
-    }
-
-    /** 저물탁 칸이 열렸는지(경지가 축기 초기 이상) */
-    private boolean braceletOpen(OnlinePlayer player) {
-        return realmOf(player).opensBracelet();
-    }
-
     /** 범인이면 막힘 문구를 보내고 true(D68 — 다른 검사보다 먼저) */
     private boolean blockedAsMortal(OnlinePlayer player, Reply reply) {
-        if (realmOf(player) != Realm.MORTAL) return false;
+        if (realms.realm(player.getCharacterId()) != Realm.MORTAL) return false;
         reply.error(MORTAL_BLOCKED);
         return true;
     }

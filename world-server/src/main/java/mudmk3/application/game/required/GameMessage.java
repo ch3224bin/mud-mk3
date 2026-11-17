@@ -161,7 +161,7 @@ public sealed interface GameMessage {
                     .orElseThrow(() -> new IllegalStateException("영근을 아직 정하지 않은 캐릭터입니다. id: " + character.getId()));
             List<RootView> roots = root.entries().stream()
                     .map(entry -> new RootView(entry.element().name(), entry.element().koreanName(),
-                            (int) Math.floor(stats.aptitude(entry.element()))))
+                            stats.aptitudeShown(entry.element())))
                     .toList();
             OptionalInt required = realm.requiredCultivation();
             return new StatusMessage(

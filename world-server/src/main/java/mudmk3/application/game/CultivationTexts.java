@@ -57,7 +57,7 @@ class CultivationTexts {
         SpiritRoot root = character.findSpiritRoot()
                 .orElseThrow(() -> new IllegalStateException("영근을 아직 정하지 않은 캐릭터입니다. id: " + character.getId()));
         String aptitudes = root.entries().stream()
-                .map(entry -> entry.element().koreanName() + " " + (int) Math.floor(stats.aptitude(entry.element())))
+                .map(entry -> entry.element().koreanName() + " " + stats.aptitudeShown(entry.element()))
                 .collect(Collectors.joining(", "));
 
         List<String> lines = new ArrayList<>();

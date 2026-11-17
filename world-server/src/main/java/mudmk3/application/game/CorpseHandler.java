@@ -1,7 +1,6 @@
 package mudmk3.application.game;
 
 import lombok.RequiredArgsConstructor;
-import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.game.required.CorpseRepository;
 import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.NoticeMessage;
@@ -51,7 +50,7 @@ class CorpseHandler {
     private final MobTypeFinder mobTypeFinder;
     private final ItemTypeFinder itemTypeFinder;
     private final InventoryEditor inventoryEditor;
-    private final CharacterFinder characterFinder;
+    private final CharacterRealms realms;
     private final RandomGenerator random;
     private final CombatTexts combatTexts;
 
@@ -124,7 +123,7 @@ class CorpseHandler {
 
         Map<Long, ItemType> itemTypes = itemTypeFinder.findAllById(
                 corpse.getRemaining().stream().map(DropLine::itemTypeId).toList());
-        boolean braceletOpen = characterFinder.find(characterId).getRealm().opensBracelet();
+        boolean braceletOpen = realms.braceletOpen(characterId);
         List<String> collected = new ArrayList<>();
         int index = 0;
         while (index < corpse.getRemaining().size()) {

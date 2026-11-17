@@ -44,6 +44,16 @@ class StatSheetTest {
     }
 
     @Test
+    void aptitudeShownFloors() {
+        StatSheet stats = new StatSheet(60, 60, 25, 25, 20, 20, 5, 6, 3,
+                Map.of(Element.WOOD, 52.9, Element.FIRE, 50.0));
+
+        assertThat(stats.aptitudeShown(Element.WOOD)).isEqualTo(52);
+        assertThat(stats.aptitudeShown(Element.FIRE)).isEqualTo(50);
+        assertThat(stats.aptitudeShown(Element.WATER)).isZero();
+    }
+
+    @Test
     void changchunThirdStageSumsStages() {
         StatSheet stats = StatSheet.of(Realm.QI_1, root("목 화"), List.of(learned(changchun(), 3)), 0, 0);
 

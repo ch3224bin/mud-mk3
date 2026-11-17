@@ -1,5 +1,7 @@
 package mudmk3.domain.item;
 
+import org.jspecify.annotations.Nullable;
+
 import java.math.BigDecimal;
 
 /** 상점 값 계산(룰북 item.md 상점에서 사고팔기). 3차 물건은 모두 하계라 판매가 배율 1, 매입 배율 1.0 이다 */
@@ -8,9 +10,9 @@ public final class Pricing {
     private Pricing() {
     }
 
-    /** 상점이 값을 정하지 않았을 때의 판매가 = 기준가 */
-    public static long defaultSellPrice(ItemType itemType) {
-        return itemType.getBaseValue();
+    /** 실제로 파는 값: 상점이 정한 값, 없으면(null) 기준가 */
+    public static long sellPrice(@Nullable Integer price, long baseValue) {
+        return price != null ? price : baseValue;
     }
 
     /** 개당 매입가 = 기준가 × 매입 비율 / 100 (사지 않는 종류는 0) */
