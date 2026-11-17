@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { RoomMessage } from "./protocol";
+import { insightWith, zeroInsight } from "../testFixtures";
+import type { NoticeMessage, Occupant, RoomMessage, SystemMessage } from "./protocol";
 import { echoLine, renderMessage } from "./render";
 
 function roomMessage(overrides: Partial<RoomMessage> = {}): RoomMessage {
@@ -235,14 +236,7 @@ describe("renderMessage", () => {
         strength: 3,
       },
       cultivation: { current: 0, required: 190 },
-      insight: [
-        { kind: "METAL", name: "금", amount: 0 },
-        { kind: "WOOD", name: "목", amount: 0 },
-        { kind: "WATER", name: "수", amount: 0 },
-        { kind: "FIRE", name: "화", amount: 0 },
-        { kind: "EARTH", name: "토", amount: 0 },
-        { kind: "BODY", name: "연체", amount: 0 },
-      ],
+      insight: zeroInsight(),
       text:
         "한백 · 연기 1층 · 목·화 진영근 (목 50, 화 50)\n" +
         "기혈  60 / 60     법력  25 / 25\n" +
@@ -279,14 +273,7 @@ describe("renderMessage", () => {
         strength: 1,
       },
       cultivation: null,
-      insight: [
-        { kind: "METAL", name: "금", amount: 0 },
-        { kind: "WOOD", name: "목", amount: 0 },
-        { kind: "WATER", name: "수", amount: 0 },
-        { kind: "FIRE", name: "화", amount: 0 },
-        { kind: "EARTH", name: "토", amount: 0 },
-        { kind: "BODY", name: "연체", amount: 0 },
-      ],
+      insight: zeroInsight(),
       text: "한백 · 범인 · 화 천영근 (화 100)\n기혈  10 / 10     법력  0 / 0",
       tone: "status",
     });
@@ -362,14 +349,7 @@ describe("renderMessage", () => {
         strength: 3,
       },
       cultivation: { current: 0, required: 190 },
-      insight: [
-        { kind: "METAL", name: "금", amount: 0 },
-        { kind: "WOOD", name: "목", amount: 0 },
-        { kind: "WATER", name: "수", amount: 0 },
-        { kind: "FIRE", name: "화", amount: 1234 },
-        { kind: "EARTH", name: "토", amount: 0 },
-        { kind: "BODY", name: "연체", amount: 0 },
-      ],
+      insight: insightWith("FIRE", 1234),
       text: "기혈  60 / 60     법력  20 / 25\n깨달음  금 0 · 목 0 · 수 0 · 화 1,234 · 토 0 · 연체 0",
       tone: "status",
     });
@@ -391,6 +371,10 @@ describe("renderMessage", () => {
         tone: "combat",
       }),
     ).toEqual([{ text: "손끝에서 붉은 불덩이가 피어올라 청모랑을 덮친다! (피해 8, 법력 20/25)", style: "combat" }]);
+    // 서버 AbilityTexts.SCATTERED 그대로
+    expect(renderMessage({ type: "system", text: "펼치던 술법이 갈 곳을 잃고 흩어진다.", tone: "combat" })).toEqual([
+      { text: "펼치던 술법이 갈 곳을 잃고 흩어진다.", style: "combat" },
+    ]);
     expect(renderMessage({ type: "system", text: "펼치던 술법을 거두었습니다.", tone: "combat" })).toEqual([
       { text: "펼치던 술법을 거두었습니다.", style: "combat" },
     ]);
@@ -512,5 +496,28 @@ describe("renderMessage", () => {
 describe("echoLine", () => {
   it("입력 줄 앞에 '> ' 를 붙인다", () => {
     expect(echoLine("북")).toEqual({ text: "> 북", style: "echo" });
+  });
+});
+
+describe("서버 값 전수 검사", () => {
+  // Record 라서 protocol 에 값이 늘면 여기서 타입 오류가 난다. 서버 GameMessage 의 tone·kind 목록과 같다.
+  const occupantStyles = { player: "occupant", npc: "npc" } satisfies Record<Occupant["kind"], string>;
+  const systemTones = { info: 1, error: 1, item: 1, growth: 1, combat: 1 } satisfies Record<SystemMessage["tone"], 1>;
+  const noticeTones = { movement: 1, item: 1, combat: 1 } satisfies Record<NoticeMessage["tone"], 1>;
+
+  it.each(Object.entries(occupantStyles))("room: occupant kind %s 는 style %s", (kind, style) => {
+    const lines = renderMessage(roomMessage({ occupants: [{ name: "누군가", kind: kind as Occupant["kind"] }] }));
+
+    expect(lines.at(-1)).toEqual({ text: "누군가", style });
+  });
+
+  it.each(Object.keys(systemTones) as SystemMessage["tone"][])("system tone %s 는 그 이름의 style", (tone) => {
+    expect(renderMessage({ type: "system", text: "글", tone })).toEqual([{ text: "글", style: tone }]);
+  });
+
+  it.each(Object.keys(noticeTones) as NoticeMessage["tone"][])("notice tone %s 는 그 이름의 style", (tone) => {
+    expect(renderMessage({ type: "notice", text: "글", tone, actor: "한립", event: "pick" })).toEqual([
+      { text: "글", style: tone },
+    ]);
   });
 });

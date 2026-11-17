@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { zeroInsight } from "../testFixtures";
 import type { GameSocketHandlers } from "../lib/gameSocket";
 import type { ServerMessage } from "../lib/protocol";
 import Terminal from "./Terminal";
@@ -253,6 +254,51 @@ describe("Terminal", () => {
     expect(input).toHaveValue("주기 한립 비검");
   });
 
+  it("다시 연결하면 소지품 이름 후보가 빈다", async () => {
+    const user = userEvent.setup();
+    const { connection, input } = renderTerminal();
+    connection.receive({
+      type: "inventory",
+      usedSlots: 1,
+      totalSlots: 20,
+      stones: [],
+      items: [{ name: "비검", count: 1 }],
+      text: "[소지품 1/20칸]\n비검",
+      tone: "item",
+    });
+    await user.type(input, "주기 한립 비");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("주기 한립 비검");
+    connection.serverClose(1000);
+
+    await user.click(screen.getByRole("button", { name: "다시 연결" }));
+    await user.clear(input);
+    await user.type(input, "주기 한립 비");
+    await user.keyboard("{Tab}");
+
+    expect(input).toHaveValue("주기 한립 비");
+  });
+
+  it("처치·재등장 notice 가 와도 자동완성 후보는 바뀌지 않는다", async () => {
+    const user = userEvent.setup();
+    const { connection, input } = renderTerminal();
+    connection.receive({ ...room, mobs: [{ name: "청모랑", rank: "1급", tier: null, count: 1, fighting: false }] });
+    connection.receive({ type: "notice", text: "한립이 청모랑을 쓰러뜨린다.", tone: "combat", actor: "한립", event: "kill" });
+    connection.receive({ type: "notice", text: "청모랑이 다시 나타난다.", tone: "combat", actor: "청모랑", event: "respawn" });
+
+    await user.type(input, "공격 ");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("공격 ");
+    await user.clear(input);
+    await user.type(input, "공격 청");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("공격 청모랑");
+    await user.clear(input);
+    await user.type(input, "말하기 한");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("말하기 한립");
+  });
+
   it("status 는 줄마다 status, system growth 는 growth 로 그린다", () => {
     const { connection } = renderTerminal();
 
@@ -271,14 +317,7 @@ describe("Terminal", () => {
         strength: 1,
       },
       cultivation: null,
-      insight: [
-        { kind: "METAL", name: "금", amount: 0 },
-        { kind: "WOOD", name: "목", amount: 0 },
-        { kind: "WATER", name: "수", amount: 0 },
-        { kind: "FIRE", name: "화", amount: 0 },
-        { kind: "EARTH", name: "토", amount: 0 },
-        { kind: "BODY", name: "연체", amount: 0 },
-      ],
+      insight: zeroInsight(),
       text: "한백 · 범인 · 화 천영근 (화 100)\n기혈  10 / 10     법력  0 / 0",
       tone: "status",
     });
@@ -382,5 +421,53 @@ describe("Terminal", () => {
     unmount();
 
     expect(connection.close).toHaveBeenCalled();
+  });
+
+  describe("자동 스크롤", () => {
+    /** jsdom 은 레이아웃이 없어 로그의 크기·스크롤 위치를 직접 정한다. */
+    function stubLayout(log: HTMLElement, scrollTop: number) {
+      let top = scrollTop;
+      Object.defineProperty(log, "scrollHeight", { configurable: true, get: () => 1000 });
+      Object.defineProperty(log, "clientHeight", { configurable: true, get: () => 100 });
+      Object.defineProperty(log, "scrollTop", { configurable: true, get: () => top, set: (value: number) => (top = value) });
+    }
+
+    function notice(text: string): ServerMessage {
+      return { type: "system", text, tone: "info" };
+    }
+
+    it("keepsScrollWhenReadingUp: 위로 올려 읽는 중이면 새 줄이 와도 scrollTop 그대로", () => {
+      const { connection } = renderTerminal();
+      const log = screen.getByRole("log");
+      connection.receive(notice("첫 줄"));
+      stubLayout(log, 300);
+
+      connection.receive(notice("새 줄"));
+
+      expect(log.scrollTop).toBe(300);
+    });
+
+    it("바닥에 붙어 있었으면 새 줄이 와도 바닥으로 내린다", () => {
+      const { connection } = renderTerminal();
+      const log = screen.getByRole("log");
+      connection.receive(notice("첫 줄"));
+      stubLayout(log, 900);
+
+      connection.receive(notice("새 줄"));
+
+      expect(log.scrollTop).toBe(1000);
+    });
+
+    it("위로 올려 읽다가 명령을 보내면 바닥으로 내린다", async () => {
+      const user = userEvent.setup();
+      const { connection, input } = renderTerminal();
+      const log = screen.getByRole("log");
+      connection.receive(notice("첫 줄"));
+      stubLayout(log, 300);
+
+      await user.type(input, "북{Enter}");
+
+      expect(log.scrollTop).toBe(1000);
+    });
   });
 });

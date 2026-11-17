@@ -38,14 +38,17 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
   const history = useRef(new CommandHistory());
   const completer = useRef(new Completer());
   const logRef = useRef<HTMLDivElement>(null);
+  /** 새 줄을 붙이기 전에 바닥 근처였는가. 위로 올려 읽는 중이면 새 줄이 와도 내리지 않는다. */
+  const stickToBottom = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const onUnauthorizedRef = useRef(onUnauthorized);
   onUnauthorizedRef.current = onUnauthorized;
   const connectRef = useRef(connect);
   connectRef.current = connect;
 
-  function append(newLines: OutputLine[]) {
+  function append(newLines: OutputLine[], forceBottom = false) {
     if (newLines.length === 0) return;
+    stickToBottom.current = forceBottom || isNearBottom(logRef.current);
     setLines((previous) => {
       const next = previous.concat(newLines.map((line) => ({ ...line, id: nextId.current++ })));
       return next.length > MAX_LINES ? next.slice(-MAX_LINES) : next;
@@ -81,7 +84,7 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
 
   useEffect(() => {
     const log = logRef.current;
-    if (log) {
+    if (log && stickToBottom.current) {
       log.scrollTop = log.scrollHeight;
     }
   }, [lines]);
@@ -104,7 +107,7 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
       return;
     }
     history.current.push(text);
-    append([echoLine(text)]);
+    append([echoLine(text)], true);
     connection.current.sendCommand(text);
   }
 
@@ -176,6 +179,13 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
       </div>
     </div>
   );
+}
+
+/** 남은 거리(바닥까지)가 마지막 줄 높이 이하이면 바닥 근처다. 로그가 없으면 바닥이다. */
+function isNearBottom(log: HTMLElement | null): boolean {
+  if (log === null) return true;
+  const lineHeight = log.lastElementChild instanceof HTMLElement ? log.lastElementChild.offsetHeight : 0;
+  return log.scrollHeight - log.scrollTop - log.clientHeight <= lineHeight;
 }
 
 /**
