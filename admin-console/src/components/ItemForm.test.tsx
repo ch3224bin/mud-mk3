@@ -253,6 +253,19 @@ describe("ItemForm", () => {
       "쓰이는 물건은 종류·저물대 등급을 바꿀 수 없습니다: 회춘단",
     );
   });
+
+  it("zeroCountShowsServerDetail: 기준가 0·음수도 브라우저가 막지 않고 서버 detail 을 보인다", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockRejectedValue(new ApiError(400, "기준가는 0 이상이어야 합니다."));
+    render(<ItemForm initial={itemType()} onSubmit={onSubmit} />);
+
+    await user.clear(screen.getByLabelText("기준가 (하품)"));
+    await user.type(screen.getByLabelText("기준가 (하품)"), "-1");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(onSubmit).toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent("기준가는 0 이상이어야 합니다.");
+  });
 });
 
 function technique(id: number, name: string): TechniqueSummaryResponse {

@@ -97,7 +97,7 @@ describe("AbilityTable", () => {
     const user = userEvent.setup();
     render(<Harness initial={[{ ...newAbility(9), name: "화탄술" }, { ...newAbility(9), name: "천안술" }]} />);
 
-    await user.click(screen.getAllByRole("button", { name: "삭제" })[0]);
+    await user.click(screen.getByRole("button", { name: "화탄술 삭제" }));
 
     expect(screen.getAllByLabelText("신통 이름").map((input) => (input as HTMLInputElement).value)).toEqual(["천안술"]);
   });

@@ -182,7 +182,6 @@ export default function AbilityTable({ abilities, stageCount, onChange }: Props)
                         </select>
                         <input
                           type="number"
-                          min={0}
                           step="any"
                           className="number"
                           aria-label="소모 양"
@@ -202,7 +201,6 @@ export default function AbilityTable({ abilities, stageCount, onChange }: Props)
                     <td>
                       <input
                         type="number"
-                        min={0}
                         step="any"
                         className="number"
                         aria-label="시전(초)"
@@ -213,7 +211,6 @@ export default function AbilityTable({ abilities, stageCount, onChange }: Props)
                     <td>
                       <input
                         type="number"
-                        min={0}
                         step="any"
                         className="number"
                         aria-label="대기(초)"
@@ -239,7 +236,11 @@ export default function AbilityTable({ abilities, stageCount, onChange }: Props)
                         <button type="button" onClick={() => toggle(index)}>
                           {expanded.has(index) ? "접기" : "자세히"}
                         </button>
-                        <button type="button" onClick={() => remove(index)}>
+                        <button
+                          type="button"
+                          onClick={() => remove(index)}
+                          aria-label={ability.name ? `${ability.name} 삭제` : `신통 ${index + 1} 삭제`}
+                        >
                           삭제
                         </button>
                         {ability.usableInGame === false && <span className="muted">(게임에서 아직 쓸 수 없음)</span>}

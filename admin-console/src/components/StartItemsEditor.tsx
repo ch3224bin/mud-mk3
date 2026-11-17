@@ -79,7 +79,7 @@ export default function StartItemsEditor({ itemTypes, initial, onSave }: Props) 
                     수
                     <input
                       type="number"
-                      min={1}
+                      step="any"
                       value={row.count}
                       onChange={(e) => change(index, { count: e.target.value })}
                     />

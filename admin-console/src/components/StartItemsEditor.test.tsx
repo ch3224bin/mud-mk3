@@ -101,4 +101,17 @@ describe("StartItemsEditor", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("같은 물건이 두 번 있습니다: 하품 영석");
     expect(screen.queryByText("저장했습니다.")).not.toBeInTheDocument();
   });
+
+  it("zeroCountShowsServerDetail: 수 0 도 브라우저가 막지 않고 서버 detail 을 보인다", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockRejectedValue(new ApiError(400, "수는 1 이상이어야 합니다."));
+    render(<StartItemsEditor itemTypes={itemTypes} initial={[{ itemTypeId: 5, count: 1 }]} onSave={onSave} />);
+
+    await user.clear(screen.getByLabelText("수"));
+    await user.type(screen.getByLabelText("수"), "0");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(onSave).toHaveBeenCalledWith([{ itemTypeId: 5, count: 0 }]);
+    expect(await screen.findByRole("alert")).toHaveTextContent("수는 1 이상이어야 합니다.");
+  });
 });

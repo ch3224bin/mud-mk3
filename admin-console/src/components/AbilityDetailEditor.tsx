@@ -60,6 +60,7 @@ export default function AbilityDetailEditor({ ability, stageCount, onChange }: P
           <button
             type="button"
             disabled={lines.length <= 1}
+            aria-label={`이펙트 문장 ${index + 1} 삭제`}
             onClick={() => onChange({ effectLines: lines.filter((_, i) => i !== index) })}
           >
             삭제

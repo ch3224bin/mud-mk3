@@ -51,7 +51,7 @@ export default function StageTable({ stages, onChange }: Props) {
                     ) : (
                       <input
                         type="number"
-                        min={0}
+                        step="any"
                         className="number"
                         aria-label={`${stageLabel(index + 1)} ${field.label}`}
                         value={stage[field.key]}

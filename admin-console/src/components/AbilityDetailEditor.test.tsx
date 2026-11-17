@@ -39,14 +39,14 @@ describe("AbilityDetailEditor", () => {
     const user = userEvent.setup();
     render(<Harness initial={newAbility(3)} />);
 
-    expect(screen.getByRole("button", { name: "삭제" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "이펙트 문장 1 삭제" })).toBeDisabled();
     for (let i = 0; i < 4; i++) {
       await user.click(screen.getByRole("button", { name: "문장 추가" }));
     }
 
     expect(lineValues()).toHaveLength(5);
     expect(screen.getByRole("button", { name: "문장 추가" })).toBeDisabled();
-    for (const button of screen.getAllByRole("button", { name: "삭제" })) {
+    for (const button of screen.getAllByRole("button", { name: /^이펙트 문장 \d 삭제$/ })) {
       expect(button).toBeEnabled();
     }
   });
@@ -56,7 +56,7 @@ describe("AbilityDetailEditor", () => {
     render(<Harness initial={{ ...newAbility(3), effectLines: ["불이 인다.", "{대상}을 덮친다!"] }} />);
 
     await user.type(screen.getByLabelText("이펙트 문장 2"), "!");
-    await user.click(screen.getAllByRole("button", { name: "삭제" })[0]);
+    await user.click(screen.getByRole("button", { name: "이펙트 문장 1 삭제" }));
 
     expect(lineValues()).toEqual(["{대상}을 덮친다!!"]);
   });

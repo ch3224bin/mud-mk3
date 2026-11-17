@@ -156,4 +156,17 @@ describe("ShopEditor", () => {
     );
     expect(screen.queryByText("저장했습니다.")).not.toBeInTheDocument();
   });
+
+  it("zeroCountShowsServerDetail: 값 0 도 브라우저가 막지 않고 서버 detail 을 보인다", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.saveShop).mockRejectedValue(new api.ApiError(400, "값은 1 이상이어야 합니다."));
+    render(<ShopEditor npc={pillShop} itemTypes={itemTypes} onNpcChange={vi.fn()} />);
+
+    await user.clear(screen.getByLabelText("값 (하품)"));
+    await user.type(screen.getByLabelText("값 (하품)"), "0");
+    await user.click(screen.getByRole("button", { name: "상점 저장" }));
+
+    expect(api.saveShop).toHaveBeenCalledWith(4, { kind: "PILL_SHOP", items: [{ itemTypeId: 7, price: 0 }] });
+    expect(await screen.findByRole("alert")).toHaveTextContent("값은 1 이상이어야 합니다.");
+  });
 });

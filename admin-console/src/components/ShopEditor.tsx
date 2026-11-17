@@ -138,7 +138,7 @@ export default function ShopEditor({ npc, itemTypes, onNpcChange }: Props) {
                             값 (하품)
                             <input
                               type="number"
-                              min={1}
+                              step="any"
                               value={row.price}
                               placeholder={itemType ? `기준가 ${formatCount(itemType.baseValue)}` : undefined}
                               onChange={(e) => change(index, { price: e.target.value })}

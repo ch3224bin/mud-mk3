@@ -160,5 +160,17 @@ describe("FloorItemsEditor", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("물건 종류를 찾을 수 없습니다. id: 1");
   });
-});
 
+  it("zeroCountShowsServerDetail: 수 0 도 브라우저가 막지 않고 서버 detail 을 보인다", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.createFloorItem).mockRejectedValue(new api.ApiError(400, "수는 1 이상이어야 합니다."));
+    render(<FloorItemsEditor room={room([])} itemTypes={itemTypes} onRoomChange={vi.fn()} />);
+
+    await user.clear(screen.getByLabelText("수"));
+    await user.type(screen.getByLabelText("수"), "0");
+    await user.click(screen.getByRole("button", { name: "바닥에 두기" }));
+
+    expect(api.createFloorItem).toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent("수는 1 이상이어야 합니다.");
+  });
+});

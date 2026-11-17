@@ -209,7 +209,7 @@ function DraftFields({
         수
         <input
           type="number"
-          min={1}
+          step="any"
           value={draft.count}
           onChange={(e) => onChange({ ...draft, count: e.target.value })}
         />
@@ -218,7 +218,7 @@ function DraftFields({
         재등장(분)
         <input
           type="number"
-          min={1}
+          step="any"
           value={draft.respawnMinutes}
           onChange={(e) => onChange({ ...draft, respawnMinutes: e.target.value })}
         />

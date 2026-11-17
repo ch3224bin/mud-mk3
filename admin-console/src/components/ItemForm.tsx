@@ -123,7 +123,7 @@ export default function ItemForm({ initial, techniques = [], onSubmit }: Props) 
         기준가 (하품)
         <input
           type="number"
-          min={0}
+          step="any"
           value={baseValue}
           disabled={readOnly}
           onChange={(e) => setBaseValue(e.target.value)}
