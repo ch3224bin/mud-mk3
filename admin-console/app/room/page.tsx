@@ -43,6 +43,8 @@ function RoomView() {
   const [itemTypes, setItemTypes] = useState<ItemTypeResponse[]>([]);
   const [mobs, setMobs] = useState<MobSummaryResponse[]>([]);
   const [worldVersion, setWorldVersion] = useState(0);
+  // 저장하면 서버가 다듬은 값(이름 앞뒤 공백 등)으로 방 정보 폼을 다시 연다.
+  const [savedCount, setSavedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,6 +67,7 @@ function RoomView() {
 
   async function handleUpdate(request: RoomSaveRequest) {
     setRoom(await updateRoom(roomId, request));
+    setSavedCount((n) => n + 1);
     setWorldVersion((v) => v + 1);
   }
 
@@ -121,7 +124,7 @@ function RoomView() {
             </div>
             <h2>방 정보</h2>
             <RoomForm
-              key={room.id}
+              key={`${room.id}-${savedCount}`}
               zones={zones}
               submitLabel="저장"
               initial={{ zoneId: room.zoneId, name: room.name, description: room.description }}

@@ -23,6 +23,7 @@ import {
   listRealms,
   listTechniques,
   listZones,
+  onUnauthorized,
   putExit,
   saveShop,
   saveStartingItems,
@@ -469,5 +470,46 @@ describe("몹", () => {
     await expect(deleteMobPlacement(21)).resolves.toBeUndefined();
     expect(lastCall().url).toBe("http://localhost:8080/api/admin/mob-placements/21");
     expect(lastCall().init.method).toBe("DELETE");
+  });
+});
+
+describe("onUnauthorized", () => {
+  it("로그인 뒤 요청이 401 이면 처리기를 부르고 ApiError 를 던진다", async () => {
+    const handler = vi.fn();
+    const off = onUnauthorized(handler);
+    fetchMock.mockResolvedValue(jsonResponse(401, { status: 401, detail: "로그인이 필요합니다." }));
+
+    const error = await updateZone(2, { name: "청석숲", description: "", ownerId: null }).catch((e) => e);
+    off();
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.status).toBe(401);
+    expect(error.detail).toBe("로그인이 필요합니다.");
+  });
+
+  it("로그인 확인·로그아웃의 401 과 401 이 아닌 실패에는 부르지 않는다", async () => {
+    const handler = vi.fn();
+    const off = onUnauthorized(handler);
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(401, { detail: "로그인이 필요합니다." }));
+    await apiFetch("/api/auth/me").catch(() => undefined);
+    fetchMock.mockResolvedValueOnce(jsonResponse(401, { detail: "로그인이 필요합니다." }));
+    await apiFetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    fetchMock.mockResolvedValueOnce(jsonResponse(403, { detail: "권한이 없습니다." }));
+    await listZones().catch(() => undefined);
+    off();
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("등록을 풀면 더 부르지 않는다", async () => {
+    const handler = vi.fn();
+    onUnauthorized(handler)();
+    fetchMock.mockResolvedValue(jsonResponse(401, { detail: "로그인이 필요합니다." }));
+
+    await listZones().catch(() => undefined);
+
+    expect(handler).not.toHaveBeenCalled();
   });
 });

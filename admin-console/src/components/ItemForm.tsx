@@ -48,7 +48,8 @@ export default function ItemForm({ initial, techniques = [], onSubmit }: Props) 
         name,
         description,
         category,
-        baseValue: Number(baseValue),
+        // 빈 칸을 0 으로 바꾸지 않고 null 로 보내 서버가 400 을 내게 한다.
+        baseValue: baseValue.trim() === "" ? null : Number(baseValue),
         bagGrade: category === "BAG" ? bagGrade : null,
         techniqueId: category === "SCROLL" ? techniqueId : null,
       });

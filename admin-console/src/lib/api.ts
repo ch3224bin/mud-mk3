@@ -149,12 +149,15 @@ export type ItemTypeResponse = {
   techniqueId: number | null;
   techniqueName: string | null;
 };
-/** bagGrade 는 종류가 저물대·저물탁일 때만, techniqueId 는 옥간·서책일 때만 보내고 나머지는 null */
+/**
+ * bagGrade 는 종류가 저물대·저물탁일 때만, techniqueId 는 옥간·서책일 때만 보내고 나머지는 null.
+ * baseValue 는 칸이 비면 null(서버가 400)
+ */
 export type ItemTypeSaveRequest = {
   name: string;
   description: string;
   category: ItemCategoryCode;
-  baseValue: number;
+  baseValue: number | null;
   bagGrade: BagGradeCode | null;
   techniqueId: number | null;
 };
@@ -388,6 +391,20 @@ export type NpcSaveRequest = {
 export type RoomSaveRequest = { zoneId: number; name: string; description: string };
 export type ExitSaveRequest = { targetRoomId: number; twoWay: boolean };
 
+const unauthorizedHandlers = new Set<() => void>();
+
+/**
+ * 로그인 뒤 요청이 401(세션 만료)을 받으면 ApiError 를 던지기 전에 부를 처리기를 등록한다. 돌려준 함수로 등록을 푼다.
+ * `/api/auth/**`(로그인 확인·로그인·로그아웃)의 401 은 부르지 않는다
+ */
+export function onUnauthorized(handler: () => void): () => void {
+  const entry = () => handler();
+  unauthorizedHandlers.add(entry);
+  return () => {
+    unauthorizedHandlers.delete(entry);
+  };
+}
+
 /** world-server REST 호출. 세션 쿠키를 보내고, 변경 요청에는 CSRF 대신 쓰는 X-MUD-Client 헤더를 붙인다. */
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const method = (init.method ?? "GET").toUpperCase();
@@ -398,7 +415,11 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   }
   const response = await fetch(`${worldServerUrl}${path}`, { ...init, method, headers, credentials: "include" });
   if (!response.ok) {
-    throw new ApiError(response.status, await readDetail(response));
+    const error = new ApiError(response.status, await readDetail(response));
+    if (response.status === 401 && !path.startsWith("/api/auth/")) {
+      unauthorizedHandlers.forEach((handler) => handler());
+    }
+    throw error;
   }
   if (response.status === 204) {
     return undefined as T;

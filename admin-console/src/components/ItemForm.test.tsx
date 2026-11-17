@@ -266,6 +266,18 @@ describe("ItemForm", () => {
     expect(onSubmit).toHaveBeenCalled();
     expect(await screen.findByRole("alert")).toHaveTextContent("기준가는 0 이상이어야 합니다.");
   });
+
+  it("blankBaseValueSendsNull: 기준가 칸을 비우면 baseValue: null 을 보내고 서버 400 detail 을 보인다", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockRejectedValue(new ApiError(400, "요청 본문을 읽을 수 없습니다"));
+    render(<ItemForm initial={itemType()} onSubmit={onSubmit} />);
+
+    await user.clear(screen.getByLabelText("기준가 (하품)"));
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ baseValue: null }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("요청 본문을 읽을 수 없습니다");
+  });
 });
 
 function technique(id: number, name: string): TechniqueSummaryResponse {

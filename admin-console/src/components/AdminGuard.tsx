@@ -2,15 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
-import { errorMessage } from "../lib/api";
+import { errorMessage, onUnauthorized } from "../lib/api";
 import { type AuthMeResponse, fetchMe, logout } from "../lib/auth";
 
 type State = { kind: "loading" } | { kind: "ready"; me: AuthMeResponse } | { kind: "error"; message: string };
 
-/** 관리자로 로그인했을 때만 children 을 보인다. 로그인 안 했으면 로그인 화면(/)으로 보낸다. */
+/** 관리자로 로그인했을 때만 children 을 보인다. 로그인 안 했거나 쓰는 중에 세션이 만료되면 로그인 화면(/)으로 보낸다. */
 export default function AdminGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [state, setState] = useState<State>({ kind: "loading" });
+
+  // 쓰는 중에 세션이 만료되면(로그인 뒤 요청의 401) 로그인 화면으로 보낸다.
+  useEffect(() => onUnauthorized(() => router.replace("/")), [router]);
 
   useEffect(() => {
     let active = true;
