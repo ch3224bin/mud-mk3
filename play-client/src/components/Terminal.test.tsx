@@ -24,11 +24,13 @@ class FakeConnection {
 
 let connections: FakeConnection[];
 const onUnauthorized = vi.fn();
+const onCommandSent = vi.fn();
 
 function renderTerminal() {
   const { unmount } = render(
     <Terminal
       onUnauthorized={onUnauthorized}
+      onCommandSent={onCommandSent}
       connect={(handlers) => {
         const connection = new FakeConnection(handlers);
         connections.push(connection);
@@ -394,7 +396,29 @@ describe("Terminal", () => {
 
     connection.serverClose(4401);
 
-    expect(onUnauthorized).toHaveBeenCalled();
+    expect(onUnauthorized).toHaveBeenCalledWith(null);
+  });
+
+  it("4401 로 닫히기 전에 받은 AUTH_REQUIRED 문구를 넘긴다", () => {
+    const { connection } = renderTerminal();
+
+    connection.receive({ type: "error", code: "AUTH_REQUIRED", text: "로그인이 끝났습니다. 다시 로그인하십시오." });
+    connection.serverClose(4401);
+
+    expect(onUnauthorized).toHaveBeenCalledWith("로그인이 끝났습니다. 다시 로그인하십시오.");
+  });
+
+  it("명령을 보낼 때 onCommandSent 를 부른다(빈 줄은 빼고)", async () => {
+    const user = userEvent.setup();
+    const { input } = renderTerminal();
+
+    await user.type(input, "{Enter}");
+    await user.type(input, "  {Enter}");
+    expect(onCommandSent).not.toHaveBeenCalled();
+
+    await user.type(input, "북{Enter}");
+    await user.type(input, "보기{Enter}");
+    expect(onCommandSent).toHaveBeenCalledTimes(2);
   });
 
   it("4409 로 닫히면 까닭과 다시 연결 버튼을 보이고, 누르면 새로 연결한다", async () => {

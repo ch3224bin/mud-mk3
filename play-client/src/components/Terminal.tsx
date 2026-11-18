@@ -11,8 +11,13 @@ import { echoLine, type OutputLine, renderMessage } from "../lib/render";
 export type GameConnection = { sendCommand(text: string): void; close(): void };
 
 export type TerminalProps = {
-  /** 4401(로그인 안 됨·세션 만료)로 닫혔을 때. 로그인 화면으로 돌아간다. */
-  onUnauthorized: () => void;
+  /**
+   * 4401(로그인 안 됨·세션 만료·로그아웃)로 닫혔을 때. 로그인 화면으로 돌아간다.
+   * notice 는 닫히기 전 마지막으로 받은 error AUTH_REQUIRED 의 text(없으면 null).
+   */
+  onUnauthorized: (notice: string | null) => void;
+  /** 명령을 보낼 때마다(빈 줄 빼고). 입력하는 동안 세션을 늘리는 데 쓴다. */
+  onCommandSent?: () => void;
   connect?: (handlers: GameSocketHandlers) => GameConnection;
 };
 
@@ -23,7 +28,7 @@ type LogLine = OutputLine & { id: number };
 const defaultConnect = (handlers: GameSocketHandlers): GameConnection => new GameSocket(gameSocketUrl(), handlers);
 
 /** 터미널형 플레이 화면: 스크롤되는 출력 로그 + 아래 입력창. */
-export default function Terminal({ onUnauthorized, connect = defaultConnect }: TerminalProps) {
+export default function Terminal({ onUnauthorized, onCommandSent, connect = defaultConnect }: TerminalProps) {
   const [lines, setLines] = useState<LogLine[]>([]);
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(true);
@@ -43,6 +48,8 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
   const inputRef = useRef<HTMLInputElement>(null);
   const onUnauthorizedRef = useRef(onUnauthorized);
   onUnauthorizedRef.current = onUnauthorized;
+  const onCommandSentRef = useRef(onCommandSent);
+  onCommandSentRef.current = onCommandSent;
   const connectRef = useRef(connect);
   connectRef.current = connect;
 
@@ -56,8 +63,13 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
   }
 
   useEffect(() => {
+    /** 이 연결에서 마지막으로 받은 AUTH_REQUIRED 문구. 4401 로 닫히면 로그인 화면에 보인다. */
+    let authNotice: string | null = null;
     const current = connectRef.current({
       onMessage(message) {
+        if (message.type === "error" && message.code === "AUTH_REQUIRED") {
+          authNotice = message.text;
+        }
         updateNames(names, message);
         if (message.type === "inventory") {
           inventoryNames.current = message.items.map((item) => item.name);
@@ -68,7 +80,7 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
         connection.current = null;
         setConnected(false);
         if (code === CloseCode.UNAUTHORIZED) {
-          onUnauthorizedRef.current();
+          onUnauthorizedRef.current(authNotice);
         } else if (code !== CloseCode.NORMAL && code !== CloseCode.REPLACED) {
           // REPLACED(4409)는 서버가 닫기 전에 까닭을 system 메시지로 보낸다
           append([{ text: "연결이 끊겼습니다.", style: "error" }]);
@@ -109,6 +121,7 @@ export default function Terminal({ onUnauthorized, connect = defaultConnect }: T
     history.current.push(text);
     append([echoLine(text)], true);
     connection.current.sendCommand(text);
+    onCommandSentRef.current?.();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
