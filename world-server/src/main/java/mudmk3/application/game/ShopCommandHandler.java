@@ -78,7 +78,8 @@ class ShopCommandHandler {
 
     /**
      * 상점 명령을 처리한다. 교전 중에는 {@code 목록}·{@code 사기}·{@code 팔기}·{@code 값}·결제 대기 중인 {@code 확인} 이 범인 막힘보다
-     * 먼저 막힌다(D86 — 막힌 확인은 대기도 사라진다). send 는 (연결 id, 메시지)로 보낼 것을 모은다
+     * 먼저 막힌다(D86). 막힌 결제 {@code 확인} 은 대기를 지우지 않아 교전이 끝난 뒤 10초 안에 다시 확인할 수 있다(#18 — 대기는
+     * 시간 제한으로만 사라진다). 범인 막힘의 확인은 대기를 지운다. send 는 (연결 id, 메시지)로 보낼 것을 모은다
      */
     void handle(Command command, OnlinePlayer player, GameSession session, BiConsumer<String, GameMessage> send) {
         Reply reply = new Reply(player.getSessionId(), send);
@@ -86,7 +87,7 @@ class ShopCommandHandler {
                 || command instanceof Command.Sell || command instanceof Command.Appraise
                 || (command instanceof Command.Confirm && livePending(session).isPresent());
         if (shopCommand && combatEngine.isFighting(player.getCharacterId())) {
-            session.clearPending();
+            if (!(command instanceof Command.Confirm)) session.clearPending();
             reply.error(CombatTexts.CANNOT_DO);
             return;
         }

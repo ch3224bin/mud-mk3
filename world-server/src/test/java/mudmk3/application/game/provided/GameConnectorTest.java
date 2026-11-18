@@ -90,8 +90,10 @@ import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
 import static mudmk3.domain.mob.MobFixture.wolf;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static mudmk3.domain.technique.TechniqueFixture.changchunInfo;
+import static mudmk3.domain.technique.TechniqueFixture.changchunWith;
 import static mudmk3.domain.technique.TechniqueFixture.greenWoodInfo;
 import static mudmk3.domain.technique.TechniqueFixture.ironBodyInfo;
+import static mudmk3.domain.technique.TechniqueFixture.lightning;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ApplicationServiceTest
@@ -221,6 +223,40 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(sender.closeReasonOf("a")).isEmpty();
         assertThat(roomIdOf(hanbaek)).isEqualTo(map.entranceId());
         assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    /** 교전 중 막힌 결제 {@code 확인} 은 대기를 지우지 않는다(#18). 교전이 끝나면 10초 안에 다시 확인해 산다 */
+    @Test
+    void blockedConfirmKeepsPending() {
+        PlacedMob wolf = prepareBlockedConfirm();
+
+        assertError("a", "확인", "싸우는 중에는 할 수 없습니다.");
+        assertError("a", "확인", "싸우는 중에는 할 수 없습니다.");
+
+        mobPlacementEditor.delete(wolf.placementId()); // 몹이 사라져 교전이 끝난다
+        advanceAndTick(1);
+        assertOnly("a", "확인", SystemMessage.item("회춘단(연기 초) 40개를 샀습니다. (하품 영석 -120)"));
+    }
+
+    /** 막힌 확인 뒤에도 대기는 원래 시간 제한(10초)으로 사라진다 */
+    @Test
+    void blockedConfirmExpires() {
+        prepareBlockedConfirm();
+        assertError("a", "확인", "싸우는 중에는 할 수 없습니다.");
+
+        clock.advance(Duration.ofSeconds(11));
+
+        assertError("a", "확인", "확인할 것이 없습니다.");
+    }
+
+    /** 막힌 상점 명령은 '다른 명령' 이라 대기를 지운다 */
+    @Test
+    void blockedShopCommandStillClearsPending() {
+        prepareBlockedConfirm();
+
+        assertError("a", "목록", "싸우는 중에는 할 수 없습니다.");
+
+        assertError("a", "확인", "확인할 것이 없습니다.");
     }
 
     @Test
@@ -2772,6 +2808,29 @@ class GameConnectorTest extends BaseGameTest {
         designateRealm(hanbaek, Realm.QI_7);
         assertThat(sender.messagesTo("a")).isEmpty();
         assertThat(characterFinder.find(characterIdOf(hanbaek)).getRealm()).isEqualTo(Realm.QI_7);
+    }
+
+    /**
+     * 연기 1층 한백(세션 a)이 낙뢰술을 펼치기 시작한 뒤 상품 영석을 깨는 {@code 사기 회춘단 40} 으로 확인 대기를 두고, 2초 뒤 시전이
+     * 발동해 청모랑과 교전 중인 상태. {@code 공격} 은 다른 명령이라 대기를 지우므로 시전 발동으로 교전을 시작한다
+     */
+    private PlacedMob prepareBlockedConfirm() {
+        GameMap map = prepareMap();
+        NpcMap npcs = prepareNpcs(map);
+        Items items = prepareItems();
+        prepareShop(npcs, items);
+        Long hanbaek = enter("a", "한백");
+        setRealm(hanbaek, Realm.QI_1);
+        learn(hanbaek, changchunWith(List.of(lightning())));
+        give(hanbaek, items.bag(), 1);
+        give(hanbaek, stoneId(SpiritStoneGrade.HIGH), 1);
+        PlacedMob wolf = placeMob(map, wolf(), 1);
+
+        gameConnector.handle("a", "낙뢰술 청모랑");
+        assertOnly("a", "사기 회춘단 40", SystemMessage.item(BUY_CONFIRM));
+        advanceAndTick(2);
+        assertThat(sender.messagesTo("a")).contains(SystemMessage.combat("청모랑과 싸움이 벌어진다."));
+        return wolf;
     }
 
     /** 그 공법을 만들고 그것을 담은 옥간 아이템 종류(묘사 없음, 기준가 30)를 만든다 */
