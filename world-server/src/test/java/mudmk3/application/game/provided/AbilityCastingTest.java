@@ -39,6 +39,7 @@ import mudmk3.domain.combat.MobInstance;
 import mudmk3.domain.combat.PlayerCombat;
 import mudmk3.domain.shared.Element;
 import mudmk3.domain.shared.Realm;
+import mudmk3.domain.technique.CostStat;
 import mudmk3.domain.technique.TechniqueSaveInfo;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -53,8 +54,12 @@ import static mudmk3.domain.technique.TechniqueFixture.changchunStages;
 import static mudmk3.domain.technique.TechniqueFixture.changchunWith;
 import static mudmk3.domain.technique.TechniqueFixture.fireBall;
 import static mudmk3.domain.technique.TechniqueFixture.heavenEye;
+import static mudmk3.domain.technique.TechniqueFixture.ironBodyInfo;
+import static mudmk3.domain.technique.TechniqueFixture.ironFist;
 import static mudmk3.domain.technique.TechniqueFixture.lightning;
 import static mudmk3.domain.technique.TechniqueFixture.windRiding;
+import static mudmk3.domain.technique.TechniqueFixture.withCast;
+import static mudmk3.domain.technique.TechniqueFixture.withCost;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -72,6 +77,7 @@ class AbilityCastingTest extends BaseGameTest {
     private static final String SCATTERED = "펼치던 술법이 갈 곳을 잃고 흩어진다.";
     private static final String NOT_CASTING = "펼치는 술법이 없습니다.";
     private static final String AUTO_HIT = "청모랑에게 일격을 날린다. (피해 8)";
+    private static final String NO_SPIRIT = "영력이 없어 술법을 펼칠 수 없습니다.";
 
     private final TechniqueEditor techniqueEditor;
     private final PlayerCombatRepository playerCombatRepository;
@@ -340,6 +346,65 @@ class AbilityCastingTest extends BaseGameTest {
         assertThat(manaLost(han)).isLessThan(22);
         assertThat(mobNamed("청모랑").isFighting()).isFalse();
         assertNoCooldown(han);
+        assertNotCasting(han);
+    }
+
+    /** 시전 중 범인까지 내려 영력이 0이 되면 오행 신통은 발동 때 거절된다. 법력 확인보다 먼저다 */
+    @Test
+    void castingNoSpiritAtFire() {
+        GameMap map = prepareMap();
+        Long han = hanbaek("a");
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "낙뢰술 청모랑");
+        setRealm(han, Realm.MORTAL);
+        sender.clear();
+
+        advanceAndTick(2);
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.error(NO_SPIRIT));
+        assertThat(mobNamed("청모랑").isFighting()).isFalse();
+        assertNoCooldown(han);
+        assertNotCasting(han);
+    }
+
+    /** 소모 없는 오행 신통도 영력 0이면 발동하지 않는다 */
+    @Test
+    void castingNoSpiritZeroCostElementalAtFire() {
+        GameMap map = prepareMap();
+        Long han = enterQi1("a", "한백");
+        learn(han, changchunWith(List.of(withCost(withCast(fireBall(), "2"), CostStat.NONE, "0", false))));
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "화탄술 청모랑");
+        setRealm(han, Realm.MORTAL);
+        sender.clear();
+
+        advanceAndTick(2);
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.error(NO_SPIRIT));
+        assertThat(mobNamed("청모랑").getQiBlood()).isEqualTo(49);
+        assertThat(mobNamed("청모랑").isFighting()).isFalse();
+        assertNoCooldown(han);
+        assertNotCasting(han);
+    }
+
+    /** 연체 신통은 범인으로 내려도 발동한다 */
+    @Test
+    void castingBodyRefiningAtMortalFires() {
+        GameMap map = prepareMap();
+        Long han = enterQi1("a", "한백");
+        TechniqueSaveInfo ironBody = ironBodyInfo();
+        learn(han, new TechniqueSaveInfo(ironBody.name(), ironBody.description(), ironBody.elements(),
+                ironBody.startRealm(), ironBody.stages(), List.of(withCast(ironFist(), "2"))));
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "철권 청모랑");
+        setRealm(han, Realm.MORTAL);
+        sender.clear();
+
+        advanceAndTick(2);
+
+        assertThat(textsTo("a")).filteredOn(line -> line.startsWith("단단히 쥔 주먹이 청모랑의 몸에 꽂힌다!")).hasSize(1);
+        assertThat(textsTo("a")).doesNotContain(NO_SPIRIT);
+        assertThat(mobNamed("청모랑").isFighting()).isTrue();
         assertNotCasting(han);
     }
 

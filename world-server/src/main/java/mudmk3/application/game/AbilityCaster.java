@@ -112,7 +112,9 @@ class AbilityCaster {
     /**
      * 시전이 끝난 신통을 발동한다(D113). 그 캐릭터가 아직 이 시전 중일 때만(그 틱에 앞서 지워졌으면 아무것도 하지 않음):
      * 시전을 지우고, 세계에 없으면 조용히 끝, 신통이 없어졌거나 쓸 수 없는 꼴·단계별 값 없음, 대상이 없음·쓰러짐·다른 방이면
-     * {@code 펼치던 술법이 갈 곳을 잃고 흩어진다.}, 법력이 모자라면 거절 문구 — 모두 소모·재사용 대기 없음.
+     * {@code 펼치던 술법이 갈 곳을 잃고 흩어진다.}, 영력 0(시전 중 범인까지 내림)에 오행 신통이면
+     * {@code 영력이 없어 술법을 펼칠 수 없습니다.}(시작 검사 4와 같음, 연체 신통은 걸리지 않음), 법력이 모자라면 거절 문구 —
+     * 모두 소모·재사용 대기·교전 시작 없음.
      * 아니면 {@link #cast}(공통 대기는 시작 때 걸렸으므로 다시 걸지 않음, 발휘 비율은 발동 순간의 법력)
      */
     void fire(Long characterId, Casting casting, Instant now, BiConsumer<String, GameMessage> send) {
@@ -130,8 +132,13 @@ class AbilityCaster {
             return;
         }
         Ability ability = learned.get().ability();
+        StatSheet stats = cultivationFinder.stats(characterId);
+        if (stats.spirit() == 0 && !ability.isBodyRefining()) {
+            send.accept(caster.getSessionId(), SystemMessage.error(AbilityTexts.NO_SPIRIT));
+            return;
+        }
         if (ability.getCostStat() == CostStat.MANA) {
-            double manaCurrent = cultivationFinder.stats(characterId).manaCurrent();
+            double manaCurrent = stats.manaCurrent();
             if (manaCurrent < ability.getCostAmount().doubleValue()) {
                 send.accept(caster.getSessionId(),
                         SystemMessage.error(abilityTexts.notEnoughMana(ability.getCostAmount(), manaCurrent)));
