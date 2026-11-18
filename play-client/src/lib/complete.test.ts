@@ -146,4 +146,30 @@ describe("Completer", () => {
     expect(completer.complete("", [])).toBe("");
     expect(completer.complete("말하기 ", ["한립"])).toBe("말하기 ");
   });
+
+  it("여러 낱말 이름은 앞 낱말까지 친 것으로 이름 전체를 채운다", () => {
+    expect(new Completer().complete("줍기 늑대 가", ["늑대 가죽"])).toBe("줍기 늑대 가죽");
+  });
+
+  it("대상 뒤 여러 낱말 물건도 채운다", () => {
+    expect(new Completer().complete("주기 한립 늑대 가", ["한립", "늑대 가죽"])).toBe("주기 한립 늑대 가죽");
+  });
+
+  it("가장 긴 꼬리가 먼저다", () => {
+    expect(new Completer().complete("보기 청모랑의 시", ["시약", "청모랑의 시체"])).toBe("보기 청모랑의 시체");
+  });
+
+  it("공백으로 끝나도 앞 낱말과 이어 맞으면 채운다", () => {
+    expect(new Completer().complete("줍기 늑대 ", ["늑대 가죽"])).toBe("줍기 늑대 가죽");
+    expect(new Completer().complete("줍기 늑대 ", ["가죽"])).toBe("줍기 늑대 ");
+  });
+
+  it("여러 낱말 후보도 거듭 부르면 다음 후보로 돈다", () => {
+    const completer = new Completer();
+    const names = ["늑대 가죽", "늑대 이빨"];
+
+    expect(completer.complete("줍기 늑대 ", names)).toBe("줍기 늑대 가죽");
+    expect(completer.complete("줍기 늑대 가죽", names)).toBe("줍기 늑대 이빨");
+    expect(completer.complete("줍기 늑대 이빨", names)).toBe("줍기 늑대 가죽");
+  });
 });

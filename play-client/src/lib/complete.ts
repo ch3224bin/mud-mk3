@@ -46,8 +46,20 @@ export function nameCandidates(roomNames: string[], inventoryNames: string[]): s
   return [...new Set([...roomNames, ...inventoryNames])];
 }
 
+/** 명령어 다음 낱말부터 마지막 낱말까지 각 낱말의 시작 위치(앞에서부터). */
+function nameStarts(input: string): number[] {
+  const starts: number[] = [];
+  for (let i = 1; i < input.length; i++) {
+    if (input[i - 1] === " " && input[i] !== " ") {
+      starts.push(i);
+    }
+  }
+  return starts;
+}
+
 /**
- * 탭 자동완성(D18). 첫 낱말이면 명령어에서, 그 뒤 낱말이면 이름에서 앞부분이 맞는 후보로 마지막 낱말을 바꾼다.
+ * 탭 자동완성(D18). 첫 낱말이면 명령어에서 앞부분이 맞는 후보로 그 낱말을 바꾼다.
+ * 그 뒤에서는 명령어 다음 낱말들의 꼬리(앞에서부터, 가장 긴 것 먼저) 가운데 이름의 앞부분과 맞는 첫 꼬리를 이름 전체로 바꾼다(여러 낱말 이름).
  * 방금 돌려준 값으로 다시 부르면 다음 후보로 돈다. 입력이 바뀌면 처음 후보부터. 후보가 없으면 입력 그대로.
  */
 export class Completer {
@@ -63,12 +75,22 @@ export class Completer {
 
     this.cycle = null;
     const split = input.lastIndexOf(" ") + 1;
-    const head = input.slice(0, split);
-    const word = input.slice(split);
+    if (input.slice(0, split).trim() === "") {
+      return this.start(input, "", input.slice(split), COMMANDS);
+    }
+    for (const pos of nameStarts(input)) {
+      const tail = input.slice(pos);
+      if (tail !== "" && names.some((name) => name.startsWith(tail))) {
+        return this.start(input, input.slice(0, pos), tail, names);
+      }
+    }
+    return input;
+  }
+
+  private start(input: string, head: string, word: string, pool: string[]): string {
     if (word === "") {
       return input;
     }
-    const pool = head.trim() === "" ? COMMANDS : names;
     const candidates = pool.filter((candidate) => candidate.startsWith(word));
     if (candidates.length === 0) {
       return input;
