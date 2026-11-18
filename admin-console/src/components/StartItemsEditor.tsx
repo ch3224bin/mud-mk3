@@ -24,6 +24,9 @@ export default function StartItemsEditor({ itemTypes, initial, onSave }: Props) 
   const [saved, setSaved] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  /** 목록에 없는(지워진) 물건 id 인 행인지 */
+  const isMissing = (row: Row) => !itemTypes.some((itemType) => itemType.id === row.itemTypeId);
+
   function update(next: Row[]) {
     setRows(next);
     setSaved(false);
@@ -51,6 +54,9 @@ export default function StartItemsEditor({ itemTypes, initial, onSave }: Props) 
   return (
     <form className="form" onSubmit={handleSubmit}>
       <p className="muted">새로 만드는 캐릭터부터 받습니다.</p>
+      {rows.some(isMissing) && (
+        <p className="error">목록에 없는 물건이 있습니다. 저장하기 전에 고치십시오.</p>
+      )}
       {rows.length === 0 ? (
         <p className="muted">시작 소지품이 없습니다.</p>
       ) : (
@@ -66,6 +72,7 @@ export default function StartItemsEditor({ itemTypes, initial, onSave }: Props) 
                       value={row.itemTypeId}
                       onChange={(e) => change(index, { itemTypeId: Number(e.target.value) })}
                     >
+                      {isMissing(row) && <option value={row.itemTypeId}>(지워진 물건 #{row.itemTypeId})</option>}
                       {itemTypes.map((itemType) => (
                         <option key={itemType.id} value={itemType.id}>
                           {itemType.name}

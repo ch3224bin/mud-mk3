@@ -20,8 +20,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Objects.requireNonNull;
-
 /** 관리: 세계 설정(시작 방·시작 소지품) */
 @WebApiAdapter
 @RequestMapping("/api/admin/world")
@@ -52,12 +50,11 @@ public class WorldApi {
         return toResponses(worldSettingsEditor.replaceStartingItems(request.items()));
     }
 
-    /** 시작 소지품은 물건 종류를 id로만 가지므로 이름을 따로 찾는다(쓰이는 종류는 지울 수 없어 늘 있다) */
+    /** 시작 소지품은 물건 종류를 id로만 가지므로 이름을 따로 찾는다. 지워진 종류면 이름 없이(null) 행을 돌려준다 */
     private List<StartingItemResponse> toResponses(List<StartingItem> startingItems) {
         Map<Long, ItemType> itemTypes = itemTypeFinder.findAllById(startingItems.stream().map(StartingItem::itemTypeId).toList());
         return startingItems.stream()
-                .map(item -> StartingItemResponse.of(item, requireNonNull(itemTypes.get(item.itemTypeId()),
-                        () -> "물건 종류를 찾을 수 없습니다. id: " + item.itemTypeId())))
+                .map(item -> StartingItemResponse.of(item, itemTypes.get(item.itemTypeId())))
                 .toList();
     }
 }

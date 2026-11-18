@@ -162,7 +162,7 @@ export type ItemTypeSaveRequest = {
   techniqueId: number | null;
 };
 export type StartingItem = { itemTypeId: number; count: number };
-export type StartingItemResponse = { itemTypeId: number; itemName: string; count: number };
+export type StartingItemResponse = { itemTypeId: number; itemName: string | null; count: number };
 
 /** 경지 코드(낮은 경지부터) */
 export type RealmCode =

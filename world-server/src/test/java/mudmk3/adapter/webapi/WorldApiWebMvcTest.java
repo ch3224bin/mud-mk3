@@ -117,6 +117,20 @@ record WorldApiWebMvcTest(MockMvcTester mvc, WorldSettingsFinder worldSettingsFi
                          {"itemTypeId":1,"itemName":"하품 영석","count":30}]""");
     }
 
+    /** 지워진 물건 id 도 500 없이 이름 null 로 돌려준다 */
+    @Test
+    void getStartingItemsDeletedItemType() {
+        when(worldSettingsFinder.findStartingItems()).thenReturn(List.of(new StartingItem(9L, 2), new StartingItem(1L, 30)));
+        when(itemTypeFinder.findAllById(List.of(9L, 1L))).thenReturn(Map.of(1L, lowStone(1L)));
+
+        assertThat(mvc.get().with(admin()).uri("/api/admin/world/starting-items"))
+                .hasStatusOk()
+                .bodyJson()
+                .isStrictlyEqualTo("""
+                        [{"itemTypeId":9,"itemName":null,"count":2},
+                         {"itemTypeId":1,"itemName":"하품 영석","count":30}]""");
+    }
+
     @Test
     void getStartingItemsEmpty() {
         when(worldSettingsFinder.findStartingItems()).thenReturn(List.of());

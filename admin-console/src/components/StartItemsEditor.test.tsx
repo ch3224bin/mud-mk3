@@ -114,4 +114,39 @@ describe("StartItemsEditor", () => {
     expect(onSave).toHaveBeenCalledWith([{ itemTypeId: 5, count: 0 }]);
     expect(await screen.findByRole("alert")).toHaveTextContent("수는 1 이상이어야 합니다.");
   });
+
+  describe("목록에 없는(지워진) 물건 id", () => {
+    const notice = "목록에 없는 물건이 있습니다. 저장하기 전에 고치십시오.";
+
+    it("(지워진 물건 #9) 로 골라 두고 안내 줄을 보인다", () => {
+      render(<StartItemsEditor itemTypes={itemTypes} initial={[{ itemTypeId: 9, count: 2 }]} onSave={vi.fn()} />);
+
+      const select = screen.getByLabelText("물건");
+      expect(select).toHaveValue("9");
+      expect(screen.getByRole("option", { name: "(지워진 물건 #9)", selected: true })).toBeInTheDocument();
+      expect(screen.getByText(notice)).toBeInTheDocument();
+    });
+
+    it("다른 물건을 고르면 그 선택지와 안내 줄이 사라진다", async () => {
+      const user = userEvent.setup();
+      render(<StartItemsEditor itemTypes={itemTypes} initial={[{ itemTypeId: 9, count: 2 }]} onSave={vi.fn()} />);
+
+      await user.selectOptions(screen.getByLabelText("물건"), "1");
+
+      expect(screen.getByLabelText("물건")).toHaveValue("1");
+      expect(screen.queryByRole("option", { name: "(지워진 물건 #9)" })).not.toBeInTheDocument();
+      expect(screen.queryByText(notice)).not.toBeInTheDocument();
+    });
+
+    it("그대로 저장하면 그 id 를 보내고 서버 detail 을 보인다", async () => {
+      const user = userEvent.setup();
+      const onSave = vi.fn().mockRejectedValue(new ApiError(400, "물건 종류를 찾을 수 없습니다. id: 9"));
+      render(<StartItemsEditor itemTypes={itemTypes} initial={[{ itemTypeId: 9, count: 2 }]} onSave={onSave} />);
+
+      await user.click(screen.getByRole("button", { name: "저장" }));
+
+      expect(onSave).toHaveBeenCalledWith([{ itemTypeId: 9, count: 2 }]);
+      expect(await screen.findByRole("alert")).toHaveTextContent("물건 종류를 찾을 수 없습니다. id: 9");
+    });
+  });
 });
