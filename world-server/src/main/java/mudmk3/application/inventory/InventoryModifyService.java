@@ -1,6 +1,7 @@
 package mudmk3.application.inventory;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.inventory.required.InventoryRepository;
@@ -19,11 +20,13 @@ import mudmk3.support.stereotype.ApplicationService;
 
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
 
 import static org.springframework.util.Assert.state;
 
+@Slf4j
 @ApplicationService
 @RequiredArgsConstructor
 public class InventoryModifyService implements InventoryEditor {
@@ -36,9 +39,17 @@ public class InventoryModifyService implements InventoryEditor {
     @Override
     public void createWithStartingItems(Long characterId) {
         state(inventoryRepository.findByCharacterId(characterId).isEmpty(), () -> "이미 소지품이 있습니다. 캐릭터 id: " + characterId);
+        List<StartingItem> startingItems = worldSettingsFinder.findStartingItems();
+        Map<Long, ItemType> itemTypes = itemTypeFinder.findAllById(
+                startingItems.stream().map(StartingItem::itemTypeId).toList());
         SequencedMap<ItemType, Integer> items = new LinkedHashMap<>();
-        for (StartingItem startingItem : worldSettingsFinder.findStartingItems()) {
-            items.put(itemTypeFinder.find(startingItem.itemTypeId()), startingItem.count());
+        for (StartingItem startingItem : startingItems) {
+            ItemType itemType = itemTypes.get(startingItem.itemTypeId());
+            if (itemType == null) {
+                log.warn("시작 소지품의 물건 종류가 없어 건너뜁니다. id: {}", startingItem.itemTypeId());
+                continue;
+            }
+            items.put(itemType, startingItem.count());
         }
         Inventory inventory = Inventory.empty(characterId);
         inventory.addAll(items, false);

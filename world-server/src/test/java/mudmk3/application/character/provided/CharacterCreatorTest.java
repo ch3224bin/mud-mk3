@@ -317,6 +317,31 @@ record CharacterCreatorTest(
                 .extracting(InventoryEntry::getCount).containsExactly(5);
     }
 
+    @Test
+    void createSkipsDeletedStartingItem() {
+        prepareStartRoom();
+        Long healPill = itemTypeEditor.create(createItemTypeSaveRequest("회춘단(연기 초)", ItemCategory.PILL, 3)).getId();
+        Long deleted = itemTypeEditor.create(createItemTypeSaveRequest("사라진 단약", ItemCategory.PILL, 3)).getId();
+        Long bag = itemTypeEditor.create(createItemTypeSaveRequest("하급 저물대", ItemCategory.BAG, 10, BagGrade.LOW)).getId();
+        Long qiPill = itemTypeEditor.create(createItemTypeSaveRequest("회기단(연기 초)", ItemCategory.PILL, 3)).getId();
+        worldSettingsEditor.replaceStartingItems(List.of(new StartingItemRequest(healPill, 3),
+                new StartingItemRequest(deleted, 1), new StartingItemRequest(bag, 1), new StartingItemRequest(qiPill, 2)));
+        // 시작 소지품에 남은 채로 물건 종류만 지워진 상태(서비스는 이렇게 지우지 못하게 막는다)
+        flushAndClear();
+        entityManager.createNativeQuery("delete from item_type where id = ?").setParameter(1, deleted).executeUpdate();
+
+        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백", spiritRoot());
+        flushAndClear();
+
+        assertThat(characterFinder.find(character.getId()).getName()).isEqualTo(new CharacterName("한백"));
+        assertThat(inventoryFinder.find(character.getId()).getEntries())
+                .extracting(entry -> entry.getItemType().getName(), InventoryEntry::getCount)
+                .containsExactly(
+                        tuple("회춘단(연기 초)", 3),
+                        tuple("하급 저물대", 1),
+                        tuple("회기단(연기 초)", 2));
+    }
+
     private Long prepareStartRoom() {
         Zone zone = zoneEditor.create(createZoneSaveRequest("청석숲"));
         Room room = roomEditor.create(createRoomSaveRequest(zone.getId(), "청석숲 오솔길"));
