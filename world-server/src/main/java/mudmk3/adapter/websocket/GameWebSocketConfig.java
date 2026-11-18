@@ -6,8 +6,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
+import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
 
-/** 게임 접속 {@code /ws/game}. 허용 오리진 목록 밖의 Origin 은 핸드셰이크에서 403으로 거절한다 */
+/**
+ * 게임 접속 {@code /ws/game}. 허용 오리진 목록 밖의 Origin 은 핸드셰이크에서 403으로 거절한다.
+ * HTTP 세션이 끝날 때 연결 닫기는 컨테이너가 아니라 이 앱이 맡는다({@link GameUpgradeStrategy}).
+ */
 @Configuration
 @EnableWebSocket
 @RequiredArgsConstructor
@@ -22,6 +26,7 @@ public class GameWebSocketConfig implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(gameWebSocketHandler, PATH)
+                .setHandshakeHandler(new DefaultHandshakeHandler(new GameUpgradeStrategy()))
                 .addInterceptors(gameHandshakeInterceptor)
                 .setAllowedOrigins(corsProperties.allowedOrigins().toArray(String[]::new));
     }

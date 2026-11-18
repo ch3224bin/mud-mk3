@@ -560,6 +560,60 @@ class GameWebSocketIntegrationTest {
     }
 
     @Test
+    void logoutClosesGameSocket() throws Exception {
+        Login hanbai = login("hanbai@example.com");
+        characterCreator.create(hanbai.accountId(), "한백", spiritRoot());
+        Client a = connect(hanbai.cookie(), ALLOWED_ORIGIN);
+        a.awaitRoom();
+        Client b = enter("hanli@example.com", "한립");
+        assertThat(a.next().get("event").asString()).isEqualTo("appear");
+
+        assertThat(logout(hanbai.cookie())).isEqualTo(204);
+
+        assertThat(a.next()).isEqualTo(json("""
+                {"type":"error","code":"AUTH_REQUIRED","text":"로그인이 끝났습니다. 다시 로그인하십시오."}"""));
+        assertThat(a.closeStatus().getCode()).isEqualTo(4401);
+        assertThat(b.next()).isEqualTo(json("""
+                {"type":"notice","text":"한백이 사라진다.","tone":"movement","actor":"한백","event":"disappear"}"""));
+    }
+
+    @Test
+    void otherSessionLogoutKeepsSocket() throws Exception {
+        Login first = login("hanbai@example.com");
+        Login second = login("hanbai@example.com");
+        assertThat(second.cookie()).isNotEqualTo(first.cookie());
+        characterCreator.create(first.accountId(), "한백", spiritRoot());
+        Client client = connect(first.cookie(), ALLOWED_ORIGIN);
+        client.awaitRoom();
+
+        assertThat(logout(second.cookie())).isEqualTo(204);
+
+        client.command("누구");
+        assertThat(client.next().get("text").asString()).startsWith("접속한 사람 (1)");
+        assertThat(client.session().isOpen()).isTrue();
+    }
+
+    /** 같은 브라우저에서 다시 로그인해 세션 id 가 바뀌면 연결은 새 id 를 따라간다 */
+    @Test
+    void loginAgainFollowsChangedSessionId() throws Exception {
+        Login hanbai = login("hanbai@example.com");
+        characterCreator.create(hanbai.accountId(), "한백", spiritRoot());
+        Client client = connect(hanbai.cookie(), ALLOWED_ORIGIN);
+        client.awaitRoom();
+
+        String renewed = loginWithCookie("hanbai@example.com", hanbai.cookie());
+        assertThat(renewed).isNotEqualTo(hanbai.cookie());
+        assertThat(logout(hanbai.cookie())).isEqualTo(204);
+        client.command("누구");
+        assertThat(client.next().get("text").asString()).startsWith("접속한 사람 (1)");
+
+        assertThat(logout(renewed)).isEqualTo(204);
+
+        assertThat(client.next().get("code").asString()).isEqualTo("AUTH_REQUIRED");
+        assertThat(client.closeStatus().getCode()).isEqualTo(4401);
+    }
+
+    @Test
     void stuckClientDoesNotDelayOthers() throws Exception {
         // 받아 가지 않는 클라이언트: 보내기가 풀어 줄 때까지 막힌다
         CountDownLatch release = new CountDownLatch(1);
@@ -624,6 +678,34 @@ class GameWebSocketIntegrationTest {
                 .orElseThrow(() -> new AssertionError("세션 쿠키가 없다: " + response.getHeaders()));
         long accountId = jsonMapper.readTree(response.getBody()).get("id").asLong();
         return new Login(cookie, accountId);
+    }
+
+    /** 그 쿠키의 브라우저에서 다시 로그인하고 바뀐 세션 쿠키를 돌려준다 */
+    private String loginWithCookie(String email, String cookie) {
+        ResponseEntity<String> response = RestClient.create().post()
+                .uri("http://localhost:" + port + "/api/auth/dev")
+                .header("X-MUD-Client", "1")
+                .header(HttpHeaders.COOKIE, cookie)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"email\":\"" + email + "\"}")
+                .retrieve()
+                .toEntity(String.class);
+        return response.getHeaders().getOrEmpty(HttpHeaders.SET_COOKIE).stream()
+                .filter(header -> header.startsWith("JSESSIONID="))
+                .map(header -> header.split(";", 2)[0])
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("바뀐 세션 쿠키가 없다: " + response.getHeaders()));
+    }
+
+    private int logout(String cookie) {
+        return RestClient.create().post()
+                .uri("http://localhost:" + port + "/api/auth/logout")
+                .header("X-MUD-Client", "1")
+                .header(HttpHeaders.COOKIE, cookie)
+                .retrieve()
+                .toBodilessEntity()
+                .getStatusCode()
+                .value();
     }
 
     /** 캐릭터를 만든 계정으로 접속해 방 보기까지 받는다 */

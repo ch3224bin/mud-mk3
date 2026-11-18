@@ -31,6 +31,8 @@ import java.util.concurrent.RejectedExecutionException;
  * <p>읽지 않는 클라이언트: 아직 보내지 못한 메시지가 {@value #MAX_PENDING_BYTES} 바이트를 넘으면 줄을 비우고
  * {@link #TOO_SLOW}(4500)로 닫는다. 보내기 하나가 막히는 시간은 톰캣 블로킹 보내기 한도({@value #SEND_TIME_LIMIT_MS}ms)로
  * 묶어 막힌 보내기 작업도 결국 끝나고 연결을 닫는다. 닫힘은 핸들러의 닫힘 처리({@code disconnect})를 탄다.
+ * <p>로그인한 연결은 그 연결을 연 HTTP 세션 id 를 기억해 두고, 그 HTTP 세션이 끝나면 안내 뒤 4401로 닫는다
+ * ({@link HttpSessionEndListener}). 핸드셰이크와 등록 사이에 세션이 끝나면 그 연결은 끊지 못한다(알려진 한계).
  */
 @Slf4j
 @Adapter
@@ -48,6 +50,8 @@ public class WebSocketGameMessageSender implements GameMessageSender, Disposable
 
     private final JsonMapper jsonMapper;
     private final Map<String, Outbound> outbounds = new ConcurrentHashMap<>();
+    /** 연결 id → 그 연결을 연 HTTP 세션 id. HTTP 세션 끝·id 바뀜은 서블릿 컨테이너 스레드에서 오므로 이 표만 고친다 */
+    private final Map<String, String> httpSessionIds = new ConcurrentHashMap<>();
     private final ExecutorService sendExecutor =
             Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("ws-send-", 0).factory());
 
@@ -64,10 +68,14 @@ public class WebSocketGameMessageSender implements GameMessageSender, Disposable
             }
         }
         outbounds.put(session.getId(), new Outbound(session));
+        if (session.getAttributes().get(GameHandshakeInterceptor.HTTP_SESSION_ID) instanceof String httpSessionId) {
+            httpSessionIds.put(session.getId(), httpSessionId);
+        }
     }
 
     /** 닫힌 연결을 빼고 보내지 못한 것을 버린다 */
     public void unregister(String sessionId) {
+        httpSessionIds.remove(sessionId);
         Outbound outbound = outbounds.remove(sessionId);
         if (outbound != null) {
             outbound.discard();
@@ -99,6 +107,24 @@ public class WebSocketGameMessageSender implements GameMessageSender, Disposable
         if (outbound != null) {
             outbound.enqueueClose(status);
         }
+    }
+
+    /**
+     * 그 HTTP 세션으로 연 열린 연결마다 세션이 끝났음을 알리고 4401로 닫는다. 다른 HTTP 세션으로 연 연결은 그대로 둔다.
+     * 닫힘 뒤 처리(세계에서 사라짐)는 핸들러의 닫힘 처리가 한다.
+     */
+    public void endHttpSession(String httpSessionId) {
+        httpSessionIds.forEach((sessionId, boundId) -> {
+            if (boundId.equals(httpSessionId) && httpSessionIds.remove(sessionId, boundId)) {
+                sendError(sessionId, GameWebSocketHandler.AUTH_REQUIRED, GameWebSocketHandler.SESSION_ENDED_TEXT);
+                close(sessionId, UNAUTHORIZED);
+            }
+        });
+    }
+
+    /** HTTP 세션 id 가 바뀌면 그 세션으로 연 연결이 새 id 를 따라가게 한다 */
+    public void renameHttpSession(String oldId, String newId) {
+        httpSessionIds.replaceAll((sessionId, boundId) -> boundId.equals(oldId) ? newId : boundId);
     }
 
     @Override

@@ -15,7 +15,8 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 import java.util.Map;
 
 /**
- * 핸드셰이크에 실려 온 HTTP 세션(쿠키)의 로그인 정보에서 계정 id를 꺼내 WebSocket 세션 속성 {@value #ACCOUNT_ID} 로 넘긴다.
+ * 핸드셰이크에 실려 온 HTTP 세션(쿠키)의 로그인 정보에서 계정 id를 꺼내 WebSocket 세션 속성 {@value #ACCOUNT_ID} 로,
+ * 그 HTTP 세션 id 를 {@value #HTTP_SESSION_ID} 로 넘긴다(로그인한 세션일 때만). 그 HTTP 세션이 끝나면 연결도 닫는다.
  * 로그인하지 않았어도 핸드셰이크는 통과시킨다 — 연결을 받은 뒤 까닭을 알리고 닫는다({@link GameWebSocketHandler}).
  * HTTP 세션은 새로 만들지 않는다.
  */
@@ -23,6 +24,7 @@ import java.util.Map;
 public class GameHandshakeInterceptor implements HandshakeInterceptor {
 
     public static final String ACCOUNT_ID = "accountId";
+    public static final String HTTP_SESSION_ID = "httpSessionId";
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
@@ -33,7 +35,10 @@ public class GameHandshakeInterceptor implements HandshakeInterceptor {
                     && httpSession.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY)
                     instanceof SecurityContext context) {
                 SessionAuthenticator.principalOf(context.getAuthentication())
-                        .ifPresent(principal -> attributes.put(ACCOUNT_ID, principal.accountId()));
+                        .ifPresent(principal -> {
+                            attributes.put(ACCOUNT_ID, principal.accountId());
+                            attributes.put(HTTP_SESSION_ID, httpSession.getId());
+                        });
             }
         }
         return true;

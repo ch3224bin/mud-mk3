@@ -19,4 +19,11 @@
         <Field name="manaLost"/>
         <Bug pattern="UWF_UNWRITTEN_FIELD"/>
     </Match>
+    <!-- changeSessionId() 는 세션 id 를 바꾸는 것이 목적이라 돌려받은 새 id 를 쓰지 않는다.
+         GameUpgradeStrategy 가 HttpServletRequestWrapper 를 상속하면서 SpotBugs 가 이 메서드를 부작용 없음으로 잘못 본다(부채 정리 2차) -->
+    <Match>
+        <Class name="mudmk3.adapter.security.SessionAuthenticator"/>
+        <Method name="signIn"/>
+        <Bug pattern="RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT"/>
+    </Match>
 </FindBugsFilter>

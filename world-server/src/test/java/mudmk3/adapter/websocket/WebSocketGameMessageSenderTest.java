@@ -27,6 +27,7 @@ import mudmk3.application.game.required.GameMessage.StatusMessage.SpiritRootView
 import mudmk3.application.game.required.GameMessage.StatusMessage.StatsView;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
 import mudmk3.application.game.required.GameMessage.TalkMessage;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -37,7 +38,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -370,6 +373,49 @@ class WebSocketGameMessageSenderTest {
         assertThat(session.events()).containsExactly("close:" + code);
     }
 
+    @Test
+    void endHttpSessionClosesOnlyMatching() {
+        FakeSession matching = new FakeSession("s1", "http-1");
+        FakeSession other = new FakeSession("s2", "http-2");
+        FakeSession anonymous = new FakeSession("s3", null);
+        sender.register(matching.mock);
+        sender.register(other.mock);
+        sender.register(anonymous.mock);
+
+        sender.endHttpSession("http-1");
+
+        matching.awaitEvents(2);
+        assertThat(jsonMapper.readTree(matching.events().getFirst())).isEqualTo(jsonMapper.readTree("""
+                {"type":"error","code":"AUTH_REQUIRED","text":"로그인이 끝났습니다. 다시 로그인하십시오."}"""));
+        assertThat(matching.events().get(1)).isEqualTo("close:4401");
+        // 연결마다 줄 순서가 지켜지므로 표시 메시지만 왔다면 그 앞에 아무것도 들어가지 않은 것이다
+        assertOnlyMarker(other, "s2");
+        assertOnlyMarker(anonymous, "s3");
+    }
+
+    @Test
+    void endHttpSessionFollowsRenamedId() {
+        FakeSession session = new FakeSession("s1", "old-id");
+        sender.register(session.mock);
+
+        sender.renameHttpSession("old-id", "new-id");
+        sender.endHttpSession("old-id");
+        assertOnlyMarker(session, "s1");
+
+        sender.endHttpSession("new-id");
+
+        session.awaitEvents(3);
+        assertThat(session.events().get(1)).contains("\"AUTH_REQUIRED\"");
+        assertThat(session.events().get(2)).isEqualTo("close:4401");
+    }
+
+    private void assertOnlyMarker(FakeSession session, String sessionId) {
+        sender.send(sessionId, SystemMessage.info("표시"));
+        session.awaitEvents(1);
+        assertThat(session.events()).hasSize(1);
+        assertThat(session.events().getFirst()).contains("표시");
+    }
+
     private List<String> propertyNames(GameMessage message) {
         return jsonMapper.readTree(sender.toJson(message)).properties().stream().map(java.util.Map.Entry::getKey).toList();
     }
@@ -390,6 +436,15 @@ class WebSocketGameMessageSenderTest {
         private volatile CountDownLatch gate = new CountDownLatch(0);
 
         FakeSession(String id) {
+            this(id, null);
+        }
+
+        FakeSession(String id, @Nullable String httpSessionId) {
+            Map<String, Object> attributes = new HashMap<>();
+            if (httpSessionId != null) {
+                attributes.put(GameHandshakeInterceptor.HTTP_SESSION_ID, httpSessionId);
+            }
+            when(mock.getAttributes()).thenReturn(attributes);
             when(mock.getId()).thenReturn(id);
             when(mock.isOpen()).thenReturn(true);
             try {

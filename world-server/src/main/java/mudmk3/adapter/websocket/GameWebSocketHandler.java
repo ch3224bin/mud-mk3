@@ -15,7 +15,8 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * 게임 WebSocket 연결. 로그인한 연결이면 게임에 잇고, 아니면 까닭을 보내고 4401로 닫는다.
  * 받는 메시지는 {@code command} 하나뿐이다. 게임 포트는 트랜잭션 밖(WebSocket 스레드)에서 부른다.
- * 1차엔 HTTP 세션이 로그아웃·만료돼도 이미 열린 연결은 끊지 않는다(다음 접속부터 막힌다).
+ * 연결을 연 HTTP 세션이 로그아웃·만료로 끝나면 {@link HttpSessionEndListener} 가 {@value #SESSION_ENDED_TEXT} 를 보내고
+ * 4401로 닫는다. 그 닫힘도 여기 닫힘 처리를 탄다.
  */
 @Adapter
 @RequiredArgsConstructor
@@ -23,6 +24,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     static final String AUTH_REQUIRED = "AUTH_REQUIRED";
     static final String AUTH_REQUIRED_TEXT = "로그인이 필요합니다. 다시 로그인하십시오.";
+    static final String SESSION_ENDED_TEXT = "로그인이 끝났습니다. 다시 로그인하십시오.";
     static final String BAD_MESSAGE = "BAD_MESSAGE";
     static final String BAD_MESSAGE_TEXT = "알 수 없는 메시지입니다.";
 
