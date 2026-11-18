@@ -12,6 +12,7 @@
 //      시작 소지품은 단계 1 뒤에 읽어 두고 [] 로 정한 뒤 끝에(실패해도) 읽어 둔 값으로 되돌린다.
 // 6차: 공법·신통·옥간·몹 이름에도 실행 번호를 섞는다. 신통 대기시간·법력 회복도 실제 시간이라 되풀이로 기다린다.
 //      5차 단계 42 의 정리(몹 배치 지움·시작 소지품 되돌림)는 단계 51 로 옮겨 한 번만 한다.
+// 부채 정리 2차: 조용한 방 상태(quiet room)는 isQuietRoom 으로 따로 본다(단계 21·38·49). 단계 52 는 로그아웃 뒤 게임 연결 4401.
 
 const baseUrl = (process.argv[2] ?? "http://localhost:8080").replace(/\/$/, "");
 const wsUrl = baseUrl.replace(/^http/, "ws") + "/ws/game";
@@ -212,6 +213,9 @@ const HELP_6 = "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남�
 /** 방 보기 room. 조용한 방 상태(quiet: true, 부채 정리 2차)는 건너뛴다(L-6) */
 const isRoom = (roomName) => (m) => m.type === "room" && m.quiet !== true && m.room?.name === roomName;
 const isNotice = (event, actor) => (m) => m.type === "notice" && m.event === event && m.actor === actor;
+/** 조용한 방 상태(quiet: true, 부채 정리 2차 #13) — 화면 줄 대신 오는 그 방의 바뀐 상태 */
+const isQuietRoom = (roomName, predicate = () => true) => (m) =>
+  m.type === "room" && m.quiet === true && m.room?.name === roomName && predicate(m);
 
 const ROOT_PROMPT = "영근을 고르십시오.";
 
@@ -546,7 +550,7 @@ async function run() {
       return msg;
     };
 
-    step(`21. C 보기·줍기·버리기·물건 보기 — D가 pick·drop 알림을 받음`);
+    step(`21. C 보기·줍기·버리기·물건 보기 — D가 pick·drop 알림과 줄어든 바닥의 조용한 방 상태(quiet)를 받음`);
     const floorLook = async () => {
       const m = c.send("보기");
       return (await c.waitFor(isRoom("광장"), "C 보기 room", m)).items;
@@ -556,6 +560,8 @@ async function run() {
     let dMark = d.mark();
     await expectSystem(c, `줍기 ${hideName} 2`, `${hideName} 2개를 주웠습니다.`, "item");
     await d.waitFor(isNotice("pick", nameC), `${nameC} pick`, dMark);
+    await d.waitFor(isQuietRoom("광장", (m) => m.items?.some((i) => i.name === hideName && i.count === 1)),
+      `줍기 뒤 ${hideName} 1 인 quiet room`, dMark);
     dMark = d.mark();
     await expectSystem(c, `버리기 ${hideName} 1`, `${hideName} 1개를 버렸습니다.`, "item");
     await d.waitFor(isNotice("drop", nameC), `${nameC} drop`, dMark);
@@ -890,9 +896,10 @@ async function run() {
       fail(`NPC 공격 거절 문구가 다름: ${JSON.stringify(npcRefusal)}`);
     }
 
-    step(`38. 관리자 — E 연기 7층 지정, 공격 ${rabbitName} → 교전·일격, 이동·종료 막힘, 상태 전투 줄, 맞음·처치(≤ 12초)`);
+    step(`38. 관리자 — E 연기 7층 지정, 공격 ${rabbitName} → 교전·일격, 이동·종료 막힘, 상태 전투 줄, 맞음·처치(≤ 12초), E·D 가 처치 뒤 quiet room`);
     await designate(e, nameE, "QI_7", "경지가 연기 7층으로 바뀌었습니다. (육신 -24, 근력 -12, 영력 -23, 의식 -56, 정혈 -56)");
     const combatLine = (text) => (m) => m.type === "system" && m.tone === "combat" && m.text === text;
+    const dAttackMark = d.mark();
     const attackMark = e.send(`공격 ${rabbitName}`);
     await e.waitFor(combatLine(`${rabbitName}와 싸움이 벌어진다.`), "교전 시작", attackMark);
     await e.waitFor(combatLine(`${rabbitName}에게 일격을 날린다. (피해 19)`), "첫 일격", attackMark);
@@ -903,6 +910,10 @@ async function run() {
     if (!status.text.includes(`[전투 중] 상대: ${rabbitName}`)) fail(`E 상태에 전투 줄이 없음: ${JSON.stringify(status.text)}`);
     await e.waitFor(combatLine(`${rabbitName}가 뒷발차기로 덮친다! (피해 1, 기혈 119/120)`), "들토끼 공격", attackMark, 12000);
     await e.waitFor(combatLine(`${rabbitName}를 쓰러뜨렸습니다.`), "들토끼 처치", attackMark, 12000);
+    const rabbitKilledRoom = isQuietRoom("광장", (m) => !mobLine(m, rabbitName)
+      && m.corpses?.some((corpse) => corpse.name === `${rabbitName}의 시체`));
+    await e.waitFor(rabbitKilledRoom, `처치 뒤 ${rabbitName} 없고 시체 있는 quiet room`, attackMark);
+    await d.waitFor(rabbitKilledRoom, `처치 뒤 ${rabbitName} 없고 시체 있는 quiet room`, dAttackMark);
 
     step(`39. E 보기 → 시체, 수습 ${rabbitName} → ${rabbitHideName} 1, 소지품`);
     mark = e.send("보기");
@@ -971,6 +982,8 @@ async function run() {
       "붉은 불씨가 {대상}을 감싸 터진다!",
       "{시전자}의 손끝에서 튄 불꽃이 {대상}에게 꽂힌다!",
       "작은 화염이 꼬리를 끌며 {대상}로 날아든다!",
+      "{대상}이마를 스친다!",
+      "{대상}으로부터 불티가 튄다!",
     ];
     const blazeRequest = (effectLines) => ({
       name: blazeName, description: "", elements: ["WOOD"], startRealm: "MORTAL",
@@ -983,7 +996,7 @@ async function run() {
     const noLines = await api(admin, "POST", "/api/admin/techniques", blazeRequest([]), { expect: 400 });
     if (noLines.detail !== lineCountDetail) fail(`이펙트 문장 0개 detail 이 다름: ${noLines.detail}`);
     const sixLines = await api(admin, "POST", "/api/admin/techniques",
-      blazeRequest([...emberLines, ...emberLines]), { expect: 400 });
+      blazeRequest([...emberLines, "불씨가 사방으로 흩어진다!"]), { expect: 400 });
     if (sixLines.detail !== lineCountDetail) fail(`이펙트 문장 6개 detail 이 다름: ${sixLines.detail}`);
     const blaze = await api(admin, "POST", "/api/admin/techniques", blazeRequest(emberLines), { expect: 201 });
     const blazeDetail = await api(admin, "GET", `/api/admin/techniques/${blaze.id}`);
@@ -1028,6 +1041,9 @@ async function run() {
       `붉은 불씨가 ${ghostName}를 감싸 터진다!`,
       `${nameE}의 손끝에서 튄 불꽃이 ${ghostName}에게 꽂힌다!`,
       `작은 화염이 꼬리를 끌며 ${ghostName}로 날아든다!`,
+      // 이름에 바로 붙은 '이마' 는 조사가 아니라 그대로, '으로부터' 는 조사라 받침에 맞춰 고침(#19)
+      `${ghostName}이마를 스친다!`,
+      `${ghostName}로부터 불티가 튄다!`,
     ];
     const isEffectLine = (m) => m.type === "system" && m.tone === "combat"
       && emberRenders.some((r) => m.text.startsWith(`${r} (피해 `));
@@ -1088,10 +1104,11 @@ async function run() {
       fail(`관리자 캐릭터 상세 insight 의 FIRE 가 다름: ${JSON.stringify(eDetail.insight)}`);
     }
 
-    step(`49. 기다림(≤ 45초) — ${ghostName}를 쓰러뜨렸습니다, E 는 지지 않음`);
+    step(`49. 기다림(≤ 45초) — ${ghostName}를 쓰러뜨렸습니다, E 는 지지 않음, ${ghostName} 없는 quiet room`);
     const ghostEnd = await e.waitFor((m) => combatLine(`${ghostName}를 쓰러뜨렸습니다.`)(m)
       || (m.type === "system" && m.text.startsWith("기혈이 다했습니다.")), "음혼 처치", ghostMark, 45000);
     if (ghostEnd.text.startsWith("기혈이 다했습니다.")) fail(`E 가 ${ghostName} 에게 짐: ${JSON.stringify(ghostEnd)}`);
+    await e.waitFor(isQuietRoom("광장", (m) => !mobLine(m, ghostName)), `처치 뒤 ${ghostName} 없는 quiet room`, ghostMark);
 
     step(`50. 법력 회복 — E 상태 되풀이(≤ 15초) → 법력이 ${manaAfterCasts} 보다 커짐`);
     await repeatUntil(() => statusOf(e), (s) => s.stats?.mana?.current > manaAfterCasts,
@@ -1112,6 +1129,20 @@ async function run() {
       fail(`시작 소지품이 스모크 시작 때 값으로 돌아가지 않음: ${JSON.stringify(backToInitial)}`);
     }
     initialStartingItems = null;
+
+    // 부채 정리 2차 F-2: #18(교전 중 막힌 확인)은 스모크로 보지 않고 단위 테스트로만 본다
+    step("52. G 접속(이름 prompt) → 같은 쿠키로 로그아웃 → G 가 AUTH_REQUIRED 안내를 받고 4401 로 닫힘");
+    const playerG = await devLogin(`smoke-g-${runId}@example.com`);
+    const g = connect("G", playerG.cookie);
+    await g.opened;
+    await g.waitFor((m) => m.type === "prompt" && m.text.startsWith("이름을 정하십시오"), "이름 prompt");
+    const gMark = g.mark();
+    await api(playerG, "POST", "/api/auth/logout", undefined, { expect: 204 });
+    const ended = await g.waitFor((m) => m.type === "error", "로그아웃 뒤 error", gMark);
+    if (ended.code !== "AUTH_REQUIRED" || ended.text !== "로그인이 끝났습니다. 다시 로그인하십시오.") {
+      fail(`로그아웃 뒤 error 가 다름: ${JSON.stringify(ended)}`);
+    }
+    await g.waitClose(4401);
 
     console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName}·${merchantName}, 공법 ${springName}·${greenName}·${blazeName}, 몹 ${ghostName})`);
   } finally {
