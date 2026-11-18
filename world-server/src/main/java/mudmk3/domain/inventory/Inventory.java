@@ -145,14 +145,24 @@ public class Inventory extends AbstractEntity {
      * 저물대가 뒤에 있어도 된다. 다 들어가지 않으면 {@code IllegalStateException} 이고 아무것도 넣지 않는다
      */
     public void addAll(SequencedMap<ItemType, Integer> items, boolean braceletOpen) {
+        Changes changes = changesOf(items);
+        state(checkAdd(changes, braceletOpen) == AddCheck.OK, "소지품에 다 넣을 수 없습니다.");
+        apply(changes);
+    }
+
+    /** {@link #addAll} 처럼 다 넣은 뒤의 칸으로 한 번만 검사해 물건 여럿을 한 번에 넣을 수 있는지 */
+    public AddCheck checkAddAll(SequencedMap<ItemType, Integer> items, boolean braceletOpen) {
+        return checkAdd(changesOf(items), braceletOpen);
+    }
+
+    private Changes changesOf(SequencedMap<ItemType, Integer> items) {
         requireNonNull(items);
         Changes changes = new Changes();
         items.forEach((itemType, count) -> {
             requirePositive(requireNonNull(count));
             changes.add(itemType, count);
         });
-        state(checkAdd(changes, braceletOpen) == AddCheck.OK, "소지품에 다 넣을 수 없습니다.");
-        apply(changes);
+        return changes;
     }
 
     /**

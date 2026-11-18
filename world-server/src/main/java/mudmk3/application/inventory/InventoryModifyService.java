@@ -52,7 +52,18 @@ public class InventoryModifyService implements InventoryEditor {
             items.put(itemType, startingItem.count());
         }
         Inventory inventory = Inventory.empty(characterId);
-        inventory.addAll(items, false);
+        if (inventory.checkAddAll(items, false) == AddCheck.OK) {
+            inventory.addAll(items, false);
+        } else {
+            // 지워진 저물대 등으로 칸이 모자라면 순서대로 들어가는 것만 준다
+            items.forEach((itemType, count) -> {
+                if (inventory.checkAdd(itemType, count, false) == AddCheck.OK) {
+                    inventory.add(itemType, count, false);
+                } else {
+                    log.warn("시작 소지품이 칸에 들어가지 않아 건너뜁니다. id: {}, 수: {}", itemType.getId(), count);
+                }
+            });
+        }
         inventoryRepository.save(inventory);
     }
 

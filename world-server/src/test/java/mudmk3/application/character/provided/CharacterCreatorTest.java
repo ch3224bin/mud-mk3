@@ -29,6 +29,9 @@ import mudmk3.domain.room.Room;
 import mudmk3.domain.shared.Realm;
 import mudmk3.domain.zone.Zone;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 
@@ -47,6 +50,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 @ApplicationServiceTest
+@ExtendWith(OutputCaptureExtension.class)
 record CharacterCreatorTest(
         CharacterCreator characterCreator,
         CharacterFinder characterFinder,
@@ -318,7 +322,7 @@ record CharacterCreatorTest(
     }
 
     @Test
-    void createSkipsDeletedStartingItem() {
+    void createSkipsDeletedStartingItem(CapturedOutput output) {
         prepareStartRoom();
         Long healPill = itemTypeEditor.create(createItemTypeSaveRequest("회춘단(연기 초)", ItemCategory.PILL, 3)).getId();
         Long deleted = itemTypeEditor.create(createItemTypeSaveRequest("사라진 단약", ItemCategory.PILL, 3)).getId();
@@ -340,6 +344,33 @@ record CharacterCreatorTest(
                         tuple("회춘단(연기 초)", 3),
                         tuple("하급 저물대", 1),
                         tuple("회기단(연기 초)", 2));
+        assertThat(output).contains("시작 소지품의 물건 종류가 없어 건너뜁니다. id: " + deleted);
+    }
+
+    @Test
+    void createGivesStartingItemsThatFitWhenDeletedBagLeavesNoRoom(CapturedOutput output) {
+        prepareStartRoom();
+        Long bag = itemTypeEditor.create(createItemTypeSaveRequest("하급 저물대", ItemCategory.BAG, 10, BagGrade.LOW)).getId();
+        Long healPill = itemTypeEditor.create(createItemTypeSaveRequest("회춘단(연기 초)", ItemCategory.PILL, 3)).getId();
+        Long sword = itemTypeEditor.create(createItemTypeSaveRequest("비검", ItemCategory.ARTIFACT, 50)).getId();
+        Long qiPill = itemTypeEditor.create(createItemTypeSaveRequest("회기단(연기 초)", ItemCategory.PILL, 3)).getId();
+        worldSettingsEditor.replaceStartingItems(List.of(new StartingItemRequest(bag, 1), new StartingItemRequest(healPill, 3),
+                new StartingItemRequest(sword, 2), new StartingItemRequest(qiPill, 3)));
+        // 저물대가 지워져 기본 2칸에 회춘단(1칸)·비검(2칸)·회기단(1칸)이 다 들어가지 않는다
+        flushAndClear();
+        entityManager.createNativeQuery("delete from item_type where id = ?").setParameter(1, bag).executeUpdate();
+
+        PlayerCharacter character = characterCreator.create(prepareAccount("hanbaek@example.com"), "한백", spiritRoot());
+        flushAndClear();
+
+        assertThat(characterFinder.find(character.getId()).getName()).isEqualTo(new CharacterName("한백"));
+        assertThat(inventoryFinder.find(character.getId()).getEntries())
+                .extracting(entry -> entry.getItemType().getName(), InventoryEntry::getCount)
+                .containsExactly(
+                        tuple("회춘단(연기 초)", 3),
+                        tuple("회기단(연기 초)", 3));
+        assertThat(output).contains("시작 소지품의 물건 종류가 없어 건너뜁니다. id: " + bag)
+                .contains("시작 소지품이 칸에 들어가지 않아 건너뜁니다. id: " + sword + ", 수: 2");
     }
 
     private Long prepareStartRoom() {

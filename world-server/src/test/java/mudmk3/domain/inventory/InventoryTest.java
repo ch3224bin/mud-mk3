@@ -79,8 +79,11 @@ class InventoryTest {
         items.put(pill, 3);
         items.put(sword, 2);
 
+        assertThat(inventory.checkAddAll(items, false)).isEqualTo(AddCheck.NO_ROOM);
         assertThatThrownBy(() -> inventory.addAll(items, false)).isInstanceOf(IllegalStateException.class);
         assertThat(inventory.getEntries()).isEmpty();
+        items.put(bag, 1);
+        assertThat(inventory.checkAddAll(items, false)).isEqualTo(AddCheck.OK);
     }
 
     @Test
