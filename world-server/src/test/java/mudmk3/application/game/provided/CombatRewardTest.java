@@ -15,6 +15,7 @@ import mudmk3.application.floor.provided.FloorPlacementEditor;
 import mudmk3.application.game.GameService;
 import mudmk3.application.game.RecordingGameMessageSender;
 import mudmk3.application.game.required.CorpseRepository;
+import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.NoticeMessage;
 import mudmk3.application.game.required.GameMessage.RoomMessage;
 import mudmk3.application.game.required.GameMessage.RoomMessage.CorpseView;
@@ -516,6 +517,96 @@ class CombatRewardTest extends BaseGameTest {
         advanceAndTick(0.5);
         assertThat(sender.messagesTo("a"))
                 .containsExactly(NoticeMessage.combat("청모랑이 나타난다.", "청모랑", "respawn"));
+    }
+
+    // ---- 조용한 방 상태(부채 정리 2차 #13)
+
+    /** 처치 뒤 그 방 사람(처치자 포함)에게 알림 줄 뒤 조용한 방 상태 하나. 교전하지 않은 사람의 보통 메시지는 그대로 */
+    @Test
+    void killSendsQuietRoom() {
+        GameMap map = prepareMap();
+        enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        enter("b", "한립");
+        placeMob(map, wolf(), 1);
+        sender.clear();
+
+        gameConnector.handle("a", KILL_WOLF);
+
+        List<GameMessage> all = sender.allMessagesTo("a");
+        assertThat(all.getLast()).isInstanceOfSatisfying(RoomMessage.class, room -> assertThat(room.quiet()).isTrue());
+        assertThat(all.subList(0, all.size() - 1)).contains(SystemMessage.combat("청모랑을 쓰러뜨렸습니다."));
+        assertThat(sender.quietRoomsTo("a")).singleElement().satisfies(room -> {
+            assertThat(room.mobs()).isEmpty();
+            assertThat(room.corpses()).extracting(CorpseView::name).containsExactly("청모랑의 시체");
+            assertThat(room.zoneEntered()).isFalse();
+        });
+        assertThat(sender.quietRoomsTo("b")).singleElement().satisfies(room -> {
+            assertThat(room.mobs()).isEmpty();
+            assertThat(room.corpses()).containsExactly(new CorpseView("청모랑의 시체", false));
+            assertThat(room.occupants()).extracting(RoomMessage.OccupantView::name).containsExactly("한백");
+        });
+        assertThat(sender.messagesTo("b")).containsExactly(
+                NoticeMessage.combat("한백이 청모랑과 싸우기 시작한다.", "한백", "engage"),
+                NoticeMessage.combat("한백이 청모랑을 쓰러뜨렸다.", "한백", "kill"));
+    }
+
+    @Test
+    void corpseExpirySendsQuietRoom() {
+        GameMap map = prepareMap();
+        enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        enter("b", "한립");
+        MobTypeSaveInfo slowWolf = info("청모랑", MobKind.BEAST, Realm.QI_2, MobTier.NORMAL, "물어뜯기", null, 600);
+        placeMob(map, slowWolf, 1);
+        gameConnector.handle("a", KILL_WOLF);
+        advanceAndTick(179.5);
+        sender.clear();
+
+        advanceAndTick(0.5);
+
+        assertThat(sender.quietRoomsTo("a")).singleElement()
+                .satisfies(room -> assertThat(room.corpses()).isEmpty());
+        assertThat(sender.quietRoomsTo("b")).singleElement()
+                .satisfies(room -> assertThat(room.corpses()).isEmpty());
+        assertThat(sender.messagesTo("b")).isEmpty();
+    }
+
+    @Test
+    void collectAllSendsQuietRoom() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long wolfHide = wolfHide();
+        enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        enter("b", "한립");
+        placeMob(map, wolfWithDrops(wolfHide, items.fang()), 1);
+        gameConnector.handle("a", KILL_WOLF);
+        sender.clear();
+
+        gameConnector.handle("a", "수습 청모랑");
+
+        assertThat(sender.quietRoomsTo("a")).singleElement()
+                .satisfies(room -> assertThat(room.corpses()).isEmpty());
+        assertThat(sender.quietRoomsTo("b")).singleElement()
+                .satisfies(room -> assertThat(room.corpses()).isEmpty());
+        assertThat(sender.allMessagesTo("b").getFirst())
+                .isEqualTo(NoticeMessage.item("한백이 청모랑의 시체를 수습한다.", "한백", "collect"));
+    }
+
+    /** 일부만 거두어 시체가 남으면 대상 목록이 그대로라 보내지 않는다 */
+    @Test
+    void collectPartialSendsNoQuietRoom() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long wolfHide = wolfHide();
+        Long hanbaek = enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        placeMob(map, wolfWithDrops(wolfHide, items.fang()), 1);
+        give(hanbaek, items.sword(), 1);
+        gameConnector.handle("a", KILL_WOLF);
+        sender.clear();
+
+        gameConnector.handle("a", "수습 청모랑");
+
+        assertThat(corpseRepository.findAllInRoom(map.entranceId())).hasSize(1);
+        assertThat(sender.quietRoomsTo("a")).isEmpty();
     }
 
     // ---- 도우미

@@ -2,6 +2,7 @@ package mudmk3.application.game;
 
 import mudmk3.application.game.required.GameCloseReason;
 import mudmk3.application.game.required.GameMessage;
+import mudmk3.application.game.required.GameMessage.RoomMessage;
 import mudmk3.application.game.required.GameMessageSender;
 
 import java.util.ArrayList;
@@ -31,11 +32,31 @@ public class RecordingGameMessageSender implements GameMessageSender {
         closed.clear();
     }
 
+    /** 그 세션이 받은 메시지(순서대로). 조용한 방 상태({@code quiet} 인 room)는 빼고 {@link #quietRoomsTo} 로 따로 본다 */
     public synchronized List<GameMessage> messagesTo(String sessionId) {
+        return allMessagesTo(sessionId).stream()
+                .filter(message -> !isQuietRoom(message))
+                .toList();
+    }
+
+    /** 그 세션이 받은 조용한 방 상태(순서대로) */
+    public synchronized List<RoomMessage> quietRoomsTo(String sessionId) {
+        return allMessagesTo(sessionId).stream()
+                .filter(RecordingGameMessageSender::isQuietRoom)
+                .map(RoomMessage.class::cast)
+                .toList();
+    }
+
+    /** 그 세션이 받은 모든 메시지(조용한 방 상태 포함, 순서대로) */
+    public synchronized List<GameMessage> allMessagesTo(String sessionId) {
         return sent.stream()
                 .filter(s -> s.sessionId().equals(sessionId))
                 .map(Sent::message)
                 .toList();
+    }
+
+    private static boolean isQuietRoom(GameMessage message) {
+        return message instanceof RoomMessage room && room.quiet();
     }
 
     /** 보낸 차례대로 모든 메시지(세션 사이의 순서를 볼 때) */

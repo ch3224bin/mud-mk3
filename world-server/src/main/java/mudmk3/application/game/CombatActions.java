@@ -47,6 +47,7 @@ class CombatActions {
     private final CharacterFinder characterFinder;
     private final CombatTexts combatTexts;
     private final RoomNotifier roomNotifier;
+    private final RoomRefresher roomRefresher;
 
     /** 교전 시작 순번(같은 시각 행동의 순서). 늘기만 한다 */
     private final AtomicLong engageOrders = new AtomicLong();
@@ -127,7 +128,7 @@ class CombatActions {
      * 몹이 쓰러졌다: 그 자리에 시체를 남기고(드롭은 지금 굴림, D87) 처치자 {@code 청모랑을 쓰러뜨렸습니다.},
      * 교전하던 다른 사람 {@code 청모랑이 쓰러졌다.}, 같은 방의 교전하지 않은 사람 {@code 한백이 청모랑을 쓰러뜨렸다.}
      * (event {@code kill}) → 교전하던 플레이어마다 그 몹과의 교전을 끝낸다 → 맨 끝에 그 몹의 깨달음 한 상대 상한을 지운다
-     * (쓰러뜨린 일격의 깨달음을 쌓은 뒤, F1).
+     * (쓰러뜨린 일격의 깨달음을 쌓은 뒤, F1). 그 방을 표시한다(조용한 방 상태).
      * 처치자는 피해가 가장 많은 사람이라 마지막 일격을 한 사람과 다를 수 있다. {@code opponents} 는 쓰러지기 전에 읽은
      * 교전 상대다(쓰러지면 몹의 상대 목록이 비므로)
      */
@@ -157,6 +158,7 @@ class CombatActions {
         }
         mob.clearInsightCaps();
         mobInstanceRepository.save(mob);
+        roomRefresher.mark(mob.getRoomId());
     }
 
     /** 플레이어와 몹이 같은 방에서 서로 교전 중이다 */

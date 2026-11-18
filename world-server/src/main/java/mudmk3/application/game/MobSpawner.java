@@ -34,6 +34,7 @@ class MobSpawner {
     private final PlayerCombatRepository playerCombatRepository;
     private final PresenceRepository presenceRepository;
     private final CombatTexts combatTexts;
+    private final RoomRefresher roomRefresher;
 
     /** 몹 id. 서버가 돌아가는 동안 늘기만 한다 */
     private final AtomicLong mobIds = new AtomicLong();
@@ -79,6 +80,7 @@ class MobSpawner {
             });
         }
         mobInstanceRepository.delete(mob.getId());
+        roomRefresher.mark(mob.getRoomId());
     }
 
     /** 3. 몹 다시 차기: 교전 상대가 모두 사라진 지 10초가 된 몹은 기혈이 다 차고 위협·피해 기록을 지운다 */
@@ -102,12 +104,13 @@ class MobSpawner {
         }
     }
 
-    /** 그 방 사람에게 {@code 청모랑이 나타난다.}(event {@code respawn}) */
+    /** 그 방 사람에게 {@code 청모랑이 나타난다.}(event {@code respawn}). 그 방을 표시한다(조용한 방 상태) */
     private void notifyAppeared(MobInstance mob, BiConsumer<String, GameMessage> send) {
         String name = mob.getProfile().name();
         GameMessage notice = NoticeMessage.combat(combatTexts.appears(name), name, "respawn");
         for (OnlinePlayer player : presenceRepository.findAllInRoom(mob.getRoomId())) {
             send.accept(player.getSessionId(), notice);
         }
+        roomRefresher.mark(mob.getRoomId());
     }
 }

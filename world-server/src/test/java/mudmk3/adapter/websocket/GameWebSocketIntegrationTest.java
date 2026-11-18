@@ -394,6 +394,11 @@ class GameWebSocketIntegrationTest {
                 {"type":"system","text":"늑대 가죽 2개를 주웠습니다.","tone":"item"}"""));
         assertThat(b.next()).isEqualTo(json("""
                 {"type":"notice","text":"한백이 늑대 가죽 2개를 줍는다.","tone":"item","actor":"한백","event":"pick"}"""));
+        JsonNode quietRoom = b.nextQuietRoom();
+        assertThat(quietRoom.get("zoneEntered").asBoolean()).isFalse();
+        assertThat(quietRoom.get("items")).isEqualTo(json("""
+                [{"name":"늑대 가죽","count":1}]"""));
+        assertThat(a.nextQuietRoom().get("quiet").asBoolean()).isTrue();
 
         a.command("소지품");
         assertThat(a.next()).isEqualTo(json("""
@@ -671,9 +676,15 @@ class GameWebSocketIntegrationTest {
     }
 
     /** 받은 메시지를 줄 세워 두는 클라이언트 */
+    /**
+     * 테스트 연결. 받은 메시지는 도착할 때 두 줄로 나눈다: 조용한 방 상태({@code room} {@code quiet: true})는
+     * {@link #nextQuietRoom()} 줄, 그 밖은 {@link #next()} 줄. 두 줄은 서로 기다리지 않으므로 {@link #next()} 는 조용한 방 상태를
+     * 건너뛰고(L-6), 두 줄 사이의 순서는 보지 않는다(순서는 게임 포트 테스트가 본다)
+     */
     private final class Client extends TextWebSocketHandler {
 
         private final BlockingQueue<String> received = new LinkedBlockingQueue<>();
+        private final BlockingQueue<String> quietRooms = new LinkedBlockingQueue<>();
         private final CompletableFuture<CloseStatus> closed = new CompletableFuture<>();
         private @Nullable WebSocketSession session;
         private @Nullable JsonNode lastRoom;
@@ -681,7 +692,10 @@ class GameWebSocketIntegrationTest {
 
         @Override
         protected void handleTextMessage(WebSocketSession session, TextMessage message) {
-            received.add(message.getPayload());
+            String payload = message.getPayload();
+            JsonNode node = jsonMapper.readTree(payload);
+            boolean quietRoom = node.path("type").asString("").equals("room") && node.path("quiet").asBoolean(false);
+            (quietRoom ? quietRooms : received).add(payload);
         }
 
         @Override
@@ -701,6 +715,13 @@ class GameWebSocketIntegrationTest {
         JsonNode next(long timeoutSeconds) throws InterruptedException {
             String payload = received.poll(timeoutSeconds, TimeUnit.SECONDS);
             if (payload == null) throw new AssertionError("메시지가 오지 않았다");
+            return jsonMapper.readTree(payload);
+        }
+
+        /** 다음 조용한 방 상태를 기다린다 */
+        JsonNode nextQuietRoom() throws InterruptedException {
+            String payload = quietRooms.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (payload == null) throw new AssertionError("조용한 방 상태가 오지 않았다");
             return jsonMapper.readTree(payload);
         }
 

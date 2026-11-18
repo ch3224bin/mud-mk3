@@ -24,6 +24,7 @@ import mudmk3.application.game.required.GameMessage.RoomMessage.OccupantView;
 import mudmk3.application.game.required.GameMessage.SystemMessage;
 import mudmk3.application.game.required.MobInstanceRepository;
 import mudmk3.application.game.required.PlayerCombatRepository;
+import mudmk3.application.game.required.PresenceRepository;
 import mudmk3.application.inventory.provided.InventoryEditor;
 import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.item.provided.ItemTypeEditor;
@@ -42,6 +43,7 @@ import mudmk3.domain.combat.AttackNature;
 import mudmk3.domain.combat.Corpse;
 import mudmk3.domain.combat.MobInstance;
 import mudmk3.domain.combat.PlayerCombat;
+import mudmk3.domain.game.OnlinePlayer;
 import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.ItemType;
 import mudmk3.domain.room.Room;
@@ -63,6 +65,7 @@ import static mudmk3.domain.mob.MobFixture.wolf;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.zone.ZoneFixture.createZoneSaveRequest;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** 서버 틱의 배치 맞추기·몹 나타나기와 방 보기·{@code 보기 <몹>}(D85·D89) */
 @ApplicationServiceTest
@@ -74,6 +77,7 @@ class CombatSpawnTest extends BaseGameTest {
     private final CorpseRepository corpseRepository;
     private final PlayerCombatRepository playerCombatRepository;
     private final ApplicationContext applicationContext;
+    private final PresenceRepository presenceRepository;
     /** 방 삭제 반영({@link GameService#onRoomDeleted}). 테스트 트랜잭션은 커밋되지 않아 직접 넘긴다 */
     private final GameService gameService;
 
@@ -104,7 +108,8 @@ class CombatSpawnTest extends BaseGameTest {
             MobInstanceRepository mobInstanceRepository,
             CorpseRepository corpseRepository,
             PlayerCombatRepository playerCombatRepository,
-            ApplicationContext applicationContext
+            ApplicationContext applicationContext,
+            PresenceRepository presenceRepository
     ) {
         super(gameConnector, gameService, sender, accountLogin, characterCreator, characterFinder, characterMover,
                 characterRepository, characterRealmEditor, zoneEditor, roomEditor, worldSettingsEditor, factionEditor, npcEditor,
@@ -114,6 +119,7 @@ class CombatSpawnTest extends BaseGameTest {
         this.corpseRepository = corpseRepository;
         this.playerCombatRepository = playerCombatRepository;
         this.applicationContext = applicationContext;
+        this.presenceRepository = presenceRepository;
         this.gameService = gameService;
     }
 
@@ -151,6 +157,70 @@ class CombatSpawnTest extends BaseGameTest {
         sender.clear();
         tick();
         assertThat(sender.messagesTo("s1")).isEmpty();
+    }
+
+    // ---- 조용한 방 상태(부채 정리 2차 #13)
+
+    @Test
+    void respawnSendsQuietRoom() {
+        GameMap map = prepareMap();
+        Long hanbaek = enter("s1", "한백");
+        setRealm(hanbaek, Realm.FOUNDATION_EARLY);
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("s1", "공격 청모랑"); // 축기 초기 일격 60 > 청모랑 기혈 49
+        advanceAndTick(89.5);
+        sender.clear();
+
+        advanceAndTick(0.5);
+
+        assertThat(sender.allMessagesTo("s1")).hasSize(2);
+        assertThat(sender.allMessagesTo("s1").getFirst()).isEqualTo(WOLF_APPEARS);
+        assertThat(sender.quietRoomsTo("s1")).singleElement()
+                .satisfies(room -> assertThat(room.mobs()).extracting(MobView::name).containsExactly("청모랑"));
+    }
+
+    /** 관리 툴에서 배치를 지워 몹이 빠져도 그 방 사람에게 조용한 방 상태(알림 줄은 없음) */
+    @Test
+    void placementDeletedSendsQuietRoom() {
+        GameMap map = prepareMap();
+        PlacedMob placed = placeMob(map, wolf(), 2);
+        enter("s1", "한백");
+        enterAt("s2", "한립", map.wellId());
+        sender.clear();
+
+        mobPlacementEditor.delete(placed.placementId());
+        tick();
+
+        assertThat(sender.messagesTo("s1")).isEmpty();
+        assertThat(sender.quietRoomsTo("s1")).singleElement()
+                .satisfies(room -> assertThat(room.mobs()).isEmpty());
+        assertThat(sender.allMessagesTo("s2")).isEmpty();
+    }
+
+    /**
+     * 실패한 처리가 남긴 방 표시는 다음 처리로 새지 않는다(F-9). 몹이 나타나 방이 표시된 뒤 같은 틱의 법력 회복이 DB에 없는
+     * 캐릭터(가짜 접속)를 읽다 실패한다 → 가짜 접속을 지우고 아무 일 없는 틱 → 조용한 방 상태도 알림도 없다
+     */
+    @Test
+    void failedProcessingMarkDoesNotLeak() {
+        GameMap map = prepareMap();
+        enter("s1", "한백");
+        OnlinePlayer ghost = OnlinePlayer.enter(999_999L, 999_999L, "유령", map.wellId(), "ghost");
+        presenceRepository.save(ghost);
+        tick(); // 유령의 법력 회복 시각을 처음 잡는다(0초라 깎인 법력을 읽지 않음)
+        MobTypeView wolf = mobTypeEditor.create(request(wolf()));
+        mobPlacementEditor.create(map.entranceId(), new MobPlacementSaveRequest(wolf.id(), 1));
+        advance(1);
+        sender.clear();
+
+        assertThatThrownBy(this::tick).isInstanceOf(IllegalArgumentException.class);
+        assertThat(mobInstanceRepository.findAllInRoom(map.entranceId())).hasSize(1);
+        presenceRepository.delete(ghost.getCharacterId());
+
+        advance(1);
+        tick();
+
+        assertThat(sender.allMessagesTo("s1")).isEmpty();
     }
 
     @Test

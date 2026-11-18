@@ -54,6 +54,11 @@ export type RoomMessage = {
   corpses: Corpse[];
   /** 바닥 물건(D40 순서), 없으면 [] */
   items: FloorItem[];
+  /**
+   * 부채 정리 2차: 조용한 방 상태면 true(처치·재등장·시체 사라짐·짐·줍기·버리기 뒤 서버가 보냄, zoneEntered 는 늘 false).
+   * 화면에 그리지 않고 이름 후보만 바꾼다. 방 보기는 false
+   */
+  quiet: boolean;
 };
 
 /**

@@ -189,7 +189,7 @@ function isNearBottom(log: HTMLElement | null): boolean {
 }
 
 /**
- * D18·D29·D51·D92: 이름 후보는 마지막 room 의 occupants 전부(사람 + NPC) → 몹 → 시체 → 바닥 물건으로 정하고,
+ * D18·D29·D51·D92: 이름 후보는 마지막 room(조용한 방 상태 포함)의 occupants 전부(사람 + NPC) → 몹 → 시체 → 바닥 물건으로 정하고,
  * 이동 notice(arrive·appear·leave·disappear)로 사람만 더하고 뺀다. 물건·교전 notice 는 바꾸지 않는다.
  */
 function updateNames(names: { current: string[] }, message: ServerMessage) {

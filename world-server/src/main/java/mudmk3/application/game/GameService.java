@@ -115,6 +115,7 @@ public class GameService implements GameConnector, GameTicker {
     private final CombatCommandHandler combatCommandHandler;
     private final AbilityCommandHandler abilityCommandHandler;
     private final RoomNotifier roomNotifier;
+    private final RoomRefresher roomRefresher;
     private final Clock clock;
     private final GameMessageSender sender;
     private final TransactionTemplate transactionTemplate;
@@ -142,6 +143,7 @@ public class GameService implements GameConnector, GameTicker {
             CombatCommandHandler combatCommandHandler,
             AbilityCommandHandler abilityCommandHandler,
             RoomNotifier roomNotifier,
+            RoomRefresher roomRefresher,
             Clock clock,
             GameMessageSender sender,
             PlatformTransactionManager transactionManager
@@ -162,6 +164,7 @@ public class GameService implements GameConnector, GameTicker {
         this.combatCommandHandler = combatCommandHandler;
         this.abilityCommandHandler = abilityCommandHandler;
         this.roomNotifier = roomNotifier;
+        this.roomRefresher = roomRefresher;
         this.clock = clock;
         this.sender = sender;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -222,17 +225,22 @@ public class GameService implements GameConnector, GameTicker {
     /**
      * 락을 잡고 그 안에서 트랜잭션을 열고 닫는다. 보낼 메시지는 모아 두었다가 커밋이 끝난 뒤(락 안) 보낸다.
      * 커밋이 실패하면 보내지 않는다(메모리 상태는 되돌리지 않는다 — 1차 한계).
+     * 처리 끝(같은 트랜잭션 안)에 이번 처리가 표시한 방마다 조용한 방 상태를 한 번 보낸다({@link #sendQuietRooms}).
      */
     private void serialized(Runnable work) {
         lock.lock();
         try {
             outbox.clear();
-            transactionTemplate.executeWithoutResult(status -> work.run());
+            roomRefresher.clear();
+            transactionTemplate.executeWithoutResult(status -> {
+                work.run();
+                sendQuietRooms();
+            });
             List<Runnable> deliveries = List.copyOf(outbox);
             outbox.clear();
             deliveries.forEach(Runnable::run);
         } finally {
-            // 실패한 처리가 남긴 outbox 는 다음 처리가 시작할 때 비운다
+            // 실패한 처리가 남긴 outbox·방 표시는 다음 처리가 시작할 때 비운다
             lock.unlock();
         }
     }
@@ -530,7 +538,7 @@ public class GameService implements GameConnector, GameTicker {
             itemCommandHandler.handle(look, player, this::send);
             return;
         }
-        send(sessionId, roomView(roomFinder.find(player.getRoomId()), false, player.getCharacterId()));
+        send(sessionId, roomView(roomFinder.find(player.getRoomId()), false, player.getCharacterId(), false));
     }
 
     /** 교전 중이면 5차 문구가 먼저, 아니고 시전 중이면 시전 문구로 막는다(D113) */
@@ -643,7 +651,7 @@ public class GameService implements GameConnector, GameTicker {
     /**
      * 진 캐릭터가 깨어난다(D88·D96): 시작 방이 지금 방과 다르면 옮기고 시작 방 사람에게 {@code 한백이 나타난다.} →
      * {@code 마을 어귀에서 깨어났습니다. (기혈 1/60)}(tone {@code combat}) → 지금 방 보기. 시작 방이 없으면 그 방에서 깨어난다.
-     * 세션이 없으면 옮기기만 한다
+     * 옮기면 옛 방을 표시한다(그 방 사람에게 조용한 방 상태). 세션이 없으면 옮기기만 한다
      */
     private void wakeAtStart(Long characterId) {
         Optional<OnlinePlayer> found = presenceRepository.findByCharacterId(characterId);
@@ -652,6 +660,7 @@ public class GameService implements GameConnector, GameTicker {
         Room room = worldSettingsFinder.findStartRoom().orElseGet(() -> roomFinder.find(player.getRoomId()));
         Long roomId = requireNonNull(room.getId());
         if (!roomId.equals(player.getRoomId())) {
+            roomRefresher.mark(player.getRoomId());
             characterMover.moveTo(characterId, roomId);
             player.moveTo(roomId);
             presenceRepository.save(player);
@@ -716,15 +725,29 @@ public class GameService implements GameConnector, GameTicker {
     /** 방 보기를 보낸다. 앞서 본 지역과 다르면 지역에 들어선 것으로 표시한다 */
     private void sendRoom(String sessionId, GameSession session, Room room) {
         boolean zoneEntered = session.enterZone(requireNonNull(room.getZone().getId()));
-        send(sessionId, roomView(room, zoneEntered, session.requireCharacterId()));
+        send(sessionId, roomView(room, zoneEntered, session.requireCharacterId(), false));
     }
 
-    /** 방 보기: 그 방의 사람(나 빼고)·배치된 NPC·몹·시체·바닥 물건을 지금 읽어 넣는다 */
-    private GameMessage roomView(Room room, boolean zoneEntered, Long viewerCharacterId) {
+    /**
+     * 이번 처리에서 표시한 방(표시한 순서)마다, 방이 아직 있으면 그 방 사람 각자에게 그 사람 기준 조용한 방 상태
+     * ({@code zoneEntered} false, {@code quiet} true)를 보낸다. 이번 처리의 다른 메시지 뒤에 간다
+     */
+    private void sendQuietRooms() {
+        for (Long roomId : roomRefresher.drain()) {
+            Optional<Room> room = roomFinder.findOptional(roomId);
+            if (room.isEmpty()) continue;
+            for (OnlinePlayer player : presenceRepository.findAllInRoom(roomId)) {
+                send(player.getSessionId(), roomView(room.get(), false, player.getCharacterId(), true));
+            }
+        }
+    }
+
+    /** 방 보기(quiet 면 조용한 방 상태): 그 방의 사람(나 빼고)·배치된 NPC·몹·시체·바닥 물건을 지금 읽어 넣는다 */
+    private GameMessage roomView(Room room, boolean zoneEntered, Long viewerCharacterId, boolean quiet) {
         Long roomId = requireNonNull(room.getId());
         return RoomViewAssembler.assemble(room, zoneEntered, presenceRepository.findAllInRoom(roomId),
                 npcFinder.findAllInRoom(roomId), roomFloor.look(roomId), viewerCharacterId,
                 combatEngine.mobsInRoom(roomId), combatEngine.corpsesInRoom(roomId),
-                characterFinder.find(viewerCharacterId).getRealm(), clock.instant());
+                characterFinder.find(viewerCharacterId).getRealm(), clock.instant(), quiet);
     }
 }

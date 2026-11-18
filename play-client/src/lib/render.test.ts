@@ -15,11 +15,16 @@ function roomMessage(overrides: Partial<RoomMessage> = {}): RoomMessage {
     mobs: [],
     corpses: [],
     items: [],
+    quiet: false,
     ...overrides,
   };
 }
 
 describe("renderMessage", () => {
+  it("quietRoomRendersNothing: 조용한 방 상태(quiet room)는 그리지 않는다", () => {
+    expect(renderMessage(roomMessage({ quiet: true }))).toEqual([]);
+  });
+
   it("room: 지역에 들어왔으면 지역 줄부터 D8 순서로 그린다", () => {
     expect(renderMessage(roomMessage())).toEqual([
       { text: "◇ 청석숲", style: "zone" },

@@ -42,7 +42,8 @@ public sealed interface GameMessage {
     /**
      * 방 보기. owner는 지역을 소유한 성·종문(없으면 null), exits는 방위 한글 이름(방위 순서),
      * occupants는 나를 뺀 사람(들어온 순서) 다음 그 방의 NPC(만든 순서), mobs는 살아 있는 몹(같은 유형·같은 교전 상태를 묶은 한 줄씩,
-     * 묶음이 처음 나온 순서), corpses는 시체(쓰러진 순), items는 바닥 물건(같은 종류를 묶은 한 줄씩, D40 순서)
+     * 묶음이 처음 나온 순서), corpses는 시체(쓰러진 순), items는 바닥 물건(같은 종류를 묶은 한 줄씩, D40 순서).
+     * quiet 는 부채 정리 2차의 조용한 방 상태(화면에 그리지 않고 자동완성 후보만 바꿈, zoneEntered 는 늘 false)면 true, 방 보기면 false
      */
     record RoomMessage(
             ZoneView zone,
@@ -53,7 +54,8 @@ public sealed interface GameMessage {
             List<OccupantView> occupants,
             List<MobView> mobs,
             List<CorpseView> corpses,
-            List<FloorItemView> items
+            List<FloorItemView> items,
+            boolean quiet
     ) implements GameMessage {
         public RoomMessage {
             exits = List.copyOf(exits);

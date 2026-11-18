@@ -122,6 +122,34 @@ class CombatDefeatTest extends BaseGameTest {
         assertThat(sender.lastTo("c", RoomMessage.class).occupants()).isNotEmpty();
     }
 
+    /** 진 사람의 옛 방 사람은 쓰러짐 알림 뒤 조용한 방 상태 하나(진 사람이 빠짐). 진 사람은 시작 방 보통 방 보기 */
+    @Test
+    void defeatSendsQuietRoomToOldRoom() {
+        GameMap map = prepareMap();
+        Long hanbaek = enterAtAs("a", "한백", map.wellId());
+        enterAt("b", "한립", map.wellId());
+        placeMob(map.wellId(), boss(), 1);
+        characterVitalsEditor.setQiBlood(characterIdOf(hanbaek), 10, 60);
+        gameConnector.handle("a", "공격 쌍두 흑망");
+        sender.clear();
+
+        advanceAndTick(1.5);
+
+        List<GameMessage> toB = sender.allMessagesTo("b");
+        assertThat(toB).hasSize(2);
+        assertThat(toB.getFirst()).isEqualTo(NoticeMessage.combat("한백이 쓰러진다.", "한백", "defeated"));
+        assertThat(toB.getLast()).isInstanceOfSatisfying(RoomMessage.class, room -> {
+            assertThat(room.quiet()).isTrue();
+            assertThat(room.room().id()).isEqualTo(map.wellId());
+            assertThat(room.occupants()).extracting(RoomMessage.OccupantView::name).doesNotContain("한백");
+        });
+        assertThat(sender.quietRoomsTo("a")).isEmpty();
+        assertThat(sender.lastTo("a", RoomMessage.class)).satisfies(room -> {
+            assertThat(room.quiet()).isFalse();
+            assertThat(room.room().id()).isEqualTo(map.entranceId());
+        });
+    }
+
     @Test
     void defeatInStartRoomStays() {
         GameMap map = prepareMap();

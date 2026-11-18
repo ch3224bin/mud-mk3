@@ -50,6 +50,7 @@ const room: ServerMessage = {
   mobs: [],
   corpses: [],
   items: [],
+  quiet: false,
 };
 
 beforeEach(() => {
@@ -297,6 +298,44 @@ describe("Terminal", () => {
     await user.type(input, "말하기 한");
     await user.keyboard("{Tab}");
     expect(input).toHaveValue("말하기 한립");
+  });
+
+  it("quiet room 은 그리지 않고 Tab 후보만 바꾼다", async () => {
+    const user = userEvent.setup();
+    const { connection, input } = renderTerminal();
+    connection.receive({ ...room, mobs: [{ name: "청모랑", rank: "1급", tier: null, count: 1, fighting: false }] });
+    const log = screen.getByRole("log");
+    const linesBefore = log.children.length;
+
+    connection.receive({
+      ...room,
+      zoneEntered: false,
+      mobs: [],
+      corpses: [{ name: "청모랑의 시체", collectible: true }],
+      quiet: true,
+    });
+
+    expect(log.children.length).toBe(linesBefore);
+    await user.type(input, "공격 청");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("공격 청모랑의 시체");
+  });
+
+  it("주운 뒤 quiet room 이 오면 바닥 물건 후보가 빠진다", async () => {
+    const user = userEvent.setup();
+    const { connection, input } = renderTerminal();
+    connection.receive({ ...room, items: [{ name: "늑대 가죽", count: 2 }] });
+    connection.receive({ type: "notice", text: "한립이 늑대 가죽 2개를 줍는다.", tone: "item", actor: "한립", event: "pick" });
+
+    await user.type(input, "줍기 늑");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("줍기 늑대 가죽");
+
+    connection.receive({ ...room, zoneEntered: false, items: [], quiet: true });
+    await user.clear(input);
+    await user.type(input, "줍기 늑");
+    await user.keyboard("{Tab}");
+    expect(input).toHaveValue("줍기 늑");
   });
 
   it("status 는 줄마다 status, system growth 는 growth 로 그린다", () => {

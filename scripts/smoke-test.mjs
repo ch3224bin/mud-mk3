@@ -209,7 +209,8 @@ const HELP_6 = "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남�
   + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건>"
   + " · 확인 · 취소 · 누구 · 도움말 · 종료";
 
-const isRoom = (roomName) => (m) => m.type === "room" && m.room?.name === roomName;
+/** 방 보기 room. 조용한 방 상태(quiet: true, 부채 정리 2차)는 건너뛴다(L-6) */
+const isRoom = (roomName) => (m) => m.type === "room" && m.quiet !== true && m.room?.name === roomName;
 const isNotice = (event, actor) => (m) => m.type === "notice" && m.event === event && m.actor === actor;
 
 const ROOT_PROMPT = "영근을 고르십시오.";

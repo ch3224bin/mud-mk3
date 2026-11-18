@@ -53,6 +53,7 @@ class CorpseHandler {
     private final CharacterRealms realms;
     private final RandomGenerator random;
     private final CombatTexts combatTexts;
+    private final RoomRefresher roomRefresher;
 
     /** 시체 id. 서버가 돌아가는 동안 늘기만 한다 */
     private final AtomicLong corpseIds = new AtomicLong();
@@ -89,11 +90,12 @@ class CorpseHandler {
         corpseRepository.deleteAllInRoom(roomId);
     }
 
-    /** 쓰러진 지 3분이 된 시체를 남은 것과 함께 지운다(알리지 않음) */
+    /** 쓰러진 지 3분이 된 시체를 남은 것과 함께 지운다(알리지 않음, 그 방을 표시해 조용한 방 상태만 보냄) */
     void removeExpired(Instant now) {
         for (Corpse corpse : corpseRepository.findAll()) {
             if (corpse.expired(now)) {
                 corpseRepository.delete(corpse.getId());
+                roomRefresher.mark(corpse.getRoomId());
             }
         }
     }
@@ -150,6 +152,7 @@ class CorpseHandler {
 
         if (corpse.isEmpty()) {
             corpseRepository.delete(corpse.getId());
+            roomRefresher.mark(player.getRoomId());
         } else {
             corpseRepository.save(corpse);
         }

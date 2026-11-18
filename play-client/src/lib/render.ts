@@ -10,7 +10,8 @@ export type OutputLine = { text: string; style: string };
 export function renderMessage(msg: ServerMessage): OutputLine[] {
   switch (msg.type) {
     case "room":
-      return renderRoom(msg);
+      // 조용한 방 상태는 그리지 않는다(이름 후보만 바뀜, 부채 정리 2차)
+      return msg.quiet ? [] : renderRoom(msg);
     case "system":
     case "notice":
     case "say":

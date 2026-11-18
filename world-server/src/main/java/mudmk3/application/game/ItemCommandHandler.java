@@ -87,6 +87,7 @@ class ItemCommandHandler {
     private final CultivationTexts cultivationTexts;
     private final CombatEngine combatEngine;
     private final CombatTexts combatTexts;
+    private final RoomRefresher roomRefresher;
 
     /**
      * 물건 명령(주기·읽기 포함)과 인자 있는 {@code 보기} 를 처리한다. 교전 중에는 {@code 줍기}·{@code 주기}·{@code 읽기} 가 막힌다(D86).
@@ -219,6 +220,7 @@ class ItemCommandHandler {
                 : Josa.withEulReul(things) + " 주웠습니다."));
         roomNotifier.notifyOthers(player, NoticeMessage.item(
                 Josa.withIGa(player.getName()) + " " + Josa.withEulReul(things) + " 줍는다.", player.getName(), "pick"), send);
+        roomRefresher.mark(roomId);
     }
 
     // ---- 버리기
@@ -267,6 +269,7 @@ class ItemCommandHandler {
         send.accept(sessionId, SystemMessage.item(Josa.withEulReul(things) + " 버렸습니다."));
         roomNotifier.notifyOthers(player, NoticeMessage.item(
                 Josa.withIGa(player.getName()) + " " + Josa.withEulReul(things) + " 버린다.", player.getName(), "drop"), send);
+        roomRefresher.mark(player.getRoomId());
     }
 
     // ---- 보기

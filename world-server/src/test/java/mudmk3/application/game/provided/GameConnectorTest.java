@@ -45,6 +45,8 @@ import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.item.provided.ItemTypeEditor;
 import mudmk3.application.item.provided.ItemTypeFinder;
 import mudmk3.application.mob.provided.MobPlacementEditor;
+import mudmk3.application.mob.provided.MobPlacementSaveRequest;
+import mudmk3.application.mob.provided.MobTypeView;
 import mudmk3.application.mob.provided.MobTypeEditor;
 import mudmk3.application.item.provided.ItemTypeSaveRequest;
 import mudmk3.application.npc.provided.NpcEditor;
@@ -87,6 +89,7 @@ import static mudmk3.application.technique.provided.TechniqueRequestFixture.with
 import static mudmk3.domain.character.CharacterFixture.createCharacter;
 import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
+import static mudmk3.domain.mob.MobFixture.request;
 import static mudmk3.domain.mob.MobFixture.wolf;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
 import static mudmk3.domain.technique.TechniqueFixture.changchunInfo;
@@ -1623,6 +1626,126 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("늑대 이빨 2개를 주웠습니다."));
         gameConnector.handle("a", "소지품");
         assertThat(sender.lastTo("a", InventoryMessage.class).items()).containsExactly(new ItemView("늑대 이빨", 2));
+    }
+
+    // ---- 조용한 방 상태(부채 정리 2차 #13·#10)
+
+    /** 줍기 뒤 주운 사람과 같은 방 사람 모두 바뀐 바닥의 조용한 방 상태 하나(알림 줄 뒤) */
+    @Test
+    void pickSendsQuietRoom() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        place(map.entranceId(), items.hide(), 3, null);
+        enter("a", "한백");
+        enter("b", "한립");
+        sender.clear();
+
+        gameConnector.handle("a", "줍기 가죽 전부");
+
+        assertThat(sender.quietRoomsTo("a")).singleElement().satisfies(room -> {
+            assertThat(room.items()).isEmpty();
+            assertThat(room.zoneEntered()).isFalse();
+            assertThat(room.occupants()).containsExactly(new OccupantView("한립", "player"));
+        });
+        assertThat(sender.quietRoomsTo("b")).singleElement().satisfies(room -> {
+            assertThat(room.items()).isEmpty();
+            assertThat(room.occupants()).containsExactly(new OccupantView("한백", "player"));
+        });
+        assertThat(sender.allMessagesTo("a").getFirst()).isEqualTo(SystemMessage.item("늑대 가죽 3개를 주웠습니다."));
+        assertThat(sender.allMessagesTo("b").getFirst())
+                .isEqualTo(new NoticeMessage("한백이 늑대 가죽 3개를 줍는다.", "item", "한백", "pick"));
+    }
+
+    @Test
+    void dropSendsQuietRoom() {
+        prepareMap();
+        Items items = prepareItems();
+        Long hanbaek = enter("a", "한백");
+        enter("b", "한립");
+        give(hanbaek, items.fang(), 2);
+        sender.clear();
+
+        gameConnector.handle("a", "버리기 이빨 1");
+
+        assertThat(sender.quietRoomsTo("a")).singleElement()
+                .satisfies(room -> assertThat(room.items()).containsExactly(new FloorItemView("늑대 이빨", 1)));
+        assertThat(sender.quietRoomsTo("b")).singleElement()
+                .satisfies(room -> assertThat(room.items()).containsExactly(new FloorItemView("늑대 이빨", 1)));
+    }
+
+    /** 실패한 줍기·버리기는 바닥이 그대로라 보내지 않는다 */
+    @Test
+    void failedPickSendsNoQuietRoom() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        place(map.entranceId(), items.hide(), 3, null);
+        enter("a", "한백");
+        enter("b", "한립");
+        sender.clear();
+
+        gameConnector.handle("a", "줍기 가죽 5");
+        gameConnector.handle("a", "버리기 이빨");
+
+        assertThat(sender.quietRoomsTo("a")).isEmpty();
+        assertThat(sender.quietRoomsTo("b")).isEmpty();
+    }
+
+    /** 한 처리(틱)에서 같은 방이 여러 번 바뀌어도(몹 둘이 나타남) 그 방 사람에게 조용한 방 상태는 한 번 */
+    @Test
+    void quietRoomOncePerProcessing() {
+        GameMap map = prepareMap();
+        enter("a", "한백");
+        enter("b", "한립");
+        MobTypeView wolf = mobTypeEditor.create(request(wolf()));
+        mobPlacementEditor.create(map.entranceId(), new MobPlacementSaveRequest(wolf.id(), 2));
+        sender.clear();
+
+        tick();
+
+        assertThat(sender.messagesTo("a")).hasSize(2);
+        assertThat(sender.quietRoomsTo("a")).singleElement()
+                .satisfies(room -> assertThat(room.mobs()).singleElement()
+                        .satisfies(mob -> assertThat(mob.count()).isEqualTo(2)));
+        assertThat(sender.quietRoomsTo("b")).hasSize(1);
+
+        sender.clear();
+        tick();
+        assertThat(sender.allMessagesTo("a")).isEmpty();
+        assertThat(sender.allMessagesTo("b")).isEmpty();
+    }
+
+    @Test
+    void lookSendsNormalRoom() {
+        GameMap map = prepareMap();
+        enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "보기");
+        assertThat(sender.lastTo("a", RoomMessage.class).quiet()).isFalse();
+
+        gameConnector.handle("a", "북");
+        assertThat(sender.lastTo("a", RoomMessage.class)).satisfies(room -> {
+            assertThat(room.room().id()).isEqualTo(map.wellId());
+            assertThat(room.quiet()).isFalse();
+        });
+        assertThat(sender.quietRoomsTo("a")).isEmpty();
+    }
+
+    /** 사람의 이동은 이동 알림으로 후보가 바뀌므로 조용한 방 상태를 보내지 않는다(접속·끊김도 같음) */
+    @Test
+    void moveSendsNoQuietRoom() {
+        GameMap map = prepareMap();
+        enter("a", "한백");
+        enterAt("b", "한립", map.wellId());
+        enter("c", "여소");
+        sender.clear();
+
+        gameConnector.handle("a", "북");
+        gameConnector.handle("c", "종료");
+
+        assertThat(sender.quietRoomsTo("a")).isEmpty();
+        assertThat(sender.quietRoomsTo("b")).isEmpty();
+        assertThat(sender.quietRoomsTo("c")).isEmpty();
     }
 
     @Test
