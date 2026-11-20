@@ -13,6 +13,7 @@
 // 6차: 공법·신통·옥간·몹 이름에도 실행 번호를 섞는다. 신통 대기시간·법력 회복도 실제 시간이라 되풀이로 기다린다.
 //      5차 단계 42 의 정리(몹 배치 지움·시작 소지품 되돌림)는 단계 51 로 옮겨 한 번만 한다.
 // 부채 정리 2차: 조용한 방 상태(quiet room)는 isQuietRoom 으로 따로 본다(단계 21·38·49). 단계 52 는 로그아웃 뒤 게임 연결 4401.
+// 관리 툴 삭제: 단계 36 의 배치된 몹 삭제 409 는 없어짐. 단계 53 몹 삭제, 54 캐릭터 삭제.
 
 const baseUrl = (process.argv[2] ?? "http://localhost:8080").replace(/\/$/, "");
 const wsUrl = baseUrl.replace(/^http/, "ws") + "/ws/game";
@@ -62,6 +63,8 @@ const blazeName = `열화공${runNo}`;
 const emberName = `염탄${runNo}`;
 const blazeScrollName = `${blazeName} 옥간`;
 const ghostName = `음혼${runNo}`;
+// 관리 툴 삭제 몹(숫자로 끝나 받침 없음: 들쥐123456와)
+const ratName = `들쥐${runNo}`;
 
 function fail(message) {
   throw new SmokeFailure(message);
@@ -839,7 +842,7 @@ async function run() {
     if (help4.text !== HELP_6) fail(`도움말이 6차 문구와 다름: ${JSON.stringify(help4.text)}`);
 
     // ---- 5차 ----
-    step(`36. 관리자 — 재료 ${rabbitHideName}, 몹 ${rabbitName}(일반·드롭)·${bossName}(두목), 사냥터 ${huntName}(광장 동), 배치, 쓰이는 것 삭제 409`);
+    step(`36. 관리자 — 재료 ${rabbitHideName}, 몹 ${rabbitName}(일반·드롭)·${bossName}(두목), 사냥터 ${huntName}(광장 동), 배치, 쓰이는 재료 삭제 409`);
     const rabbitHide = await itemType(rabbitHideName, "MATERIAL", 1);
     const mobRequest = (values) => ({
       description: "", kind: "BEAST", attackName: "뒷발차기", attackCoefficient: null, respawnSeconds: null,
@@ -871,7 +874,6 @@ async function run() {
     await placeMob(square, rabbit);
     await placeMob(hunt, boss);
     await api(admin, "DELETE", `/api/admin/item-types/${rabbitHide.id}`, undefined, { expect: 409 });
-    await api(admin, "DELETE", `/api/admin/mobs/${rabbit.id}`, undefined, { expect: 409 });
 
     step(`37. E 보기 되풀이 → ${rabbitName} 나타남, 보기 ${rabbitName}, 공격 거절 셋`);
     /** 보기를 되풀이해 그 방 room 메시지가 조건에 맞을 때까지 기다린다 */
@@ -1143,6 +1145,49 @@ async function run() {
       fail(`로그아웃 뒤 error 가 다름: ${JSON.stringify(ended)}`);
     }
     await g.waitClose(4401);
+
+    step(`53. 관리자 — 몹 ${ratName}(강적 연기 5층) 을 광장에 두고 E 가 공격 → 몹 삭제 204 → 광장에서 사라지고 E 교전이 끝남`);
+    const rat = await api(admin, "POST", "/api/admin/mobs", mobRequest({
+      name: ratName, realm: "QI_5", tier: "STRONG", attackName: "앞니",
+    }), { expect: 201 });
+    // 몹 삭제가 이 배치를 함께 지우므로 mobPlacementIds 에 넣지 않는다(끝 정리에서 400 이 남)
+    await api(admin, "POST", `/api/admin/rooms/${square.id}/mobs`, { mobId: rat.id, count: 1 }, { expect: 201 });
+    await lookUntil(e, "광장", (room) => mobLine(room, ratName), `광장의 ${ratName}`, 5000);
+    const ratMark = e.send(`공격 ${ratName}`);
+    await e.waitFor(combatLine(`${ratName}와 싸움이 벌어진다.`), `${ratName} 교전 시작`, ratMark);
+    await api(admin, "DELETE", `/api/admin/mobs/${rat.id}`, undefined, { expect: 204 });
+    await e.waitFor(isQuietRoom("광장", (m) => !mobLine(m, ratName)), `몹 삭제 뒤 ${ratName} 없는 quiet room`, ratMark);
+    const lost = e.messages.slice(ratMark).find((m) => m.type === "system" && m.text?.startsWith("기혈이 다했습니다."));
+    if (lost) fail(`몹 삭제 전에 E 가 ${ratName} 에게 짐: ${JSON.stringify(lost)}`);
+    const squareAfterRat = await api(admin, "GET", `/api/admin/rooms/${square.id}`);
+    if (squareAfterRat.mobs.some((placement) => placement.mobId === rat.id)) {
+      fail(`몹 삭제 뒤 광장 상세 mobs 에 ${ratName} 배치가 남음: ${JSON.stringify(squareAfterRat.mobs)}`);
+    }
+    const ratGone = await api(admin, "GET", `/api/admin/mobs/${rat.id}`, undefined, { expect: 400 });
+    if (ratGone.detail !== `몹을 찾을 수 없습니다. id: ${rat.id}`) fail(`지운 몹 detail 이 다름: ${ratGone.detail}`);
+    mark = e.send("동");
+    await e.waitFor(isRoom(huntName), `몹 삭제 뒤 ${huntName} room`, mark);
+    mark = e.send("서");
+    await e.waitFor(isRoom("광장"), "몹 삭제 뒤 돌아온 광장 room", mark);
+
+    step("54. 관리자 — 접속 중 E 삭제 409 → E 종료 → 삭제 204 → 상세 400·목록에 없음 → E 계정 다시 접속하면 이름 prompt");
+    const eId = (await characterNamed(nameE)).id;
+    const online = await api(admin, "DELETE", `/api/admin/characters/${eId}`, undefined, { expect: 409 });
+    if (online.detail !== `접속 중인 캐릭터는 지울 수 없습니다. 접속을 끊은 뒤 다시 시도하십시오: ${nameE}`) {
+      fail(`접속 중 캐릭터 삭제 detail 이 다름: ${online.detail}`);
+    }
+    e.send("종료");
+    await e.waitClose(1000);
+    await api(admin, "DELETE", `/api/admin/characters/${eId}`, undefined, { expect: 204 });
+    const eGone = await api(admin, "GET", `/api/admin/characters/${eId}`, undefined, { expect: 400 });
+    if (eGone.detail !== `캐릭터를 찾을 수 없습니다. id: ${eId}`) fail(`지운 캐릭터 detail 이 다름: ${eGone.detail}`);
+    const charactersAfter = await api(admin, "GET", "/api/admin/characters");
+    if (charactersAfter.some((ch) => ch.name === nameE || ch.id === eId)) fail(`캐릭터 목록에 지운 ${nameE} 이 남음`);
+    const e2 = connect("E2", playerE.cookie);
+    await e2.opened;
+    await e2.waitFor((m) => m.type === "session" && m.state === "creating", "삭제 뒤 session(creating)");
+    await e2.waitFor((m) => m.type === "prompt" && m.text === "이름을 정하십시오. (한글 2~6자)", "삭제 뒤 이름 prompt");
+    e2.close();
 
     console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName}·${merchantName}, 공법 ${springName}·${greenName}·${blazeName}, 몹 ${ghostName})`);
   } finally {
