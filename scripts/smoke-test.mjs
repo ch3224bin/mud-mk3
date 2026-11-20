@@ -926,12 +926,23 @@ async function run() {
     await e.waitFor(rabbitKilledRoom, `처치 뒤 ${rabbitName} 없고 시체 있는 quiet room`, attackMark);
     await d.waitFor(rabbitKilledRoom, `처치 뒤 ${rabbitName} 없고 시체 있는 quiet room`, dAttackMark);
 
-    step(`39. E 보기 → 시체, 수습 ${rabbitName} → ${rabbitHideName} 1, 소지품`);
+    step(`39. E 보기 → 시체, E 봐 시체·D 보 시체 → 거둘 것, 수습 ${rabbitName} → ${rabbitHideName} 1, 소지품`);
     mark = e.send("보기");
     const corpseRoom = await e.waitFor(isRoom("광장"), "처치 뒤 보기", mark);
     if (JSON.stringify(corpseRoom.corpses) !== JSON.stringify([{ name: `${rabbitName}의 시체`, collectible: true }])
       || corpseRoom.mobs.length !== 0) {
       fail(`처치 뒤 광장의 시체·몹이 다름: ${JSON.stringify({ mobs: corpseRoom.mobs, corpses: corpseRoom.corpses })}`);
+    }
+    // 시체 보기: 처치자 E 는 한 줄, 처치자가 아닌 D 는 같은 첫 줄(60초 안이면 둘째 줄에 남은 시간). 보기만으로는 시체가 그대로다
+    const corpseLook = await expectSystemTone(e, "봐 시체", "item");
+    if (!corpseLook.text.startsWith(`${rabbitName}의 시체 — 거둘 것: ${rabbitHideName} 1`) || corpseLook.text.includes("\n")) {
+      fail(`E 시체 보기 문구가 다름: ${JSON.stringify(corpseLook.text)}`);
+    }
+    const dCorpseLook = await expectSystemTone(d, "보 시체", "item");
+    const [dLookFirst, dLookSecond, ...dLookRest] = dCorpseLook.text.split("\n");
+    if (dLookFirst !== corpseLook.text || dLookRest.length !== 0
+      || (dLookSecond !== undefined && !/^그 시체는 아직 다른 사람의 몫입니다\. \(.+ 뒤 수습할 수 있습니다\)$/.test(dLookSecond))) {
+      fail(`D 시체 보기 문구가 다름: ${JSON.stringify(dCorpseLook.text)}`);
     }
     await expectSystemTone(e, `버리기 ${springScrollName}`, "item");
     // 수습이 자리 없음으로 실패하는 경우를 가려내려고 빈칸이 있음을 먼저 본다
