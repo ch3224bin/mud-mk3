@@ -61,7 +61,6 @@ public final class CommandParser {
         };
     }
 
-    /** 첫 낱말이 대상, 나머지 전부가 낱말(앞뒤 [ ] 를 뗌). 비면 null */
     /** 인자 전체가 방위 낱말이면 그 방위 보기(방위가 같은 이름의 대상보다 먼저), 아니면 지금 방이나 대상 보기 */
     private static Command parseLook(String rest) {
         if (rest.isEmpty()) return new Command.Look(null);
@@ -70,6 +69,7 @@ public final class CommandParser {
                 .orElseGet(() -> new Command.Look(rest));
     }
 
+    /** 첫 낱말이 대상, 나머지 전부가 낱말(앞뒤 [ ] 를 뗌). 비면 null */
     private static Command parseTalk(String rest) {
         if (rest.isEmpty()) return new Command.Talk(null, null);
         int space = rest.indexOf(' ');
