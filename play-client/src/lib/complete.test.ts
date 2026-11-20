@@ -6,6 +6,12 @@ describe("Completer", () => {
     expect(new Completer().complete("보", [])).toBe("보기");
   });
 
+  it("초성 약자는 명령어 앞부분이 아니어서 Tab 이 입력을 그대로 둔다", () => {
+    expect(new Completer().complete("ㄷ", [])).toBe("ㄷ");
+    expect(new Completer().complete("ㅂ", [])).toBe("ㅂ");
+    expect(new Completer().complete("ㅅㅌ", [])).toBe("ㅅㅌ");
+  });
+
   it("대화 명령을 채운다", () => {
     expect(new Completer().complete("대", [])).toBe("대화");
   });

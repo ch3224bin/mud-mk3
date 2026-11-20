@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { zeroInsight } from "../testFixtures";
@@ -71,6 +71,28 @@ describe("Terminal", () => {
     expect(connection.sendCommand).toHaveBeenCalledWith("북");
     expect(input).toHaveValue("");
     expect(input).toHaveFocus();
+  });
+
+  it("초성 약자(ㄷ·ㅂㄷ)도 친 그대로 보낸다", async () => {
+    const user = userEvent.setup();
+    const { connection, input } = renderTerminal();
+
+    await user.type(input, "ㄷ{Enter}");
+    await user.type(input, "ㅂㄷ{Enter}");
+
+    expect(connection.sendCommand).toHaveBeenNthCalledWith(1, "ㄷ");
+    expect(connection.sendCommand).toHaveBeenNthCalledWith(2, "ㅂㄷ");
+  });
+
+  it("한글 조합 중 Enter 는 보내지 않고, 조합이 끝난 뒤 Enter 가 보낸다", () => {
+    const { connection, input } = renderTerminal();
+
+    fireEvent.change(input, { target: { value: "ㄷ" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    expect(connection.sendCommand).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(connection.sendCommand).toHaveBeenCalledWith("ㄷ");
   });
 
   it("빈 줄은 보내지 않는다", async () => {
