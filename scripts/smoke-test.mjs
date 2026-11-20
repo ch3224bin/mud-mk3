@@ -15,6 +15,7 @@
 // 부채 정리 2차: 조용한 방 상태(quiet room)는 isQuietRoom 으로 따로 본다(단계 21·38·49). 단계 52 는 로그아웃 뒤 게임 연결 4401.
 // 관리 툴 삭제: 단계 36 의 배치된 몹 삭제 409 는 없어짐. 단계 53 몹 삭제, 54 캐릭터 삭제.
 // 방위 초성 약자: 도움말 문구(HELP_6)가 바뀜. 단계 55 는 새 플레이어 H 가 초성 약자로 오가고 봐·보·ㅅㅌ 을 쓴다.
+// 방위 보기: 도움말 문구(HELP_6)에 '보기 <방위>' 가 더해짐. 단계 56 은 새 플레이어 I 가 광장에서 방위를 본다(광장 위 누각은 단계 안에서 만들고 지움).
 
 const baseUrl = (process.argv[2] ?? "http://localhost:8080").replace(/\/$/, "");
 const wsUrl = baseUrl.replace(/^http/, "ws") + "/ws/game";
@@ -43,6 +44,7 @@ const nameC = "병사" + randomHangul() + randomHangul();
 const nameD = "정사" + randomHangul() + randomHangul();
 const nameE = "무사" + randomHangul() + randomHangul();
 const nameH = "기사" + randomHangul() + randomHangul();
+const nameI = "경사" + randomHangul() + randomHangul();
 // 3차 아이템 종류·상점 NPC. 숫자로 끝나는 이름은 조사 규칙상 받침 없음(회춘단123456는·를·와·가)
 const bagName = `하급 저물대${runNo}`;
 const pillName = `회춘단${runNo}`;
@@ -62,6 +64,8 @@ const bossName = `흑망${runNo}`;
 const huntName = `사냥터${runNo}`;
 // 방위 초성 약자 단계 55 의 광장 북쪽 방(끝에 지움)
 const northYardName = `북뜰${runNo}`;
+// 방위 보기 단계 56 의 광장 위 방(끝에 지움, 숫자로 끝나 받침 없음: 누각123456가)
+const towerName = `누각${runNo}`;
 // 6차 공법·신통·옥간·몹(숫자로 끝나 받침 없음: 음혼123456를·와, 염탄123456는)
 const blazeName = `열화공${runNo}`;
 const emberName = `염탄${runNo}`;
@@ -212,7 +216,7 @@ class GameClient {
 
 // command.md 6차 도움말(D115), 방위 초성 약자 도움말(direction-abbrev)
 const HELP_6 = "명령: 보기(봐 보) · 동 서 남 북 북동 북서 남동 남서 위 아래 (ㄷ ㅅ ㄴ ㅂ ㅂㄷ ㅂㅅ ㄴㄷ ㄴㅅ ㅇ ㅇㄹ / e w s n ne nw se sw u d)"
-  + " · 말하기(') · 대화 <NPC> [낱말]"
+  + " · 보기 <방위> · 말하기(') · 대화 <NPC> [낱말]"
   + " · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅㅌ) · 공법 · 신통 · 읽기 <물건>"
   + " · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량]"
   + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건>"
@@ -1226,6 +1230,38 @@ async function run() {
     const squareAfterYard = await api(admin, "GET", `/api/admin/rooms/${square.id}`);
     if (squareAfterYard.exits.some((exit) => exit.direction === "NORTH")) {
       fail(`${northYardName} 을 지운 뒤 광장에 북 출구가 남음: ${JSON.stringify(squareAfterYard.exits)}`);
+    }
+
+    step(`56. 관리자 — 광장 위에 ${towerName}(한쪽). I 접속(${nameI}, 광장) → 봐 ㄷ·보기 e·보 동 → 동쪽으로 ${huntName} 보임 → 보기 위 → 위로 ${towerName} 보임 → 봐 ㄴ 길 없음 → 보 광장 room(그대로) → 종료 → ${towerName} 지움`);
+    // 이 시점 광장의 출구는 동(${huntName}, 단계 36 에서 만들고 지우지 않음)뿐이다. 북쪽 길은 단계 9, 북뜰은 단계 55 에서 지웠다
+    const tower = await api(admin, "POST", "/api/admin/rooms",
+      { zoneId: zone.id, name: towerName, description: "광장 위로 솟은 누각이다." }, { expect: 201 });
+    await api(admin, "PUT", `/api/admin/rooms/${square.id}/exits/UP`, { targetRoomId: tower.id, twoWay: false });
+    const playerI = await devLogin(`smoke-i-${runId}@example.com`);
+    const iClient = connect("I", playerI.cookie);
+    await createCharacter(iClient, nameI);
+    const lookLines = [
+      ["봐 ㄷ", `동쪽으로 ${withIGa(huntName)} 보인다.`, "info"],
+      ["보기 e", `동쪽으로 ${withIGa(huntName)} 보인다.`, "info"],
+      ["보 동", `동쪽으로 ${withIGa(huntName)} 보인다.`, "info"],
+      ["보기 위", `위로 ${withIGa(towerName)} 보인다.`, "info"],
+      ["봐 ㄴ", "그쪽으로는 길이 없습니다.", "error"],
+    ];
+    for (const [input, text, tone] of lookLines) {
+      mark = iClient.send(input);
+      const line = await iClient.waitFor((m) => m.type === "system", `I ${input} system`, mark);
+      if (line.text !== text || line.tone !== tone) fail(`I ${input} 기대 ${tone} "${text}", 실제 ${JSON.stringify(line)}`);
+      const moved = iClient.messages.slice(mark).find((m) => m.type === "room" && m.quiet !== true);
+      if (moved) fail(`I ${input} 뒤에 room 이 옴(방위 보기는 움직이지 않음): ${JSON.stringify(moved)}`);
+    }
+    mark = iClient.send("보");
+    await iClient.waitFor(isRoom("광장"), "방위 보기 뒤 I 보 → 광장 room", mark);
+    iClient.send("종료");
+    await iClient.waitClose(1000);
+    await api(admin, "DELETE", `/api/admin/rooms/${tower.id}`, undefined, { expect: 204 });
+    const squareAfterTower = await api(admin, "GET", `/api/admin/rooms/${square.id}`);
+    if (squareAfterTower.exits.some((exit) => exit.direction === "UP")) {
+      fail(`${towerName} 을 지운 뒤 광장에 위 출구가 남음: ${JSON.stringify(squareAfterTower.exits)}`);
     }
 
     console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName}·${merchantName}, 공법 ${springName}·${greenName}·${blazeName}, 몹 ${ghostName})`);
