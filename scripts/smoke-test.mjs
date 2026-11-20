@@ -935,7 +935,8 @@ async function run() {
     }
     // 시체 보기: 처치자 E 는 한 줄, 처치자가 아닌 D 는 같은 첫 줄(60초 안이면 둘째 줄에 남은 시간). 보기만으로는 시체가 그대로다
     const corpseLook = await expectSystemTone(e, "봐 시체", "item");
-    if (!corpseLook.text.startsWith(`${rabbitName}의 시체 — 거둘 것: ${rabbitHideName} 1`) || corpseLook.text.includes("\n")) {
+    if (!corpseLook.text.startsWith(`${rabbitName}의 시체 — 거둘 것: ${rabbitHideName} 1`)
+      || !/^[^\n]* 1(, [^\n]*)?$/.test(corpseLook.text.slice(`${rabbitName}의 시체 — 거둘 것: ${rabbitHideName}`.length))) {
       fail(`E 시체 보기 문구가 다름: ${JSON.stringify(corpseLook.text)}`);
     }
     const dCorpseLook = await expectSystemTone(d, "보 시체", "item");

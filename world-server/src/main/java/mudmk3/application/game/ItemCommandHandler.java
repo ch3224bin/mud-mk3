@@ -293,7 +293,7 @@ class ItemCommandHandler {
                 .forEach(other -> targets.add(LookTarget.other(other.getName())));
         npcFinder.findAllInRoom(roomId).forEach(npc -> targets.add(LookTarget.other(npc.getName())));
         combatEngine.mobsInRoom(roomId).forEach(mob -> targets.add(LookTarget.mob(mob)));
-        combatEngine.corpsesInRoom(roomId).forEach(corpse -> targets.add(LookTarget.corpse(corpse)));
+        corpseHandler.inRoom(roomId).forEach(corpse -> targets.add(LookTarget.corpse(corpse)));
         roomFloor.look(roomId).forEach(stack -> targets.add(LookTarget.item(stack.itemType())));
 
         Optional<LookTarget> inRoom = ItemNames.select(targets, LookTarget::name, query);

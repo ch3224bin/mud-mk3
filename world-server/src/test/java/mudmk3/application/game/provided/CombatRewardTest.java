@@ -251,6 +251,29 @@ class CombatRewardTest extends BaseGameTest {
         assertThat(onlyCorpse(map.entranceId()).getRemaining()).hasSize(2);
     }
 
+    /** 남은 줄이 모두 지워진 종류면 빈 시체 문구로 보이고, 보기만 해서는 시체가 그대로다 */
+    @Test
+    void lookCorpseOfOnlyDeletedItemTypesShowsEmpty() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long wolfHide = wolfHide();
+        enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        PlacedMob placed = placeMob(map, wolfWithDrops(wolfHide, items.fang()), 1);
+        gameConnector.handle("a", KILL_WOLF);
+        entityManager.flush();
+        entityManager.clear();
+        mobTypeEditor.update(placed.mobTypeId(), MobFixture.request(wolf()));
+        itemTypeEditor.delete(wolfHide);
+        itemTypeEditor.delete(items.fang());
+        entityManager.flush();
+        sender.clear();
+
+        gameConnector.handle("a", "봐 시체");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("청모랑의 시체 — 거둘 것이 없다."));
+        assertThat(onlyCorpse(map.entranceId()).getRemaining()).hasSize(2);
+    }
+
     /** 처치자는 피해(층 전 위력의 합)가 가장 많은 사람: 마지막 일격을 한 사람이 아니어도 시체는 처치자 몫 */
     @Test
     void killerIsTopDamageDealer() {
