@@ -264,6 +264,9 @@ record MobTypeEditorTest(MobTypeEditor mobTypeEditor, MobTypeFinder mobTypeFinde
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("몹을 찾을 수 없습니다. id: " + wolf.id());
         assertThat(mobPlacementFinder.findAllInRoom(room.getId())).isEmpty();
+        // 드롭 표 물건은 '쓰이는 물건' 에서 풀린다(예외 없이 지워짐)
+        itemTypeEditor.delete(hide.getId());
+        flushAndClear();
     }
 
     @Test

@@ -64,8 +64,8 @@ public class CharacterApi {
     @DeleteMapping("/{characterId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long characterId, Authentication authentication) {
-        DeletedCharacter deleted = offlineCharacterRemover.delete(characterId);
         AccountPrincipal admin = SessionAuthenticator.principalOf(authentication).orElseThrow();
+        DeletedCharacter deleted = offlineCharacterRemover.delete(characterId);
         log.info("관리자 삭제 — 캐릭터 id: {}, 이름: {}, 계정 id: {}, 관리자 계정 id: {}, 이메일: {}",
                 deleted.id(), deleted.name(), deleted.accountId(), admin.accountId(), admin.email());
     }

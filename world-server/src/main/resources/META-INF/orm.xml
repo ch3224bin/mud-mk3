@@ -541,7 +541,7 @@
             <basic name="count">
                 <column name="count" nullable="false"/>
             </basic>
-            <!-- 배치된 몹은 지울 수 없게 서비스가 막고, FK가 한 번 더 지킨다 -->
+            <!-- 몹 유형을 지우면 서비스가 그 배치를 먼저 지운다(FK 때문에 순서가 중요하다) -->
             <many-to-one name="mobType" fetch="EAGER" optional="false">
                 <join-column name="mob_type_id" nullable="false"/>
             </many-to-one>

@@ -60,8 +60,8 @@ public class MobApi {
     @DeleteMapping("/{mobId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long mobId, Authentication authentication) {
-        DeletedMobType deleted = mobTypeEditor.delete(mobId);
         AccountPrincipal admin = SessionAuthenticator.principalOf(authentication).orElseThrow();
+        DeletedMobType deleted = mobTypeEditor.delete(mobId);
         log.info("관리자 삭제 — 몹 id: {}, 이름: {}, 함께 지운 배치: {}, 관리자 계정 id: {}, 이메일: {}",
                 deleted.id(), deleted.name(), deleted.placementCount(), admin.accountId(), admin.email());
     }

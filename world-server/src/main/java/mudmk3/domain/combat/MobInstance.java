@@ -136,6 +136,7 @@ public final class MobInstance {
         disengage(characterId, now);
         released.remove(characterId);
         clearInsightCap(characterId);
+        // 방어 코드: disengage 가 이미 비우므로 보통 실행되지 않는다(platform.md 표의 '대상이면 비운다' 와 대응)
         if (characterId.equals(targetCharacterId)) {
             targetCharacterId = null;
         }
