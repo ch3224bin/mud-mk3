@@ -45,6 +45,7 @@ const nameD = "정사" + randomHangul() + randomHangul();
 const nameE = "무사" + randomHangul() + randomHangul();
 const nameH = "기사" + randomHangul() + randomHangul();
 const nameI = "경사" + randomHangul() + randomHangul();
+const nameJ = "검사" + randomHangul() + randomHangul();
 // 3차 아이템 종류·상점 NPC. 숫자로 끝나는 이름은 조사 규칙상 받침 없음(회춘단123456는·를·와·가)
 const bagName = `하급 저물대${runNo}`;
 const pillName = `회춘단${runNo}`;
@@ -73,6 +74,8 @@ const blazeScrollName = `${blazeName} 옥간`;
 const ghostName = `음혼${runNo}`;
 // 관리 툴 삭제 몹(숫자로 끝나 받침 없음: 들쥐123456와)
 const ratName = `들쥐${runNo}`;
+// 시체 번호 단계 57 의 몹(드롭 없음, 끝에 지움, 숫자로 끝나 받침 없음: 들개123456를·와)
+const houndName = `들개${runNo}`;
 
 function fail(message) {
   throw new SmokeFailure(message);
@@ -929,7 +932,7 @@ async function run() {
     step(`39. E 보기 → 시체, E 봐 시체·D 보 시체 → 거둘 것, 수습 ${rabbitName} → ${rabbitHideName} 1, 소지품`);
     mark = e.send("보기");
     const corpseRoom = await e.waitFor(isRoom("광장"), "처치 뒤 보기", mark);
-    if (JSON.stringify(corpseRoom.corpses) !== JSON.stringify([{ name: `${rabbitName}의 시체`, collectible: true }])
+    if (JSON.stringify(corpseRoom.corpses) !== JSON.stringify([{ name: `${rabbitName}의 시체`, collectible: true, ordinal: null }])
       || corpseRoom.mobs.length !== 0) {
       fail(`처치 뒤 광장의 시체·몹이 다름: ${JSON.stringify({ mobs: corpseRoom.mobs, corpses: corpseRoom.corpses })}`);
     }
@@ -1275,6 +1278,53 @@ async function run() {
     if (squareAfterTower.exits.some((exit) => exit.direction === "UP")) {
       fail(`${towerName} 을 지운 뒤 광장에 위 출구가 남음: ${JSON.stringify(squareAfterTower.exits)}`);
     }
+
+    step(`57. 관리자 — ${huntName} 에 ${houndName}(드롭 없음) 둘. J 접속(${nameJ}) 축기 초기 → 동 → 둘 다 쓰러뜨림 → 보기 시체 줄 번호 1·2 → 봐 2.시체 → 수습 2.시체 → 보기 시체 하나·번호 없음 → ${houndName} 지움`);
+    // ${huntName} 에는 이 시점 시체가 없다(흑망 배치는 단계 51 에서 지웠고 쓰러뜨린 적이 없음)
+    const hound = await api(admin, "POST", "/api/admin/mobs", mobRequest({
+      name: houndName, realm: "QI_1", tier: "NORMAL", respawnSeconds: 1800,
+    }), { expect: 201 });
+    // 몹 삭제가 이 배치를 함께 지우므로 mobPlacementIds 에 넣지 않는다
+    await api(admin, "POST", `/api/admin/rooms/${hunt.id}/mobs`, { mobId: hound.id, count: 2 }, { expect: 201 });
+    const playerJ = await devLogin(`smoke-j-${runId}@example.com`);
+    const j = connect("J", playerJ.cookie);
+    await createCharacter(j, nameJ);
+    const jCharacter = await characterNamed(nameJ);
+    mark = j.mark();
+    await api(admin, "PUT", `/api/admin/characters/${jCharacter.id}/realm`, { realm: "FOUNDATION_EARLY" });
+    await j.waitFor((m) => m.type === "system" && m.tone === "growth", "J 경지 알림", mark);
+    mark = j.send("동");
+    await j.waitFor(isRoom(huntName), `J 동 → ${huntName}`, mark);
+    await lookUntil(j, huntName, (room) => mobLine(room, houndName)?.count === 2, `${huntName}의 ${houndName} 둘`, 5000);
+    for (let kill = 1; kill <= 2; kill++) {
+      // 앞 처치 뒤 다음 일격 시각까지 공격이 바로 나가지 않을 수 있어, 쓰러뜨릴 때까지 기다린다(≤ 8초)
+      const killMark = j.send(`공격 ${houndName}`);
+      await j.waitFor(combatLine(`${houndName}를 쓰러뜨렸습니다.`), `J ${houndName} 처치 ${kill}`, killMark, 8000);
+    }
+    mark = j.send("보기");
+    const twoCorpses = await j.waitFor(isRoom(huntName), `J 처치 뒤 보기`, mark);
+    if (JSON.stringify(twoCorpses.corpses) !== JSON.stringify([
+      { name: `${houndName}의 시체`, collectible: true, ordinal: 1 },
+      { name: `${houndName}의 시체`, collectible: true, ordinal: 2 },
+    ])) {
+      fail(`시체 둘의 번호가 다름: ${JSON.stringify(twoCorpses.corpses)}`);
+    }
+    const secondLook = await expectSystemTone(j, "봐 2.시체", "item");
+    if (!secondLook.text.startsWith(`${houndName}의 시체 — 거둘 것`) || secondLook.text.includes("\n")) {
+      fail(`J 봐 2.시체 문구가 다름: ${JSON.stringify(secondLook.text)}`);
+    }
+    await expectSystemTone(j, "봐 3.시체", "error");
+    const secondCollect = await expectSystemTone(j, "수습 2.시체", "item");
+    if (!secondCollect.text.startsWith(`${houndName}의 시체`)) fail(`J 수습 2.시체 문구가 다름: ${JSON.stringify(secondCollect.text)}`);
+    mark = j.send("보기");
+    const oneCorpse = await j.waitFor(isRoom(huntName), "J 수습 뒤 보기", mark);
+    if (JSON.stringify(oneCorpse.corpses) !== JSON.stringify([{ name: `${houndName}의 시체`, collectible: true, ordinal: null }])) {
+      // 드롭이 없어 수습 한 번에 시체가 사라진다. 영석이 나와 저물대가 차서 남았다면 여기서 드러난다
+      fail(`수습 2.시체 뒤 시체가 하나·번호 없음이 아님: ${JSON.stringify(oneCorpse.corpses)}`);
+    }
+    j.send("종료");
+    await j.waitClose(1000);
+    await api(admin, "DELETE", `/api/admin/mobs/${hound.id}`, undefined, { expect: 204 });
 
     console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName}·${merchantName}, 공법 ${springName}·${greenName}·${blazeName}, 몹 ${ghostName})`);
   } finally {
