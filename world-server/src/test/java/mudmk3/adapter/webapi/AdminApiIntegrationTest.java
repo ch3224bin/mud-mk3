@@ -448,9 +448,6 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
         assertThat(mvc.get().with(admin()).uri("/api/admin/mobs")).hasStatusOk().bodyJson()
                 .extractingPath("$[?(@.id==%d)].placementCount".formatted(mobId)).asArray().containsExactly(1);
 
-        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/mobs/%d".formatted(mobId)))
-                .hasStatus(HttpStatus.CONFLICT)
-                .bodyJson().extractingPath("$.detail").isEqualTo("배치된 몹은 지울 수 없습니다: 푸른 이리");
         // 드롭 표에 든 물건 종류는 실제 DB에서도 지울 수 없다
         assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/item-types/%d".formatted(hideId)))
                 .hasStatus(HttpStatus.CONFLICT)
@@ -459,12 +456,11 @@ record AdminApiIntegrationTest(MockMvcTester mvc, InventoryEditor inventoryEdito
         assertThat(put("/api/admin/mob-placements/%d".formatted(placementId), """
                 {"mobId":%d,"count":3}""".formatted(mobId))).hasStatusOk().bodyJson()
                 .extractingPath("$.count").isEqualTo(3);
-        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/mob-placements/%d".formatted(placementId)))
+        // 배치된 몹도 지우면 그 배치가 함께 지워진다
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/mobs/%d".formatted(mobId)))
                 .hasStatus(HttpStatus.NO_CONTENT);
         assertThat(mvc.get().with(admin()).uri("/api/admin/rooms/%d".formatted(roomId))).hasStatusOk().bodyJson()
                 .extractingPath("$.mobs").asArray().isEmpty();
-        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/mobs/%d".formatted(mobId)))
-                .hasStatus(HttpStatus.NO_CONTENT);
         assertThat(mvc.get().with(admin()).uri("/api/admin/mobs/%d".formatted(mobId)))
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson().extractingPath("$.detail").isEqualTo("몹을 찾을 수 없습니다. id: " + mobId);

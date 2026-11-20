@@ -33,4 +33,7 @@ public interface MobPlacementRepository extends Repository<MobPlacement, Long> {
     void delete(MobPlacement placement);
 
     void deleteByRoomId(Long roomId);
+
+    /** 그 몹 유형을 둔 배치를 모두 지우고 지운 수를 돌려준다 */
+    long deleteByMobTypeId(Long mobTypeId);
 }

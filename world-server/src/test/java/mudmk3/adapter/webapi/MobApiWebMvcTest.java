@@ -1,9 +1,9 @@
 package mudmk3.adapter.webapi;
 
 import mudmk3.adapter.security.WebMvcSecurityTestConfiguration;
+import mudmk3.application.mob.provided.DeletedMobType;
 import mudmk3.application.mob.provided.MobTypeEditor;
 import mudmk3.application.mob.provided.MobTypeFinder;
-import mudmk3.application.mob.provided.MobTypeInUseException;
 import mudmk3.application.mob.provided.MobTypeSaveRequest;
 import mudmk3.application.mob.provided.MobTypeView;
 import mudmk3.domain.mob.DropTier;
@@ -13,7 +13,10 @@ import mudmk3.domain.mob.MobTierDrop;
 import mudmk3.domain.mob.MobType;
 import mudmk3.domain.mob.MobTypeSaveInfo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
@@ -35,12 +38,12 @@ import static mudmk3.domain.mob.MobFixture.wolf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @WebMvcTest(MobApi.class)
+@ExtendWith(OutputCaptureExtension.class)
 @Import(WebMvcSecurityTestConfiguration.class)
 @MockitoBean(types = {MobTypeFinder.class, MobTypeEditor.class})
 record MobApiWebMvcTest(MockMvcTester mvc, MobTypeFinder mobTypeFinder, MobTypeEditor mobTypeEditor) {
@@ -221,19 +224,34 @@ record MobApiWebMvcTest(MockMvcTester mvc, MobTypeFinder mobTypeFinder, MobTypeE
 
     @Test
     void delete() {
+        when(mobTypeEditor.delete(1L)).thenReturn(new DeletedMobType(1L, "청모랑", 0));
+
         assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/mobs/1"))
                 .hasStatus(HttpStatus.NO_CONTENT);
         verify(mobTypeEditor).delete(1L);
     }
 
+    /** 지운 뒤 누가·무엇을 지웠는지 로그 한 줄 */
     @Test
-    void deletePlacedFail() {
-        doThrow(new MobTypeInUseException("배치된 몹은 지울 수 없습니다: 청모랑")).when(mobTypeEditor).delete(1L);
+    void deleteLogs(CapturedOutput output) {
+        when(mobTypeEditor.delete(1L)).thenReturn(new DeletedMobType(1L, "청모랑", 2));
 
         assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/mobs/1"))
-                .hasStatus(HttpStatus.CONFLICT)
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(output).contains(
+                "관리자 삭제 — 몹 id: 1, 이름: 청모랑, 함께 지운 배치: 2, 관리자 계정 id: 1, 이메일: admin@example.com");
+    }
+
+    /** 거절된 삭제는 로그에 남기지 않는다 */
+    @Test
+    void deleteUnknownFail(CapturedOutput output) {
+        when(mobTypeEditor.delete(9L)).thenThrow(new IllegalArgumentException("몹을 찾을 수 없습니다. id: 9"));
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/mobs/9"))
+                .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson()
-                .extractingPath("$.detail").isEqualTo("배치된 몹은 지울 수 없습니다: 청모랑");
+                .extractingPath("$.detail").isEqualTo("몹을 찾을 수 없습니다. id: 9");
+        assertThat(output).doesNotContain("관리자 삭제");
     }
 
     @Test

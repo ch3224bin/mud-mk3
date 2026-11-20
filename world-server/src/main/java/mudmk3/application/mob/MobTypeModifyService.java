@@ -2,9 +2,9 @@ package mudmk3.application.mob;
 
 import lombok.RequiredArgsConstructor;
 import mudmk3.application.item.provided.ItemTypeFinder;
+import mudmk3.application.mob.provided.DeletedMobType;
 import mudmk3.application.mob.provided.MobTypeEditor;
 import mudmk3.application.mob.provided.MobTypeFinder;
-import mudmk3.application.mob.provided.MobTypeInUseException;
 import mudmk3.application.mob.provided.MobTypeSaveRequest;
 import mudmk3.application.mob.provided.MobTypeView;
 import mudmk3.application.mob.required.MobPlacementRepository;
@@ -58,18 +58,13 @@ public class MobTypeModifyService implements MobTypeEditor {
         return mobTypeFinder.view(mobTypeId);
     }
 
+    /** 배치를 먼저 지워 {@code mob_placement.mob_type_id} 외래 키에 걸리지 않게 한다. 드롭 표는 몹 유형과 함께 지워진다 */
     @Override
-    public void delete(Long mobTypeId) {
+    public DeletedMobType delete(Long mobTypeId) {
         MobType mobType = mobTypeFinder.find(mobTypeId);
-        checkDeletable(mobType);
+        long placementCount = mobPlacementRepository.deleteByMobTypeId(mobTypeId);
         mobTypeRepository.delete(mobType);
-    }
-
-    /** 배치된 몹이면 {@code MobTypeInUseException}(409) */
-    private void checkDeletable(MobType mobType) {
-        if (mobPlacementRepository.countByMobTypeId(requireNonNull(mobType.getId())) > 0) {
-            throw new MobTypeInUseException("배치된 몹은 지울 수 없습니다: " + mobType.getName());
-        }
+        return new DeletedMobType(mobTypeId, mobType.getName(), Math.toIntExact(placementCount));
     }
 
     /**

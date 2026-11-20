@@ -10,6 +10,6 @@ public interface MobTypeEditor {
     /** 드롭 표는 통째로 바꾼다 */
     MobTypeView update(Long mobTypeId, @Valid MobTypeSaveRequest request);
 
-    /** 배치된 몹은 {@code MobTypeInUseException}(409) */
-    void delete(Long mobTypeId);
+    /** 그 몹의 배치도 함께 지운다 */
+    DeletedMobType delete(Long mobTypeId);
 }

@@ -39,8 +39,8 @@ import static org.assertj.core.api.Assertions.tuple;
 
 @ApplicationServiceTest
 record MobTypeEditorTest(MobTypeEditor mobTypeEditor, MobTypeFinder mobTypeFinder, ItemTypeEditor itemTypeEditor,
-                         MobPlacementEditor mobPlacementEditor, ZoneEditor zoneEditor, RoomEditor roomEditor,
-                         EntityManager entityManager) {
+                         MobPlacementEditor mobPlacementEditor, MobPlacementFinder mobPlacementFinder,
+                         ZoneEditor zoneEditor, RoomEditor roomEditor, EntityManager entityManager) {
 
     @Test
     void create() {
@@ -236,30 +236,34 @@ record MobTypeEditorTest(MobTypeEditor mobTypeEditor, MobTypeFinder mobTypeFinde
         MobTypeView created = mobTypeEditor.create(request(wolf()));
         flushAndClear();
 
-        mobTypeEditor.delete(created.id());
+        DeletedMobType deleted = mobTypeEditor.delete(created.id());
         flushAndClear();
 
+        assertThat(deleted).isEqualTo(new DeletedMobType(created.id(), "청모랑", 0));
         assertThatThrownBy(() -> mobTypeFinder.find(created.id()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("몹을 찾을 수 없습니다. id: " + created.id());
     }
 
+    /** 배치된 몹은 배치를 먼저 모두 지우고 지운다(드롭 표도 함께) */
     @Test
-    void deletePlacedFail() {
+    void deletePlaced() {
         Room room = prepareRoom("샘터");
-        MobTypeView wolf = mobTypeEditor.create(request(wolf()));
-        MobPlacementView placement = mobPlacementEditor.create(room.getId(), new MobPlacementSaveRequest(wolf.id(), 2));
+        ItemType hide = item("청모랑 가죽");
+        MobTypeView wolf = mobTypeEditor.create(request(withDrops(wolf(),
+                List.of(new MobFixedDrop(hide.getId(), 1)), List.of(new MobTierDrop(DropTier.RARE, hide.getId())))));
+        mobPlacementEditor.create(room.getId(), new MobPlacementSaveRequest(wolf.id(), 2));
+        mobPlacementEditor.create(room.getId(), new MobPlacementSaveRequest(wolf.id(), 1));
         flushAndClear();
 
-        assertThatThrownBy(() -> mobTypeEditor.delete(wolf.id()))
-                .isInstanceOf(MobTypeInUseException.class)
-                .hasMessage("배치된 몹은 지울 수 없습니다: 청모랑");
+        DeletedMobType deleted = mobTypeEditor.delete(wolf.id());
+        flushAndClear();
 
-        mobPlacementEditor.delete(placement.id());
-        flushAndClear();
-        mobTypeEditor.delete(wolf.id());
-        flushAndClear();
-        assertThatThrownBy(() -> mobTypeFinder.find(wolf.id())).isInstanceOf(IllegalArgumentException.class);
+        assertThat(deleted).isEqualTo(new DeletedMobType(wolf.id(), "청모랑", 2));
+        assertThatThrownBy(() -> mobTypeFinder.find(wolf.id()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("몹을 찾을 수 없습니다. id: " + wolf.id());
+        assertThat(mobPlacementFinder.findAllInRoom(room.getId())).isEmpty();
     }
 
     @Test

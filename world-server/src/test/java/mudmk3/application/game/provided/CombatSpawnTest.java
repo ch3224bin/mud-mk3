@@ -287,6 +287,32 @@ class CombatSpawnTest extends BaseGameTest {
         assertThat(playerCombatRepository.find(characterId).orElseThrow().isFighting()).isFalse();
     }
 
+    /**
+     * 관리 툴에서 몹 유형을 지우면 배치가 함께 지워져 다음 틱에 교전 중이던 몹도 사라진다. 플레이어는 따로 알림 없이 교전에서
+     * 빠지고 그 방 사람에게 조용한 방 상태만 간다
+     */
+    @Test
+    void mobTypeDeletedRemovesLivingMob() {
+        GameMap map = prepareMap();
+        PlacedMob placed = placeMob(map, wolf(), 1);
+        Long hanbaek = enter("s1", "한백");
+        gameConnector.handle("s1", "공격 청모랑");
+        assertThat(playerCombatRepository.find(characterIdOf(hanbaek)).orElseThrow().isFighting()).isTrue();
+        sender.clear();
+
+        mobTypeEditor.delete(placed.mobTypeId());
+        advanceAndTick(1);
+
+        assertThat(sender.quietRoomsTo("s1")).singleElement()
+                .satisfies(room -> assertThat(room.mobs()).extracting(MobView::name).doesNotContain("청모랑"));
+        assertThat(sender.messagesTo("s1")).isEmpty();
+        assertThat(mobInstanceRepository.findAll()).isEmpty();
+
+        gameConnector.handle("s1", "북");
+        assertThat(roomIdOf(hanbaek)).isEqualTo(map.wellId());
+        advanceAndTick(1);
+    }
+
     /** 처치한 몹(쓰러진 채 재등장을 기다림)·시체·살아 있는 몹이 모두 다음 틱을 기다리지 않고 메모리에서 사라진다 */
     @Test
     void roomDeletionRemovesCorpsesAndMobs() {

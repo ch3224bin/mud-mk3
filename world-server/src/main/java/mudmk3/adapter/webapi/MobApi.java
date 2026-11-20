@@ -2,13 +2,18 @@ package mudmk3.adapter.webapi;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import mudmk3.adapter.security.SessionAuthenticator;
 import mudmk3.adapter.webapi.dto.MobDetailResponse;
 import mudmk3.adapter.webapi.dto.MobSummaryResponse;
+import mudmk3.application.account.provided.AccountPrincipal;
+import mudmk3.application.mob.provided.DeletedMobType;
 import mudmk3.application.mob.provided.MobTypeEditor;
 import mudmk3.application.mob.provided.MobTypeFinder;
 import mudmk3.application.mob.provided.MobTypeSaveRequest;
 import mudmk3.support.stereotype.WebApiAdapter;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +26,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import java.util.List;
 
 /** 관리: 몹 유형과 드롭 표 */
+@Slf4j
 @WebApiAdapter
 @RequestMapping("/api/admin/mobs")
 @RequiredArgsConstructor
@@ -50,9 +56,13 @@ public class MobApi {
         return MobDetailResponse.of(mobTypeEditor.update(mobId, request));
     }
 
+    /** 포트가 돌아오면 지우기가 커밋된 뒤라 그때 삭제 기록을 남긴다(거절된 요청은 남기지 않음) */
     @DeleteMapping("/{mobId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long mobId) {
-        mobTypeEditor.delete(mobId);
+    public void delete(@PathVariable Long mobId, Authentication authentication) {
+        DeletedMobType deleted = mobTypeEditor.delete(mobId);
+        AccountPrincipal admin = SessionAuthenticator.principalOf(authentication).orElseThrow();
+        log.info("관리자 삭제 — 몹 id: {}, 이름: {}, 함께 지운 배치: {}, 관리자 계정 id: {}, 이메일: {}",
+                deleted.id(), deleted.name(), deleted.placementCount(), admin.accountId(), admin.email());
     }
 }
