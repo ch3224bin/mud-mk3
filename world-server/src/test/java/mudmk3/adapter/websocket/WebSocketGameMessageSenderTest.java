@@ -109,7 +109,7 @@ class WebSocketGameMessageSenderTest {
         RoomMessage room = new RoomMessage(new ZoneView(1L, "청우촌"), false,
                 new RoomView(2L, "마을 어귀", "흙길이 갈라진다."), null, List.of(),
                 List.of(OccupantView.npc("왕씨")), List.of(new MobView("청모랑", "1급", null, 2, false)),
-                List.of(new CorpseView("들토끼의 시체", true)),
+                List.of(new CorpseView("들토끼의 시체", true, 1), new CorpseView("들토끼의 시체", false, 2)),
                 List.of(new FloorItemView("늑대 가죽", 3), new FloorItemView("비검", 1)), false);
 
         assertJson(room, """
@@ -117,7 +117,7 @@ class WebSocketGameMessageSenderTest {
                  "room":{"id":2,"name":"마을 어귀","description":"흙길이 갈라진다."},"owner":null,
                  "exits":[],"occupants":[{"name":"왕씨","kind":"npc"}],
                  "mobs":[{"name":"청모랑","rank":"1급","tier":null,"count":2,"fighting":false}],
-                 "corpses":[{"name":"들토끼의 시체","collectible":true}],
+                 "corpses":[{"name":"들토끼의 시체","collectible":true,"ordinal":1},{"name":"들토끼의 시체","collectible":false,"ordinal":2}],
                  "items":[{"name":"늑대 가죽","count":3},{"name":"비검","count":1}],"quiet":false}""");
         assertThat(propertyNames(room))
                 .containsExactly("type", "zone", "zoneEntered", "room", "owner", "exits", "occupants", "mobs", "corpses",

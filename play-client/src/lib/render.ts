@@ -1,4 +1,4 @@
-import type { Mob, RoomMessage, ServerMessage } from "./protocol";
+import type { Corpse, Mob, RoomMessage, ServerMessage } from "./protocol";
 
 /**
  * 출력 로그 한 줄. style 은 화면 CSS 클래스 `line-<style>` 이 된다.
@@ -50,12 +50,18 @@ function renderRoom(msg: RoomMessage): OutputLine[] {
     lines.push({ text: mobLine(mob), style: "mob" });
   }
   for (const corpse of msg.corpses) {
-    lines.push({ text: corpse.collectible ? `${corpse.name} (수습 가능)` : corpse.name, style: "mob" });
+    lines.push({ text: corpseLine(corpse), style: "mob" });
   }
   for (const item of msg.items) {
     lines.push({ text: item.count > 1 ? `${item.name} ${formatCount(item.count)}개` : item.name, style: "item" });
   }
   return lines;
+}
+
+/** 시체 줄: 번호가 있으면 `2.청모랑의 시체`(입력 `봐 2.시체` 와 같은 모양), 지금 수습할 수 있으면 ` (수습 가능)` */
+function corpseLine(corpse: Corpse): string {
+  const name = corpse.ordinal === null ? corpse.name : `${corpse.ordinal}.${corpse.name}`;
+  return corpse.collectible ? `${name} (수습 가능)` : name;
 }
 
 /** D90 몹 줄: `이름 (급[, 전투 중])` + 체급 ` [강적]` + 2마리 이상이면 ` ×N` */

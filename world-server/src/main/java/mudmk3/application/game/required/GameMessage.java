@@ -98,8 +98,11 @@ public sealed interface GameMessage {
         public record MobView(String name, String rank, @Nullable String tier, int count, boolean fighting) {
         }
 
-        /** 시체 한 줄. collectible 은 보는 사람이 지금 수습할 수 있는지 */
-        public record CorpseView(String name, boolean collectible) {
+        /**
+         * 시체 한 줄. collectible 은 보는 사람이 지금 수습할 수 있는지, ordinal 은 그 방 시체가 둘 이상일 때 쓰러진 순서의 번호
+         * (1 부터, {@code 봐 2.시체}·{@code 수습 2.시체} 의 번호와 같음), 하나면 null(시체 번호)
+         */
+        public record CorpseView(String name, boolean collectible, @Nullable Integer ordinal) {
         }
 
         /** 바닥 물건 한 줄: 이름과 합친 수 */

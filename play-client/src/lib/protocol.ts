@@ -34,8 +34,11 @@ export type FloorItem = { name: string; count: number };
  */
 export type Mob = { name: string; rank: string; tier: "강적" | "정예" | "두목" | null; count: number; fighting: boolean };
 
-/** 방의 시체(5차 D89). collectible 은 보는 사람이 지금 수습할 수 있는지 */
-export type Corpse = { name: string; collectible: boolean };
+/**
+ * 방의 시체(5차 D89). collectible 은 보는 사람이 지금 수습할 수 있는지,
+ * ordinal 은 그 방 시체가 둘 이상일 때 서버가 매긴 번호(1 부터, `봐 2.시체` 의 2), 하나면 null(시체 번호)
+ */
+export type Corpse = { name: string; collectible: boolean; ordinal: number | null };
 
 export type RoomMessage = {
   type: "room";

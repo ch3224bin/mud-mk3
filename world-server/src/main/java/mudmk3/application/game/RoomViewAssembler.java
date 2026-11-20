@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
@@ -64,13 +65,26 @@ final class RoomViewAssembler {
                                 .map(npc -> OccupantView.npc(npc.getName()))
                 ).toList(),
                 mobViews(mobs, viewerRealm),
-                corpses.stream()
-                        .map(corpse -> new CorpseView(corpse.name(), corpse.collectibleBy(viewerCharacterId, now)))
-                        .toList(),
+                corpseViews(corpses, viewerCharacterId, now),
                 floorStacks.stream()
                         .map(stack -> new FloorItemView(stack.itemType().getName(), stack.count()))
                         .toList(),
                 quiet);
+    }
+
+    /**
+     * 시체 줄(쓰러진 순). 둘 이상이면 1 부터 번호를 붙인다(시체 번호). 대상 고르기({@code 2.시체})와 같은 시체 저장소 순서라
+     * N 번 줄이 곧 {@code N.시체} 다
+     */
+    private static List<CorpseView> corpseViews(List<Corpse> corpses, Long viewerCharacterId, Instant now) {
+        boolean numbered = corpses.size() >= 2;
+        return IntStream.range(0, corpses.size())
+                .mapToObj(index -> {
+                    Corpse corpse = corpses.get(index);
+                    return new CorpseView(corpse.name(), corpse.collectibleBy(viewerCharacterId, now),
+                            numbered ? index + 1 : null);
+                })
+                .toList();
     }
 
     private static List<MobView> mobViews(List<MobInstance> mobs, Realm viewerRealm) {

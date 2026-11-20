@@ -202,7 +202,7 @@ describe("Terminal", () => {
       ...room,
       occupants: [{ name: "청송", kind: "npc" }],
       mobs: [{ name: "청모랑", rank: "1급", tier: null, count: 2, fighting: false }],
-      corpses: [{ name: "청모랑의 시체", collectible: true }],
+      corpses: [{ name: "청모랑의 시체", collectible: true, ordinal: null }],
       items: [{ name: "청석", count: 1 }],
     });
     expect(screen.getByText("청모랑 (1급) ×2")).toHaveClass("line-mob");
@@ -335,7 +335,7 @@ describe("Terminal", () => {
       ...room,
       zoneEntered: false,
       mobs: [],
-      corpses: [{ name: "청모랑의 시체", collectible: true }],
+      corpses: [{ name: "청모랑의 시체", collectible: true, ordinal: null }],
       quiet: true,
     });
 

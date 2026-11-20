@@ -280,7 +280,7 @@ class AbilityUseTest extends BaseGameTest {
                 SystemMessage.combat("청모랑을 쓰러뜨렸습니다."));
         gameConnector.handle("a", "보기");
         assertThat(sender.lastTo("a", RoomMessage.class).corpses())
-                .containsExactly(new CorpseView("청모랑의 시체", true));
+                .containsExactly(new CorpseView("청모랑의 시체", true, null));
     }
 
     /** 위협·피해 기록에 신통 위력이 더해진다: 한립 공격 12, 한백 화탄술 12 × 2 → 처치자는 한백 */

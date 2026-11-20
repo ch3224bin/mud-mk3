@@ -126,7 +126,7 @@ describe("renderMessage", () => {
           { name: "왕씨", kind: "npc" },
         ],
         mobs: [{ name: "청모랑", rank: "1급", tier: null, count: 2, fighting: false }],
-        corpses: [{ name: "청모랑의 시체", collectible: true }],
+        corpses: [{ name: "청모랑의 시체", collectible: true, ordinal: null }],
         items: [{ name: "늑대 가죽", count: 2 }],
       }),
     );
@@ -162,14 +162,33 @@ describe("renderMessage", () => {
     ]);
   });
 
+  it("room: 시체 번호(ordinal)가 있으면 줄 앞에 N. 을 붙인다(봐 2.시체 와 같은 모양)", () => {
+    const lines = renderMessage(
+      roomMessage({
+        occupants: [],
+        corpses: [
+          { name: "청모랑의 시체", collectible: true, ordinal: 1 },
+          { name: "청모랑의 시체", collectible: false, ordinal: 2 },
+          { name: "들토끼의 시체", collectible: true, ordinal: 3 },
+        ],
+      }),
+    );
+
+    expect(lines.slice(-3)).toEqual([
+      { text: "1.청모랑의 시체 (수습 가능)", style: "mob" },
+      { text: "2.청모랑의 시체", style: "mob" },
+      { text: "3.들토끼의 시체 (수습 가능)", style: "mob" },
+    ]);
+  });
+
   it("room: 지금 수습할 수 없는 시체는 이름만", () => {
     const lines = renderMessage(
       roomMessage({
         zoneEntered: false,
         occupants: [],
         corpses: [
-          { name: "청모랑의 시체", collectible: false },
-          { name: "들토끼의 시체", collectible: true },
+          { name: "청모랑의 시체", collectible: false, ordinal: null },
+          { name: "들토끼의 시체", collectible: true, ordinal: null },
         ],
       }),
     );

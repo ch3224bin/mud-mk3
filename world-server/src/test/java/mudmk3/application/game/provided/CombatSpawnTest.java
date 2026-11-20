@@ -379,11 +379,11 @@ class CombatSpawnTest extends BaseGameTest {
 
         assertThat(room.occupants()).containsExactly(OccupantView.player("한립"), OccupantView.npc("왕씨"));
         assertThat(room.mobs()).containsExactly(new MobView("청모랑", "1급", null, 1, false));
-        assertThat(room.corpses()).containsExactly(new CorpseView("들토끼의 시체", false));
+        assertThat(room.corpses()).containsExactly(new CorpseView("들토끼의 시체", false, null));
         assertThat(room.items()).containsExactly(new FloorItemView("늑대 가죽", 2));
         assertThat(Arrays.stream(RoomMessage.class.getRecordComponents()).map(RecordComponent::getName))
                 .containsSubsequence("occupants", "mobs", "corpses", "items");
-        assertThat(look("s2").corpses()).containsExactly(new CorpseView("들토끼의 시체", true));
+        assertThat(look("s2").corpses()).containsExactly(new CorpseView("들토끼의 시체", true, null));
     }
 
     @Test

@@ -117,9 +117,9 @@ class CombatRewardTest extends BaseGameTest {
         gameConnector.handle("b", "보기");
 
         assertThat(sender.lastTo("a", RoomMessage.class).corpses())
-                .containsExactly(new CorpseView("청모랑의 시체", true));
+                .containsExactly(new CorpseView("청모랑의 시체", true, null));
         assertThat(sender.lastTo("b", RoomMessage.class).corpses())
-                .containsExactly(new CorpseView("청모랑의 시체", false));
+                .containsExactly(new CorpseView("청모랑의 시체", false, null));
         assertThat(sender.lastTo("a", RoomMessage.class).mobs()).isEmpty();
     }
 
@@ -274,6 +274,78 @@ class CombatRewardTest extends BaseGameTest {
         assertThat(onlyCorpse(map.entranceId()).getRemaining()).hasSize(2);
     }
 
+    // ---- 시체 번호
+
+    /**
+     * 시체가 둘 이상이면 방 보기 줄에 쓰러진 순서로 번호가 붙고, {@code 봐 2.시체}·{@code 수습 2.시체} 가 2 번 줄을 가리킨다.
+     * 첫 시체를 일부만 거둬 두 시체를 가르고, 2 번을 다 거두면 하나가 남아 번호가 없어진다
+     */
+    @Test
+    void numbersCorpsesMatchOrdinalSelection() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long wolfHide = wolfHide();
+        Long hanbaek = enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        give(hanbaek, items.sword(), 1);
+        placeMob(map, wolfWithDrops(wolfHide, items.fang()), 2);
+        gameConnector.handle("a", KILL_WOLF);
+        advanceAndTick(5);
+        gameConnector.handle("a", KILL_WOLF);
+        gameConnector.handle("a", "수습 시체"); // 1 번에서 가죽만 들어가고(한 칸에 겹침) 이빨이 남는다(저물대 참)
+        long firstId = corpseRepository.findAllInRoom(map.entranceId()).getFirst().getId();
+        sender.clear();
+
+        gameConnector.handle("a", "보기");
+        gameConnector.handle("a", "봐 2.시체");
+        gameConnector.handle("a", "수습 2.시체"); // 1 번(이빨뿐)이면 거둘 것 없이 거절만 나온다
+
+        assertThat(sender.lastTo("a", RoomMessage.class).corpses()).containsExactly(
+                new CorpseView("청모랑의 시체", true, 1), new CorpseView("청모랑의 시체", true, 2));
+        assertThat(sender.messagesTo("a", SystemMessage.class)).containsExactly(
+                SystemMessage.item("청모랑의 시체 — 거둘 것: 청모랑 가죽 1, 늑대 이빨 1"),
+                SystemMessage.item("청모랑의 시체를 수습했습니다: 청모랑 가죽 1"),
+                SystemMessage.error("저물대에 자리가 없습니다. 남은 것: 늑대 이빨 1"));
+
+        gameConnector.handle("a", "버리기 비검");
+        gameConnector.handle("a", "수습 2.시체");
+        sender.clear();
+        gameConnector.handle("a", "보기");
+
+        assertThat(sender.lastTo("a", RoomMessage.class).corpses())
+                .containsExactly(new CorpseView("청모랑의 시체", true, null));
+        assertThat(onlyCorpse(map.entranceId()).getId()).isEqualTo(firstId);
+    }
+
+    /** 이름이 다른 시체도 함께 센다: 번호는 {@code N.시체} 의 N 이고, 보는 사람마다 수습 가능만 다르다 */
+    @Test
+    void numbersMixedCorpsesTogether() {
+        GameMap map = prepareMap();
+        Long hanbaek = enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        enter("b", "한립");
+        Long killer = characterIdOf(hanbaek);
+        corpseRepository.save(new Corpse(1001, map.entranceId(), "청모랑", killer, clock.instant(), List.of()));
+        advance(1);
+        corpseRepository.save(new Corpse(1002, map.entranceId(), "들토끼", killer, clock.instant(), List.of()));
+        advance(1);
+        corpseRepository.save(new Corpse(1003, map.entranceId(), "청모랑", killer, clock.instant(), List.of()));
+        sender.clear();
+
+        gameConnector.handle("a", "보기");
+        gameConnector.handle("b", "보기");
+        gameConnector.handle("a", "봐 2.시체");
+        gameConnector.handle("a", "봐 3.시체");
+
+        assertThat(sender.lastTo("a", RoomMessage.class).corpses()).containsExactly(
+                new CorpseView("청모랑의 시체", true, 1), new CorpseView("들토끼의 시체", true, 2),
+                new CorpseView("청모랑의 시체", true, 3));
+        assertThat(sender.lastTo("b", RoomMessage.class).corpses()).containsExactly(
+                new CorpseView("청모랑의 시체", false, 1), new CorpseView("들토끼의 시체", false, 2),
+                new CorpseView("청모랑의 시체", false, 3));
+        assertThat(sender.messagesTo("a", SystemMessage.class)).containsExactly(
+                SystemMessage.item("들토끼의 시체 — 거둘 것이 없다."),
+                SystemMessage.item("청모랑의 시체 — 거둘 것이 없다."));
+    }
+
     /** 처치자는 피해(층 전 위력의 합)가 가장 많은 사람: 마지막 일격을 한 사람이 아니어도 시체는 처치자 몫 */
     @Test
     void killerIsTopDamageDealer() {
@@ -393,7 +465,7 @@ class CombatRewardTest extends BaseGameTest {
         gameConnector.handle("b", "수습 청모랑");
 
         assertThat(sender.lastTo("b", RoomMessage.class).corpses())
-                .containsExactly(new CorpseView("청모랑의 시체", true));
+                .containsExactly(new CorpseView("청모랑의 시체", true, null));
         assertThat(sender.lastTo("b", SystemMessage.class))
                 .isEqualTo(SystemMessage.item("청모랑의 시체를 수습했습니다: 청모랑 가죽 1, 늑대 이빨 1"));
         assertThat(sender.messagesTo("a")).containsExactly(
@@ -680,7 +752,7 @@ class CombatRewardTest extends BaseGameTest {
         });
         assertThat(sender.quietRoomsTo("b")).singleElement().satisfies(room -> {
             assertThat(room.mobs()).isEmpty();
-            assertThat(room.corpses()).containsExactly(new CorpseView("청모랑의 시체", false));
+            assertThat(room.corpses()).containsExactly(new CorpseView("청모랑의 시체", false, null));
             assertThat(room.occupants()).extracting(RoomMessage.OccupantView::name).containsExactly("한백");
         });
         assertThat(sender.messagesTo("b")).containsExactly(
