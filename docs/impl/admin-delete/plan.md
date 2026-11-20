@@ -32,6 +32,20 @@
 - L-4 근거: 결정은 '이름을 그대로 입력해야 삭제 버튼 활성' 이고, 모달이냐 화면 안 칸이냐는 결정 밖이다.
 - L-8: 후보대로. project 이름은 루트 `CLAUDE.md` 규칙(`mud-mk3-wt-<작업이름>`)을 따른다.
 
+**사전 점검 판정 (리드, 2026-11-20)** — 태스크 본문보다 앞선다. 세부 근거는 사전 점검 표에 있다.
+- F-1 (T1): `MobApiWebMvcTest.delete()` 의 mock 이 `DeletedMobType` 을 돌려주게 stub 을 더한다(바뀌는 기존 테스트).
+- F-2 (T1): `AdminApiIntegrationTest` 의 409 단언과 그 앞 '배치 DELETE 204' 줄을 함께 지워 배치가 있는 채로 몹 DELETE 가 204 임을 본다(바뀌는 기존 테스트).
+- F-3 (T2): `forgetRemovesRecords` 는 `forget` 전에 `grantInsight` 로 상한 기록을 만든다.
+- F-4 (T2): `deleteClearsMobRecords` 는 `CombatTest.killerKeptWhenTopDealerLeft` 수치(연기 13층·1층, 적안 독사)를 쓰고 delete 전에 처치자가 한백임을 단언한다.
+- F-5 (T2): `deleteOfflineCharacter`·`deleteClearsCombatAndTimers` 는 지우기 전에 값이 있음을 먼저 단언한다.
+- F-6 (T2): `forget` 없이 먼저 구현해 `deleteClearsMobRecords` 실패를 확인한 뒤 `forget` 을 더한다.
+- F-7 (T2): `CharacterDeletionTest` 는 `@ApplicationServiceTest`, 생성자에 `MobInstanceRepository` 포함.
+- F-8 (T2): `BaseGameTest`·`GameConnectorTest`(헬퍼 옮김)를 Files 에 더하고, `CharacterApiWebMvcTest` 의 `@MockitoBean` 에 `OfflineCharacterRemover` 를 넣는다(바뀌는 기존 테스트).
+- F-9 (T4): 스모크에 `ratName` 상수를 더한다. 단계 53 은 E 가 지면 fail(또는 몹 경지를 낮춤). 단계 54 '목록에 없음' 은 목록을 직접 읽어 본다(`characterNamed` 는 없으면 fail).
+- F-10 (T4): Step 7 이 비교할 `mob_placement` 수를 스모크 실행 전에 잰다.
+- F-11 (T1·T2): `principalOf` 는 Optional 이라 `.orElseThrow()`. `serialized(Supplier)` 는 `transactionTemplate.execute` 결과를 `requireNonNull` 로 감싸고, 기존 Runnable 판은 이것에 위임해 null 을 돌려주지 않는다.
+- F-12 (T5): 리뷰가 허용하는 기존 테스트 변경 목록에 F-1·F-2·F-8 을 넣는다.
+
 ## Global Constraints
 
 모든 태스크의 요구 사항에 이 절이 포함된다. 구현자는 이 절과 자기 태스크를 먼저 읽는다.
