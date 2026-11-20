@@ -1,6 +1,7 @@
 package mudmk3.application.cultivation;
 
 import lombok.RequiredArgsConstructor;
+import mudmk3.application.character.provided.CharacterDeletedEvent;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterRealmEditor;
 import mudmk3.application.cultivation.provided.CultivationFinder;
@@ -26,6 +27,7 @@ import mudmk3.domain.technique.Ability;
 import mudmk3.domain.technique.Technique;
 import mudmk3.domain.technique.TechniqueStage;
 import mudmk3.support.stereotype.ApplicationService;
+import org.springframework.context.event.EventListener;
 
 import java.util.Map;
 import java.util.Objects;
@@ -100,6 +102,16 @@ public class CultivationModifyService implements TechniqueReader, InsightEditor 
                     .ifPresentOrElse(insight -> insight.add(gain),
                             () -> characterInsightRepository.save(CharacterInsight.create(characterId, kind, gain)));
         });
+    }
+
+    /**
+     * 캐릭터를 지우기 전에(같은 트랜잭션, 동기) 그 캐릭터의 익힌 공법·깨달음을 지운다. 익힌 공법은 캐릭터 행에 FK 가 있어
+     * 먼저 지워야 한다. 캐릭터 슬라이스가 공법을 모르게 이벤트로 받는다
+     */
+    @EventListener
+    public void onCharacterDeleted(CharacterDeletedEvent event) {
+        characterTechniqueRepository.deleteAllByCharacterId(event.characterId());
+        characterInsightRepository.deleteAllByCharacterId(event.characterId());
     }
 
     /** 공법 속성마다(오행 순) 영근이 있는지, 다음으로 1성 자질 조건을 채우는지(소수 그대로 비교) */

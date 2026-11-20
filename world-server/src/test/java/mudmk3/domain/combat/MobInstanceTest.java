@@ -396,4 +396,56 @@ class MobInstanceTest {
         assertThat(mob.grantInsight(B, 45)).isEqualTo(45);
         assertThat(mob.grantInsight(A, 1)).isZero();
     }
+
+    /** 지운 캐릭터: 교전이 끝난 뒤 남은 피해 기록과 깨달음 상한·알림을 지워 처치자 계산에서 빠진다 */
+    @Test
+    void forgetRemovesRecords() {
+        MobInstance mob = CombatFixture.wolf(T);
+        mob.engage(A, T);
+        mob.engage(B, T);
+        mob.receive(A, 30, AttackNature.NONE, T);
+        mob.receive(B, 12, AttackNature.NONE, T);
+        mob.disengage(A, T);
+        assertThat(mob.killer()).contains(A);
+        mob.grantInsight(A, 49); // 교전이 끝난 뒤 받은 깨달음도 상한을 깎는다
+        assertThat(mob.insightCapReachedFirstTime(A)).isTrue();
+
+        mob.forget(A, T);
+
+        assertThat(mob.killer()).contains(B);
+        assertThat(mob.engagementOf(A)).isEmpty();
+        assertThat(mob.opponentIds()).containsExactly(B);
+        assertThat(mob.grantInsight(A, 49)).isEqualTo(49);
+        assertThat(mob.insightCapReachedFirstTime(A)).isTrue();
+    }
+
+    /** 교전 상대면 먼저 교전에서 빼고(상대가 없어지면 10초 뒤 다시 참) 기록을 지운다 */
+    @Test
+    void forgetEngagedOpponent() {
+        MobInstance mob = CombatFixture.wolf(T);
+        mob.engage(A, T);
+        mob.receive(A, 12, AttackNature.NONE, T);
+
+        mob.forget(A, T);
+
+        assertThat(mob.opponentIds()).isEmpty();
+        assertThat(mob.isFighting()).isFalse();
+        assertThat(mob.target()).isEmpty();
+        assertThat(mob.killer()).isEmpty();
+        mob.refillIfDue(T.plusSeconds(10));
+        assertThat(mob.getQiBlood()).isEqualTo(49);
+    }
+
+    /** 이미 쓰러진 몹의 처치자는 그대로 둔다(시체는 이미 남음) */
+    @Test
+    void forgetKeepsKillerOfDeadMob() {
+        MobInstance mob = CombatFixture.wolf(T);
+        mob.engage(A, T);
+        mob.receive(A, 200, AttackNature.NONE, T);
+
+        mob.forget(A, T);
+
+        assertThat(mob.isAlive()).isFalse();
+        assertThat(mob.killer()).contains(A);
+    }
 }

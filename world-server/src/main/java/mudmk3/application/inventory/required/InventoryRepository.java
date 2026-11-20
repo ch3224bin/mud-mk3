@@ -11,6 +11,9 @@ public interface InventoryRepository extends Repository<Inventory, Long> {
 
     Inventory save(Inventory inventory);
 
+    /** 소지품을 묶음과 함께 지운다(묶음은 cascade·orphanRemoval) */
+    void delete(Inventory inventory);
+
     /** 묶음과 그 물건 종류까지 읽는다(트랜잭션 밖에서 표시해도 되게) */
     @EntityGraph(attributePaths = {"entries", "entries.itemType"})
     Optional<Inventory> findByCharacterId(Long characterId);

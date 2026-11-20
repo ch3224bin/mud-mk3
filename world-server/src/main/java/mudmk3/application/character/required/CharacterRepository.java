@@ -16,6 +16,9 @@ public interface CharacterRepository extends Repository<PlayerCharacter, Long> {
 
     PlayerCharacter save(PlayerCharacter character);
 
+    /** 캐릭터 행을 영근(값 컬렉션)과 함께 지운다 */
+    void delete(PlayerCharacter character);
+
     Optional<PlayerCharacter> findById(Long id);
 
     Optional<PlayerCharacter> findByAccountId(Long accountId);

@@ -2,10 +2,13 @@ package mudmk3.adapter.webapi;
 
 import mudmk3.adapter.security.WebMvcSecurityTestConfiguration;
 import mudmk3.application.character.provided.CharacterRealmEditor;
+import mudmk3.application.character.provided.DeletedCharacter;
 import mudmk3.application.cultivation.provided.CharacterSummary;
 import mudmk3.application.cultivation.provided.CultivationFinder;
 import mudmk3.application.cultivation.provided.CultivationProfile;
 import mudmk3.application.cultivation.provided.LearnedTechniqueView;
+import mudmk3.application.game.provided.CharacterOnlineException;
+import mudmk3.application.game.provided.OfflineCharacterRemover;
 import mudmk3.application.game.provided.PresenceFinder;
 import mudmk3.domain.character.CharacterFixture;
 import mudmk3.domain.cultivation.Insight;
@@ -13,6 +16,9 @@ import mudmk3.domain.cultivation.InsightKind;
 import mudmk3.domain.cultivation.StatSheet;
 import mudmk3.domain.shared.Realm;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
@@ -30,14 +36,18 @@ import static mudmk3.adapter.security.SecurityFixture.player;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @WebMvcTest(CharacterApi.class)
+@ExtendWith(OutputCaptureExtension.class)
 @Import(WebMvcSecurityTestConfiguration.class)
-@MockitoBean(types = {CultivationFinder.class, CharacterRealmEditor.class, PresenceFinder.class})
+@MockitoBean(types = {CultivationFinder.class, CharacterRealmEditor.class, PresenceFinder.class,
+        OfflineCharacterRemover.class})
 record CharacterApiWebMvcTest(MockMvcTester mvc, CultivationFinder cultivationFinder,
-                              CharacterRealmEditor characterRealmEditor, PresenceFinder presenceFinder) {
+                              CharacterRealmEditor characterRealmEditor, PresenceFinder presenceFinder,
+                              OfflineCharacterRemover offlineCharacterRemover) {
 
     @Test
     void list() {
@@ -169,6 +179,50 @@ record CharacterApiWebMvcTest(MockMvcTester mvc, CultivationFinder cultivationFi
                         {"realm":"QI_1"}"""))
                 .hasStatus(HttpStatus.FORBIDDEN);
         verifyNoInteractions(characterRealmEditor);
+    }
+
+    /** 지운 뒤 누가·무엇을 지웠는지 로그 한 줄 */
+    @Test
+    void delete(CapturedOutput output) {
+        when(offlineCharacterRemover.delete(3L)).thenReturn(new DeletedCharacter(3L, 7L, "한백"));
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/characters/3"))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        verify(offlineCharacterRemover).delete(3L);
+        assertThat(output).contains(
+                "관리자 삭제 — 캐릭터 id: 3, 이름: 한백, 계정 id: 7, 관리자 계정 id: 1, 이메일: admin@example.com");
+    }
+
+    /** 거절된 삭제는 로그에 남기지 않는다 */
+    @Test
+    void deleteOnlineFail(CapturedOutput output) {
+        String detail = "접속 중인 캐릭터는 지울 수 없습니다. 접속을 끊은 뒤 다시 시도하십시오: 한백";
+        when(offlineCharacterRemover.delete(3L)).thenThrow(new CharacterOnlineException(detail));
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/characters/3"))
+                .hasStatus(HttpStatus.CONFLICT)
+                .bodyJson()
+                .extractingPath("$.detail").isEqualTo(detail);
+        assertThat(output).doesNotContain("관리자 삭제");
+    }
+
+    @Test
+    void deleteMissingFail(CapturedOutput output) {
+        when(offlineCharacterRemover.delete(9L))
+                .thenThrow(new IllegalArgumentException("캐릭터를 찾을 수 없습니다. id: 9"));
+
+        assertThat(mvc.delete().with(admin()).with(clientHeader()).uri("/api/admin/characters/9"))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .extractingPath("$.detail").isEqualTo("캐릭터를 찾을 수 없습니다. id: 9");
+        assertThat(output).doesNotContain("관리자 삭제");
+    }
+
+    @Test
+    void deletePlayerFail() {
+        assertThat(mvc.delete().with(player()).with(clientHeader()).uri("/api/admin/characters/3"))
+                .hasStatus(HttpStatus.FORBIDDEN);
+        verifyNoInteractions(offlineCharacterRemover);
     }
 
     private static CultivationProfile profile(Realm realm) {

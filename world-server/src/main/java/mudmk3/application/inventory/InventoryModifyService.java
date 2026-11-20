@@ -68,6 +68,11 @@ public class InventoryModifyService implements InventoryEditor {
     }
 
     @Override
+    public void deleteOf(Long characterId) {
+        inventoryRepository.findByCharacterId(characterId).ifPresent(inventoryRepository::delete);
+    }
+
+    @Override
     public int addUpTo(Long characterId, Long itemTypeId, int count, boolean braceletOpen) {
         if (count < 1) throw new IllegalArgumentException("수는 1 이상이어야 합니다: " + count);
         Inventory inventory = findOrCreate(characterId);

@@ -71,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
+import static mudmk3.domain.character.CharacterFixture.createCharacter;
 import static mudmk3.domain.character.CharacterFixture.spiritRoot;
 import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
 import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
@@ -381,6 +382,14 @@ abstract class BaseGameTest {
         Long accountId = prepareAccount(emailOf(name));
         characterCreator.create(accountId, name, spiritRoot());
         connect(sessionId, accountId);
+        return accountId;
+    }
+
+    /** 4차 전에 만든 캐릭터처럼 영근 없이 그 방에 저장한다 */
+    protected Long prepareLegacyCharacter(String name, Long roomId) {
+        Long accountId = prepareAccount("legacy-" + name.codePoints().sum() + "@example.com");
+        characterRepository.save(createCharacter(accountId, name, roomId));
+        entityManager.flush();
         return accountId;
     }
 

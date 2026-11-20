@@ -17,6 +17,9 @@ public interface InventoryEditor {
      */
     void createWithStartingItems(Long characterId);
 
+    /** 캐릭터를 지울 때 그 소지품을 묶음과 함께 지운다. 소지품이 없으면 아무것도 하지 않는다 */
+    void deleteOf(Long characterId);
+
     /** 물건을 들어가는 만큼만(최대 {@code count}, 1 이상) 넣고 넣은 수를 돌려준다 */
     int addUpTo(Long characterId, Long itemTypeId, int count, boolean braceletOpen);
 

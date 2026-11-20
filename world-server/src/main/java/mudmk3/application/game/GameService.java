@@ -3,11 +3,15 @@ package mudmk3.application.game;
 import mudmk3.application.character.provided.CharacterCreator;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
+import mudmk3.application.character.provided.CharacterRemover;
+import mudmk3.application.character.provided.DeletedCharacter;
 import mudmk3.application.character.provided.RealmChangedEvent;
 import mudmk3.application.cultivation.provided.CultivationFinder;
 import mudmk3.application.floor.provided.RoomFloor;
+import mudmk3.application.game.provided.CharacterOnlineException;
 import mudmk3.application.game.provided.GameConnector;
 import mudmk3.application.game.provided.GameTicker;
+import mudmk3.application.game.provided.OfflineCharacterRemover;
 import mudmk3.application.game.required.GameCloseReason;
 import mudmk3.application.game.required.GameMessage;
 import mudmk3.application.game.required.GameMessage.NoticeMessage;
@@ -53,6 +57,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
@@ -63,7 +68,7 @@ import static java.util.Objects.requireNonNull;
  * 그래서 포트 메서드 자체는 트랜잭션을 열지 않고({@code SUPPORTS}) 락을 잡은 뒤 {@link TransactionTemplate} 으로 연다.
  */
 @ApplicationService
-public class GameService implements GameConnector, GameTicker {
+public class GameService implements GameConnector, GameTicker, OfflineCharacterRemover {
 
     static final int MAX_COMMAND_LENGTH = 500;
     static final int MAX_SAY_LENGTH = 200;
@@ -98,10 +103,12 @@ public class GameService implements GameConnector, GameTicker {
     static final String QUIT = "다음에 또 뵙겠습니다.";
     static final String UNKNOWN = "무슨 말인지 모르겠습니다. ('도움말' 로 명령을 볼 수 있습니다)";
     static final String RELOCATED = "서 있던 곳이 사라져 시작 장소로 옮겨졌습니다.";
+    static final String CHARACTER_ONLINE = "접속 중인 캐릭터는 지울 수 없습니다. 접속을 끊은 뒤 다시 시도하십시오: ";
 
     private final CharacterFinder characterFinder;
     private final CharacterCreator characterCreator;
     private final CharacterMover characterMover;
+    private final CharacterRemover characterRemover;
     private final RoomFinder roomFinder;
     private final NpcFinder npcFinder;
     private final WorldSettingsFinder worldSettingsFinder;
@@ -130,6 +137,7 @@ public class GameService implements GameConnector, GameTicker {
             CharacterFinder characterFinder,
             CharacterCreator characterCreator,
             CharacterMover characterMover,
+            CharacterRemover characterRemover,
             RoomFinder roomFinder,
             NpcFinder npcFinder,
             WorldSettingsFinder worldSettingsFinder,
@@ -151,6 +159,7 @@ public class GameService implements GameConnector, GameTicker {
         this.characterFinder = characterFinder;
         this.characterCreator = characterCreator;
         this.characterMover = characterMover;
+        this.characterRemover = characterRemover;
         this.roomFinder = roomFinder;
         this.npcFinder = npcFinder;
         this.worldSettingsFinder = worldSettingsFinder;
@@ -200,6 +209,27 @@ public class GameService implements GameConnector, GameTicker {
     }
 
     /**
+     * 관리 툴의 캐릭터 삭제. 접속 판정과 지우기를 명령·틱·접속과 같은 게임 락 안에서 트랜잭션 하나로 한다(판정과 지우기 사이에
+     * 그 계정이 세계에 들어오지 못함). 그 계정의 게임 연결이 있으면(영근을 고르는 중 포함) 거절한다. DB 행을 지운 뒤 메모리의
+     * 교전·대기·몹 기록을 지운다. 예외는 트랜잭션을 되돌리고 그대로 나간다
+     */
+    @Override
+    @Transactional(propagation = Propagation.SUPPORTS)
+    public DeletedCharacter delete(Long characterId) {
+        return serialized(() -> {
+            PlayerCharacter character = characterFinder.find(characterId);
+            Long accountId = character.getAccountId();
+            boolean connected = sessions.values().stream().anyMatch(session -> session.getAccountId().equals(accountId));
+            if (connected || presenceRepository.findByCharacterId(characterId).isPresent()) {
+                throw new CharacterOnlineException(CHARACTER_ONLINE + character.getName().value());
+            }
+            DeletedCharacter deleted = characterRemover.delete(characterId);
+            combatEngine.forget(characterId, clock.instant());
+            return deleted;
+        });
+    }
+
+    /**
      * 방을 지운 트랜잭션이 커밋된 뒤 그 방의 캐릭터를 시작 방으로 옮긴다(D11).
      * 관리자 트랜잭션 안에서는 게임 락을 잡지 않는다(DB 행 락과 게임 락이 엇갈려 교착하지 않게).
      * 커밋과 이 반영 사이에 들어온 게임 처리는 사라진 방을 스스로 바로잡는다({@link #relocateIfRoomGone}).
@@ -228,17 +258,27 @@ public class GameService implements GameConnector, GameTicker {
      * 처리 끝(같은 트랜잭션 안)에 이번 처리가 표시한 방마다 조용한 방 상태를 한 번 보낸다({@link #sendQuietRooms}).
      */
     private void serialized(Runnable work) {
+        serialized(() -> {
+            work.run();
+            return Boolean.TRUE;
+        });
+    }
+
+    /** {@link #serialized(Runnable)} 와 같고 처리의 결과를 커밋 뒤 돌려준다 */
+    private <T> T serialized(Supplier<T> work) {
         lock.lock();
         try {
             outbox.clear();
             roomRefresher.clear();
-            transactionTemplate.executeWithoutResult(status -> {
-                work.run();
+            T result = requireNonNull(transactionTemplate.execute(status -> {
+                T value = work.get();
                 sendQuietRooms();
-            });
+                return value;
+            }));
             List<Runnable> deliveries = List.copyOf(outbox);
             outbox.clear();
             deliveries.forEach(Runnable::run);
+            return result;
         } finally {
             // 실패한 처리가 남긴 outbox·방 표시는 다음 처리가 시작할 때 비운다
             lock.unlock();

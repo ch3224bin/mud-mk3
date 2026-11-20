@@ -3,6 +3,7 @@ package mudmk3.adapter.webapi;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import mudmk3.application.faction.provided.FactionInUseException;
+import mudmk3.application.game.provided.CharacterOnlineException;
 import mudmk3.application.item.provided.ItemTypeInUseException;
 import mudmk3.application.item.provided.SpiritStoneChangeException;
 import mudmk3.application.room.provided.ExitConflictException;
@@ -55,7 +56,8 @@ public class ApiControllerAdvice extends ResponseEntityExceptionHandler {
             SpiritStoneChangeException.class,
             DuplicateTechniqueNameException.class,
             TechniqueInUseException.class,
-            DuplicateMobNameException.class
+            DuplicateMobNameException.class,
+            CharacterOnlineException.class
     })
     public ProblemDetail handleConflict(RuntimeException exception) {
         return problem(HttpStatus.CONFLICT, exception.getMessage(), exception);

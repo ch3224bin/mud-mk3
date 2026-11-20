@@ -2466,14 +2466,6 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(sender.messagesTo(sessionId)).containsExactly(expected);
     }
 
-    /** 4차 전에 만든 캐릭터처럼 영근 없이 그 방에 저장한다 */
-    private Long prepareLegacyCharacter(String name, Long roomId) {
-        Long accountId = prepareAccount("legacy-" + name.codePoints().sum() + "@example.com");
-        characterRepository.save(createCharacter(accountId, name, roomId));
-        entityManager.flush();
-        return accountId;
-    }
-
     // ---- 상태·공법·신통 (4차)
 
     @Test

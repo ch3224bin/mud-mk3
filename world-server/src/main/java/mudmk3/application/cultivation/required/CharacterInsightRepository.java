@@ -12,6 +12,9 @@ public interface CharacterInsightRepository extends Repository<CharacterInsight,
 
     CharacterInsight save(CharacterInsight insight);
 
+    /** 그 캐릭터의 깨달음을 모두 지운다(읽어서 하나씩 지움 — 영속성 컨텍스트와 맞음) */
+    void deleteAllByCharacterId(Long characterId);
+
     List<CharacterInsight> findAllByCharacterId(Long characterId);
 
     Optional<CharacterInsight> findByCharacterIdAndKind(Long characterId, InsightKind kind);

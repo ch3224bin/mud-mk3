@@ -12,6 +12,9 @@ public interface CharacterTechniqueRepository extends Repository<CharacterTechni
 
     CharacterTechnique save(CharacterTechnique characterTechnique);
 
+    /** 그 캐릭터가 익힌 공법을 모두 지운다(읽어서 하나씩 지움 — 영속성 컨텍스트와 맞음) */
+    void deleteAllByCharacterId(Long characterId);
+
     /** 그 캐릭터가 익힌 공법(익힌 순서). 공법은 함께 읽는다 */
     @EntityGraph(attributePaths = "technique")
     List<CharacterTechnique> findAllByCharacterIdOrderByIdAsc(Long characterId);

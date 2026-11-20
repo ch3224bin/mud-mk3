@@ -127,6 +127,21 @@ public final class MobInstance {
     }
 
     /**
+     * 지운 캐릭터를 잊는다: 교전 상대면 먼저 교전에서 빼고({@link #disengage}, 상대가 모두 사라지면 다시 차기 예약), 교전이 끝난
+     * 뒤 남은 위협·피해 기록과 깨달음 한 상대 상한·알림을 지운다. 이미 쓰러진 몹의 처치자는 그대로 둔다(시체는 이미 남음)
+     */
+    public void forget(Long characterId, Instant now) {
+        requireNonNull(characterId);
+        requireNonNull(now);
+        disengage(characterId, now);
+        released.remove(characterId);
+        clearInsightCap(characterId);
+        if (characterId.equals(targetCharacterId)) {
+            targetCharacterId = null;
+        }
+    }
+
+    /**
      * 교전 상대의 공격을 받는다. 위력에 받는 쪽 배율({@link Damage#receiverMultiplier})을 곱한 값(층을 거치기 전 피해)만큼
      * 위협·피해 기록이 늘고, 기혈은 육신 층까지 거친 피해({@link Damage#afterLayers})만큼 준다.
      * 쓰러지면 처치자를 정해 두고 교전 상대·기록을 모두 비운 뒤 재등장을 예약한다(쓰러지기 전 상대는 부르는 쪽이 미리 읽는다)

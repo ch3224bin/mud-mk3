@@ -170,6 +170,19 @@ class CombatEngine {
         });
     }
 
+    /**
+     * 캐릭터가 지워졌다(관리 툴, 접속하지 않은 캐릭터): 끊긴 뒤 남은 교전 기록·신통 대기시간을 지우고, 모든 몹에서 그 캐릭터의
+     * 기록을 지운다({@link MobInstance#forget}). 시체의 처치자 id 는 그대로 둔다
+     */
+    void forget(Long characterId, Instant now) {
+        playerCombatRepository.delete(characterId);
+        abilityTimersRepository.delete(characterId);
+        for (MobInstance mob : mobInstanceRepository.findAll()) {
+            mob.forget(characterId, now);
+            mobInstanceRepository.save(mob);
+        }
+    }
+
     /** 방이 지워졌다: 그 방의 시체·몹(쓰러진 것 포함)을 알리지 않고 지운다(그 방 사람의 교전은 {@link #endAll} 이 끝냄) */
     void forgetRoom(Long roomId) {
         corpseHandler.removeInRoom(roomId);

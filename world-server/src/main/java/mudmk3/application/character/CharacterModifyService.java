@@ -4,10 +4,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import mudmk3.application.account.provided.AccountFinder;
 import mudmk3.application.character.provided.CharacterCreator;
+import mudmk3.application.character.provided.CharacterDeletedEvent;
 import mudmk3.application.character.provided.CharacterFinder;
 import mudmk3.application.character.provided.CharacterMover;
 import mudmk3.application.character.provided.CharacterRealmEditor;
+import mudmk3.application.character.provided.CharacterRemover;
 import mudmk3.application.character.provided.CharacterVitalsEditor;
+import mudmk3.application.character.provided.DeletedCharacter;
 import mudmk3.application.character.provided.RealmChangedEvent;
 import mudmk3.application.character.provided.WorldNotReadyException;
 import mudmk3.application.character.required.CharacterRepository;
@@ -39,7 +42,7 @@ import static java.util.Objects.requireNonNull;
 @ApplicationService
 @RequiredArgsConstructor
 public class CharacterModifyService implements CharacterCreator, CharacterMover, CharacterRealmEditor,
-        CharacterVitalsEditor {
+        CharacterVitalsEditor, CharacterRemover {
 
     private final CharacterFinder characterFinder;
     private final CharacterRepository characterRepository;
@@ -100,6 +103,20 @@ public class CharacterModifyService implements CharacterCreator, CharacterMover,
         }
         character.changeRealm(Realm.QI_1);
         writeRealm(characterId, Realm.QI_1);
+    }
+
+    /**
+     * 캐릭터를 가리키는 행을 먼저 지우고(익힌 공법·깨달음은 이벤트로, 소지품은 직접) 캐릭터 행을 영근과 함께 지운다.
+     * 영속성 컨텍스트가 지운 순서대로 flush 하므로 FK 순서가 지켜진다
+     */
+    @Override
+    public DeletedCharacter delete(Long characterId) {
+        PlayerCharacter character = characterFinder.find(characterId);
+        DeletedCharacter deleted = new DeletedCharacter(characterId, character.getAccountId(), character.getName().value());
+        eventPublisher.publishEvent(new CharacterDeletedEvent(characterId));
+        inventoryEditor.deleteOf(characterId);
+        characterRepository.delete(character);
+        return deleted;
     }
 
     /** 서버가 뜰 때 경지 열이 비어 있는 기존 캐릭터를 연기 1층으로 채운다(영석 심기보다 먼저) */
