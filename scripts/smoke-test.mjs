@@ -60,6 +60,8 @@ const rabbitHideName = `토끼 가죽${runNo}`;
 const rabbitName = `들토끼${runNo}`;
 const bossName = `흑망${runNo}`;
 const huntName = `사냥터${runNo}`;
+// 방위 초성 약자 단계 55 의 광장 북쪽 방(끝에 지움)
+const northYardName = `북뜰${runNo}`;
 // 6차 공법·신통·옥간·몹(숫자로 끝나 받침 없음: 음혼123456를·와, 염탄123456는)
 const blazeName = `열화공${runNo}`;
 const emberName = `염탄${runNo}`;
@@ -1194,22 +1196,37 @@ async function run() {
     await e2.waitFor((m) => m.type === "prompt" && m.text === "이름을 정하십시오. (한글 2~6자)", "삭제 뒤 이름 prompt");
     e2.close();
 
-    step(`55. H 접속(${nameH}, 광장) → ㅂ 북쪽 길 → ㄴ 광장 → ㄷ ${huntName} → ㅅ 광장 → 보·봐 광장 room → ㅅㅌ status → 도움말 새 문구 → 종료`);
+    step(`55. 관리자 — 광장 북에 ${northYardName}(양방향). H 접속(${nameH}, 광장) → ㅂ ${northYardName} → ㄴ 광장 → ㄷ ${huntName} → ㅅ 광장 → ㅂㄷ 길 없음 → 보·봐 광장 room → ㅅㅌ status → 도움말 새 문구 → 종료 → ${northYardName} 지움`);
+    // 단계 9 에서 북쪽 길을 지워 광장에 북 출구가 없으므로 이 단계에서 만들고 끝에 지운다
+    const northYard = await api(admin, "POST", "/api/admin/rooms",
+      { zoneId: zone.id, name: northYardName, description: "광장 북쪽의 작은 뜰이다." }, { expect: 201 });
+    await api(admin, "PUT", `/api/admin/rooms/${square.id}/exits/NORTH`, { targetRoomId: northYard.id, twoWay: true });
     const playerH = await devLogin(`smoke-h-${runId}@example.com`);
     const h = connect("H", playerH.cookie);
     await createCharacter(h, nameH);
-    for (const [input, roomName] of [["ㅂ", "북쪽 길"], ["ㄴ", "광장"], ["ㄷ", huntName], ["ㅅ", "광장"], ["보", "광장"], ["봐", "광장"]]) {
+    for (const [input, roomName] of [["ㅂ", northYardName], ["ㄴ", "광장"], ["ㄷ", huntName], ["ㅅ", "광장"]]) {
       mark = h.send(input);
       await h.waitFor(isRoom(roomName), `H ${input} → ${roomName} room`, mark);
     }
+    mark = h.send("ㅂㄷ");
+    const noExit = await h.waitFor((m) => m.type === "system", "H ㅂㄷ system", mark);
+    if (noExit.text !== "그쪽으로는 길이 없습니다." || noExit.tone !== "error") fail(`H ㅂㄷ 결과가 길 없음이 아님: ${JSON.stringify(noExit)}`);
+    for (const input of ["보", "봐"]) {
+      mark = h.send(input);
+      await h.waitFor(isRoom("광장"), `H ${input} → 광장 room`, mark);
+    }
     mark = h.send("ㅅㅌ");
-    const hStatus = await h.waitFor((m) => m.type === "status" || m.type === "system", "H ㅅㅌ", mark);
-    if (hStatus.type !== "status") fail(`H ㅅㅌ 가 상태가 아님: ${JSON.stringify(hStatus)}`);
+    await h.waitFor((m) => m.type === "status", "H ㅅㅌ status", mark);
     mark = h.send("도움말");
     const helpH = await h.waitFor((m) => m.type === "system", "H 도움말", mark);
     if (helpH.text !== HELP_6) fail(`H 도움말이 방위 초성 약자 문구와 다름: ${JSON.stringify(helpH.text)}`);
     h.send("종료");
     await h.waitClose(1000);
+    await api(admin, "DELETE", `/api/admin/rooms/${northYard.id}`, undefined, { expect: 204 });
+    const squareAfterYard = await api(admin, "GET", `/api/admin/rooms/${square.id}`);
+    if (squareAfterYard.exits.some((exit) => exit.direction === "NORTH")) {
+      fail(`${northYardName} 을 지운 뒤 광장에 북 출구가 남음: ${JSON.stringify(squareAfterYard.exits)}`);
+    }
 
     console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName}·${merchantName}, 공법 ${springName}·${greenName}·${blazeName}, 몹 ${ghostName})`);
   } finally {
