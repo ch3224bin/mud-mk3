@@ -14,6 +14,7 @@
 //      5차 단계 42 의 정리(몹 배치 지움·시작 소지품 되돌림)는 단계 51 로 옮겨 한 번만 한다.
 // 부채 정리 2차: 조용한 방 상태(quiet room)는 isQuietRoom 으로 따로 본다(단계 21·38·49). 단계 52 는 로그아웃 뒤 게임 연결 4401.
 // 관리 툴 삭제: 단계 36 의 배치된 몹 삭제 409 는 없어짐. 단계 53 몹 삭제, 54 캐릭터 삭제.
+// 방위 초성 약자: 도움말 문구(HELP_6)가 바뀜. 단계 55 는 새 플레이어 H 가 초성 약자로 오가고 봐·보·ㅅㅌ 을 쓴다.
 
 const baseUrl = (process.argv[2] ?? "http://localhost:8080").replace(/\/$/, "");
 const wsUrl = baseUrl.replace(/^http/, "ws") + "/ws/game";
@@ -41,6 +42,7 @@ const nameB = "을사" + randomHangul() + randomHangul();
 const nameC = "병사" + randomHangul() + randomHangul();
 const nameD = "정사" + randomHangul() + randomHangul();
 const nameE = "무사" + randomHangul() + randomHangul();
+const nameH = "기사" + randomHangul() + randomHangul();
 // 3차 아이템 종류·상점 NPC. 숫자로 끝나는 이름은 조사 규칙상 받침 없음(회춘단123456는·를·와·가)
 const bagName = `하급 저물대${runNo}`;
 const pillName = `회춘단${runNo}`;
@@ -206,9 +208,10 @@ class GameClient {
   }
 }
 
-// command.md 6차 도움말(D115)
-const HELP_6 = "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말]"
-  + " · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건>"
+// command.md 6차 도움말(D115), 방위 초성 약자 도움말(direction-abbrev)
+const HELP_6 = "명령: 보기(봐 보) · 동 서 남 북 북동 북서 남동 남서 위 아래 (ㄷ ㅅ ㄴ ㅂ ㅂㄷ ㅂㅅ ㄴㄷ ㄴㅅ ㅇ ㅇㄹ / e w s n ne nw se sw u d)"
+  + " · 말하기(') · 대화 <NPC> [낱말]"
+  + " · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅㅌ) · 공법 · 신통 · 읽기 <물건>"
   + " · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량]"
   + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건>"
   + " · 확인 · 취소 · 누구 · 도움말 · 종료";
@@ -1190,6 +1193,23 @@ async function run() {
     await e2.waitFor((m) => m.type === "session" && m.state === "creating", "삭제 뒤 session(creating)");
     await e2.waitFor((m) => m.type === "prompt" && m.text === "이름을 정하십시오. (한글 2~6자)", "삭제 뒤 이름 prompt");
     e2.close();
+
+    step(`55. H 접속(${nameH}, 광장) → ㅂ 북쪽 길 → ㄴ 광장 → ㄷ ${huntName} → ㅅ 광장 → 보·봐 광장 room → ㅅㅌ status → 도움말 새 문구 → 종료`);
+    const playerH = await devLogin(`smoke-h-${runId}@example.com`);
+    const h = connect("H", playerH.cookie);
+    await createCharacter(h, nameH);
+    for (const [input, roomName] of [["ㅂ", "북쪽 길"], ["ㄴ", "광장"], ["ㄷ", huntName], ["ㅅ", "광장"], ["보", "광장"], ["봐", "광장"]]) {
+      mark = h.send(input);
+      await h.waitFor(isRoom(roomName), `H ${input} → ${roomName} room`, mark);
+    }
+    mark = h.send("ㅅㅌ");
+    const hStatus = await h.waitFor((m) => m.type === "status" || m.type === "system", "H ㅅㅌ", mark);
+    if (hStatus.type !== "status") fail(`H ㅅㅌ 가 상태가 아님: ${JSON.stringify(hStatus)}`);
+    mark = h.send("도움말");
+    const helpH = await h.waitFor((m) => m.type === "system", "H 도움말", mark);
+    if (helpH.text !== HELP_6) fail(`H 도움말이 방위 초성 약자 문구와 다름: ${JSON.stringify(helpH.text)}`);
+    h.send("종료");
+    await h.waitClose(1000);
 
     console.log(`SMOKE OK (지역 "스모크 ${runId}" id=${zone.id}, 시작 방 광장 id=${square.id}, 성 ${castleName}, NPC ${npcName}·${merchantName}, 공법 ${springName}·${greenName}·${blazeName}, 몹 ${ghostName})`);
   } finally {
