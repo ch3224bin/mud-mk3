@@ -13,6 +13,7 @@ import mudmk3.domain.game.Command.Drop;
 import mudmk3.domain.game.Command.Help;
 import mudmk3.domain.game.Command.Inventory;
 import mudmk3.domain.game.Command.Look;
+import mudmk3.domain.game.Command.LookToward;
 import mudmk3.domain.game.Command.Move;
 import mudmk3.domain.game.Command.Pick;
 import mudmk3.domain.game.Command.Quit;
@@ -75,10 +76,21 @@ class CommandParserTest {
     }
 
     @Test
-    void lookKeepsDirectionArgument() {
-        assertThat(parse("봐 동")).isEqualTo(new Look("동"));
-        assertThat(parse("보 ㄷ")).isEqualTo(new Look("ㄷ"));
-        assertThat(parse("보기 e")).isEqualTo(new Look("e"));
+    void lookToward() {
+        assertThat(parse("봐 동")).isEqualTo(new LookToward(Direction.EAST));
+        assertThat(parse("보 ㄷ")).isEqualTo(new LookToward(Direction.EAST));
+        assertThat(parse("보기 e")).isEqualTo(new LookToward(Direction.EAST));
+        assertThat(parse("보기 E")).isEqualTo(new LookToward(Direction.EAST));
+        assertThat(parse("보   북동 ")).isEqualTo(new LookToward(Direction.NORTHEAST));
+        assertThat(parse("봐 위")).isEqualTo(new LookToward(Direction.UP));
+        assertThat(parse("보 ㅇㄹ")).isEqualTo(new LookToward(Direction.DOWN));
+    }
+
+    @Test
+    void lookTowardNeedsWholeArgumentToBeDirection() {
+        assertThat(parse("보기 동 왕씨")).isEqualTo(new Look("동 왕씨"));
+        assertThat(parse("보기 동쪽")).isEqualTo(new Look("동쪽"));
+        assertThat(parse("봐 east")).isEqualTo(new Look("east"));
     }
 
     @Test

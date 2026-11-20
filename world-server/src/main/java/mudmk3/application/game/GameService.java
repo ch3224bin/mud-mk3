@@ -93,7 +93,7 @@ public class GameService implements GameConnector, GameTicker, OfflineCharacterR
     static final String SAY_TOO_LONG = "말은 200자 이내로 하십시오.";
     static final String HELP =
             "명령: 보기(봐 보) · 동 서 남 북 북동 북서 남동 남서 위 아래 (ㄷ ㅅ ㄴ ㅂ ㅂㄷ ㅂㅅ ㄴㄷ ㄴㅅ ㅇ ㅇㄹ / e w s n ne nw se sw u d)"
-                    + " · 말하기(') · 대화 <NPC> [낱말]"
+                    + " · 보기 <방위> · 말하기(') · 대화 <NPC> [낱말]"
                     + " · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅㅌ) · 공법 · 신통 · 읽기 <물건>"
                     + " · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량]"
                     + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건>"
@@ -534,6 +534,7 @@ public class GameService implements GameConnector, GameTicker, OfflineCharacterR
         }
         switch (command) {
             case Command.Look look -> look(sessionId, player, look);
+            case Command.LookToward lookToward -> lookToward(sessionId, player, lookToward.direction());
             case Command.Move move -> move(sessionId, session, player, move.direction());
             case Command.Say say -> say(sessionId, player, say.message());
             case Command.Talk talk -> talk(sessionId, player, talk);
@@ -580,6 +581,17 @@ public class GameService implements GameConnector, GameTicker, OfflineCharacterR
             return;
         }
         send(sessionId, roomView(roomFinder.find(player.getRoomId()), false, player.getCharacterId(), false));
+    }
+
+    /** 그 방위 출구 너머 방의 이름만 보인다: {@code 동쪽으로 숲 입구가 보인다.} 교전·시전 중에도 된다 */
+    private void lookToward(String sessionId, OnlinePlayer player, Direction direction) {
+        Optional<Exit> exit = roomFinder.find(player.getRoomId()).findExit(direction);
+        if (exit.isEmpty()) {
+            send(sessionId, SystemMessage.error(NO_EXIT));
+            return;
+        }
+        String target = exit.get().getTarget().getName();
+        send(sessionId, SystemMessage.info(direction.towardPhrase() + " " + Josa.withIGa(target) + " 보인다."));
     }
 
     /** 교전 중이면 5차 문구가 먼저, 아니고 시전 중이면 시전 문구로 막는다(D113) */

@@ -13,6 +13,13 @@ public sealed interface Command {
     record Look(@Nullable String argument) implements Command {
     }
 
+    /** 그 방위 출구 너머 방 보기({@code 봐 동}) */
+    record LookToward(Direction direction) implements Command {
+        public LookToward {
+            requireNonNull(direction);
+        }
+    }
+
     record Move(Direction direction) implements Command {
         public Move {
             requireNonNull(direction);

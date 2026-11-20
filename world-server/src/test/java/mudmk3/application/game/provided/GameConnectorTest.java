@@ -74,6 +74,9 @@ import mudmk3.domain.item.ItemCategory;
 import mudmk3.domain.item.SpiritStoneGrade;
 import mudmk3.domain.npc.Npc;
 import mudmk3.domain.npc.ShopKind;
+import mudmk3.application.room.provided.ExitSaveRequest;
+import mudmk3.domain.room.Direction;
+import mudmk3.domain.room.Room;
 import mudmk3.domain.shared.Realm;
 import org.junit.jupiter.api.Test;
 
@@ -92,6 +95,7 @@ import static mudmk3.domain.faction.FactionFixture.createFactionSaveRequest;
 import static mudmk3.domain.mob.MobFixture.request;
 import static mudmk3.domain.mob.MobFixture.wolf;
 import static mudmk3.domain.npc.NpcFixture.createNpcSaveRequest;
+import static mudmk3.domain.room.RoomFixture.createRoomSaveRequest;
 import static mudmk3.domain.technique.TechniqueFixture.changchunInfo;
 import static mudmk3.domain.technique.TechniqueFixture.changchunWith;
 import static mudmk3.domain.technique.TechniqueFixture.greenWoodInfo;
@@ -984,7 +988,7 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.handle("a", "도움말");
 
         assertThat(sender.messagesTo("a")).containsExactly(new SystemMessage(
-                "명령: 보기(봐 보) · 동 서 남 북 북동 북서 남동 남서 위 아래 (ㄷ ㅅ ㄴ ㅂ ㅂㄷ ㅂㅅ ㄴㄷ ㄴㅅ ㅇ ㅇㄹ / e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅㅌ) · 공법 · 신통 · 읽기 <물건> · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량] · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 확인 · 취소 · 누구 · 도움말 · 종료",
+                "명령: 보기(봐 보) · 동 서 남 북 북동 북서 남동 남서 위 아래 (ㄷ ㅅ ㄴ ㅂ ㅂㄷ ㅂㅅ ㄴㄷ ㄴㅅ ㅇ ㅇㄹ / e w s n ne nw se sw u d) · 보기 <방위> · 말하기(') · 대화 <NPC> [낱말] · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅㅌ) · 공법 · 신통 · 읽기 <물건> · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량] · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 확인 · 취소 · 누구 · 도움말 · 종료",
                 "info"));
     }
 
@@ -1908,8 +1912,80 @@ class GameConnectorTest extends BaseGameTest {
 
         assertOnly("a", "봐 가죽", SystemMessage.item("늑대 가죽 — 거칠고 질긴 늑대의 가죽이다."));
         assertOnly("a", "보 가죽", SystemMessage.item("늑대 가죽 — 거칠고 질긴 늑대의 가죽이다."));
-        assertOnly("a", "봐 동", SystemMessage.error("그런 것은 보이지 않습니다."));
-        assertOnly("a", "보 ㄷ", SystemMessage.error("그런 것은 보이지 않습니다."));
+        assertOnly("a", "봐 동", SystemMessage.error("그쪽으로는 길이 없습니다."));
+        assertOnly("a", "보 ㄷ", SystemMessage.error("그쪽으로는 길이 없습니다."));
+    }
+
+    // ---- 방위 보기
+
+    @Test
+    void lookTowardShowsNeighborRoomName() {
+        GameMap map = prepareMap();
+        prepareNpcs(map);
+        Long hanbaek = enter("a", "한백");
+        enter("b", "한립");
+        sender.clear();
+
+        assertOnly("a", "보기 북", SystemMessage.info("북쪽으로 우물가가 보인다."));
+        assertOnly("a", "봐 ㅂ", SystemMessage.info("북쪽으로 우물가가 보인다."));
+        assertOnly("a", "보 n", SystemMessage.info("북쪽으로 우물가가 보인다."));
+        assertThat(roomIdOf(hanbaek)).isEqualTo(map.entranceId());
+        assertThat(sender.messagesTo("b")).isEmpty();
+
+        gameConnector.handle("a", "북");
+        assertOnly("a", "봐 ㅂ", SystemMessage.info("북쪽으로 남문이 보인다."));
+        assertOnly("a", "보기 E", SystemMessage.info("동쪽으로 숲 입구가 보인다."));
+        assertOnly("a", "보 남", SystemMessage.info("남쪽으로 마을 어귀가 보인다."));
+    }
+
+    @Test
+    void lookTowardUpAndDown() {
+        GameMap map = prepareMap();
+        Room tower = roomEditor.create(createRoomSaveRequest(map.villageZoneId(), "누각"));
+        Room cellar = roomEditor.create(createRoomSaveRequest(map.villageZoneId(), "움막"));
+        roomEditor.putExit(map.entranceId(), Direction.UP, new ExitSaveRequest(tower.getId(), false));
+        roomEditor.putExit(map.entranceId(), Direction.DOWN, new ExitSaveRequest(cellar.getId(), false));
+        enter("a", "한백");
+        sender.clear();
+
+        assertOnly("a", "보기 위", SystemMessage.info("위로 누각이 보인다."));
+        assertOnly("a", "봐 ㅇ", SystemMessage.info("위로 누각이 보인다."));
+        assertOnly("a", "보 아래", SystemMessage.info("아래로 움막이 보인다."));
+        assertOnly("a", "보 d", SystemMessage.info("아래로 움막이 보인다."));
+    }
+
+    @Test
+    void lookTowardNoExitFail() {
+        prepareMap();
+        enter("a", "한백");
+        sender.clear();
+
+        assertOnly("a", "보기 남", SystemMessage.error("그쪽으로는 길이 없습니다."));
+        assertOnly("a", "봐 ㄴㅅ", SystemMessage.error("그쪽으로는 길이 없습니다."));
+        assertOnly("a", "보 sw", SystemMessage.error("그쪽으로는 길이 없습니다."));
+    }
+
+    /** 방위 낱말과 같은 이름의 NPC가 있어도 방위가 먼저다 */
+    @Test
+    void lookTowardBeatsTargetWithSameName() {
+        GameMap map = prepareMap();
+        npcEditor.create(new NpcSaveRequest("북", "어서 오시오.", "글쎄.", List.of(), false, map.entranceId()));
+        npcEditor.create(new NpcSaveRequest("동", "어서 오시오.", "글쎄.", List.of(), false, map.entranceId()));
+        enter("a", "한백");
+        sender.clear();
+
+        assertOnly("a", "보기 북", SystemMessage.info("북쪽으로 우물가가 보인다."));
+        assertOnly("a", "보기 동", SystemMessage.error("그쪽으로는 길이 없습니다."));
+    }
+
+    @Test
+    void lookTowardWhileFighting() {
+        GameMap map = prepareMap();
+        enter("a", "한백");
+        placeMob(map, wolf(), 1);
+        gameConnector.handle("a", "공격 청모랑");
+
+        assertOnly("a", "봐 ㅂ", SystemMessage.info("북쪽으로 우물가가 보인다."));
     }
 
     @Test
