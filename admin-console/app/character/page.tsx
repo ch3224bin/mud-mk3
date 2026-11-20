@@ -1,8 +1,9 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import AdminGuard from "../../src/components/AdminGuard";
+import CharacterDeleteForm from "../../src/components/CharacterDeleteForm";
 import CharacterDetail from "../../src/components/CharacterDetail";
 import TopBar from "../../src/components/TopBar";
 import {
@@ -23,8 +24,9 @@ export default function CharacterPage() {
   );
 }
 
-/** `/character/?id=3`: 캐릭터 상세와 경지 지정 */
+/** `/character/?id=3`: 캐릭터 상세와 경지 지정, 맨 아래 캐릭터 삭제 */
 function CharacterView() {
+  const router = useRouter();
   const idParam = useSearchParams().get("id");
   const characterId = idParam === null ? null : Number(idParam);
   const [realms, setRealms] = useState<RealmResponse[] | null>(null);
@@ -63,7 +65,10 @@ function CharacterView() {
         {realms === null || character === null ? (
           !error && <p className="muted">불러오는 중…</p>
         ) : (
-          <CharacterDetail key={character.id} initial={character} realms={realms} />
+          <>
+            <CharacterDetail key={character.id} initial={character} realms={realms} />
+            <CharacterDeleteForm character={character} onDeleted={() => router.push("/characters/")} />
+          </>
         )}
       </main>
     </>

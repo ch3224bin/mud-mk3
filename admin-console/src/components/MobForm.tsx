@@ -16,6 +16,7 @@ import {
   type RealmResponse,
   updateMob,
 } from "../lib/api";
+import { withEunNeun } from "../lib/josa";
 import {
   DEFAULT_BOSS_ATTACK_COEFFICIENT,
   type DropTableDraft,
@@ -43,6 +44,16 @@ type Props = {
 /** 빈칸이면 null(재등장은 체급 기준, 두목 계수는 서버가 빠짐으로 알림) */
 function numberOrNull(text: string): number | null {
   return text.trim() === "" ? null : Number(text);
+}
+
+/** 몹 삭제 확인 문구. 배치 수는 화면을 열 때 읽은 placements 의 개수다(서버는 지울 때 있는 배치를 모두 지운다) */
+function deleteConfirmMessage(target: MobDetailResponse): string {
+  const question = `'${target.name}' 몹을 지울까요?`;
+  const count = target.placements.length;
+  if (count === 0) {
+    return question;
+  }
+  return `${question} 이 몹의 배치 ${count}곳도 함께 지워지고, 세계에 나와 있는 ${withEunNeun(target.name)} 사라집니다.`;
 }
 
 /**
@@ -103,7 +114,7 @@ export default function MobForm({ initial, realms, itemTypes, onSaved }: Props) 
   }
 
   async function handleDelete(target: MobDetailResponse) {
-    if (!window.confirm(`'${target.name}' 몹을 지울까요?`)) {
+    if (!window.confirm(deleteConfirmMessage(target))) {
       return;
     }
     setSubmitting(true);

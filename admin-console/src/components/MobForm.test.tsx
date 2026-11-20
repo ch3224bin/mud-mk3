@@ -253,22 +253,34 @@ describe("MobForm", () => {
 
     await user.click(deleteButton());
 
-    expect(confirm).toHaveBeenCalledWith("'청모랑' 몹을 지울까요?");
+    expect(confirm).toHaveBeenCalledWith(
+      "'청모랑' 몹을 지울까요? 이 몹의 배치 2곳도 함께 지워지고, 세계에 나와 있는 청모랑은 사라집니다.",
+    );
     expect(api.deleteMob).toHaveBeenCalledWith(2);
     expect(push).toHaveBeenCalledWith("/mobs/");
   });
 
-  it("삭제 확인을 취소하면 지우지 않고, 서버가 409 를 주면 detail 을 보인다", async () => {
+  it("배치가 없으면 5차 문구로 묻는다", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<MobForm initial={{ ...wolf, placements: [] }} realms={realms} itemTypes={itemTypes} onSaved={vi.fn()} />);
+
+    await user.click(deleteButton());
+
+    expect(confirm).toHaveBeenCalledWith("'청모랑' 몹을 지울까요?");
+  });
+
+  it("삭제 확인을 취소하면 지우지 않고, 서버 오류면 detail 을 보인다", async () => {
     const user = userEvent.setup();
     vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
-    vi.mocked(api.deleteMob).mockRejectedValue(new api.ApiError(409, "배치된 몹은 지울 수 없습니다: 청모랑"));
+    vi.mocked(api.deleteMob).mockRejectedValue(new api.ApiError(400, "몹을 찾을 수 없습니다. id: 2"));
     render(<MobForm initial={wolf} realms={realms} itemTypes={itemTypes} onSaved={vi.fn()} />);
 
     await user.click(deleteButton());
     expect(api.deleteMob).not.toHaveBeenCalled();
 
     await user.click(deleteButton());
-    expect(await screen.findByRole("alert")).toHaveTextContent("배치된 몹은 지울 수 없습니다: 청모랑");
+    expect(await screen.findByRole("alert")).toHaveTextContent("몹을 찾을 수 없습니다. id: 2");
     expect(push).not.toHaveBeenCalled();
   });
 });

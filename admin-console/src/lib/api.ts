@@ -530,6 +530,9 @@ export const getCharacter = (characterId: number) =>
 /** 수위·돌파 없이 경지를 바로 지정한다. 지정한 뒤의 상세를 돌려준다 */
 export const designateRealm = (characterId: number, realm: RealmCode) =>
   apiFetch<CharacterDetailResponse>(`/api/admin/characters/${characterId}/realm`, jsonBody("PUT", { realm }));
+/** 딸린 소지품·공법·깨달음과 함께 지운다. 접속 중이면 409 */
+export const deleteCharacter = (characterId: number) =>
+  apiFetch<void>(`/api/admin/characters/${characterId}`, { method: "DELETE" });
 
 /** 몹 목록(이름순) */
 export const listMobs = () => apiFetch<MobSummaryResponse[]>("/api/admin/mobs");
@@ -538,7 +541,7 @@ export const createMob = (request: MobTypeSaveRequest) =>
   apiFetch<MobDetailResponse>("/api/admin/mobs", jsonBody("POST", request));
 export const updateMob = (mobId: number, request: MobTypeSaveRequest) =>
   apiFetch<MobDetailResponse>(`/api/admin/mobs/${mobId}`, jsonBody("PUT", request));
-/** 배치가 있으면 409 */
+/** 배치도 함께 지운다 */
 export const deleteMob = (mobId: number) => apiFetch<void>(`/api/admin/mobs/${mobId}`, { method: "DELETE" });
 
 export const createMobPlacement = (roomId: number, request: MobPlacementSaveRequest) =>
