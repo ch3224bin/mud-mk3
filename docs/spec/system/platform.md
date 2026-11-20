@@ -217,7 +217,7 @@
 
 | type | 필드 | 뜻 |
 |---|---|---|
-| `room` | `mobs`: `[{name, rank, tier, count, fighting}]` 를 더함 — `rank` 는 `1급`·`연기 10층`·`헤아릴 수 없음`, `tier` 는 `null`(일반)·`"강적"`·`"정예"`·`"두목"`, `count` 는 묶인 수, `fighting` 은 교전 중인지. `corpses`: `[{name, collectible}]` 를 더함 — `name` 은 `청모랑의 시체`, `collectible` 은 보는 사람이 지금 수습할 수 있는지 | 방 보기. 순서는 [명령어 처리: 교전 메시지](command.md#교전-메시지)의 방 보기 줄 |
+| `room` | `mobs`: `[{name, rank, tier, count, fighting}]` 를 더함 — `rank` 는 `1급`·`연기 10층`·`헤아릴 수 없음`, `tier` 는 `null`(일반)·`"강적"`·`"정예"`·`"두목"`, `count` 는 묶인 수, `fighting` 은 교전 중인지. `corpses`: `[{name, collectible}]` 를 더함 — `name` 은 `청모랑의 시체`, `collectible` 은 보는 사람이 지금 수습할 수 있는지(`ordinal` 은 [시체 번호](#시체-번호-websocket-메시지-변경)에서 더함) | 방 보기. 순서는 [명령어 처리: 교전 메시지](command.md#교전-메시지)의 방 보기 줄 |
 | `system` | `tone` 에 `"combat"` 을 더함 | 교전 시작·침·맞음·처치·질 때 (나에게) |
 | `notice` | `tone` 에 `"combat"` 을 더함, `event` 에 `engage`·`kill`·`defeated`·`respawn` 을 더함. `tone: "item"` 의 `event` 에 `collect` 를 더함 | 같은 방 다른 사람에게 |
 | `status` | 그대로. `stats.qiBlood.current` 가 저장된 현재 기혈이 된다(4차는 늘 최대치). `text` 끝에 전투 줄이 붙을 수 있다 | `상태` |
@@ -311,6 +311,16 @@
 
 - 조용한 방 상태를 새 `type` 으로 두지 않고 `room` 에 `quiet` 를 단 것은, 필드가 방 보기와 같고 받는 쪽 후보 규칙도 같아서다. (제안)
 - 메시지를 만드는 곳(서버 `GameMessage.RoomMessage`)에 칸이 하나 늘 뿐 직렬화 방식은 그대로다. (제안)
+
+### 시체 번호 WebSocket 메시지 변경
+
+시체 번호(2026-11-20)에 더한다. 새 `type` 은 없다. 결정은 창호 결정 (2026-11-20) → [명령어 처리: 시체 번호](command.md#시체-번호-corpse-numbering), 아래는 (제안)이다.
+
+| type | 필드 | 뜻 |
+|---|---|---|
+| `room` | `corpses` 의 줄에 `ordinal`: number \| null 을 더함. 그 방 시체가 둘 이상이면 쓰러진 순서로 1 부터, 하나면 `null` | 방 보기 시체 줄의 `N.` 번호. `봐 N.시체`·`수습 N.시체` 의 N 과 같다 |
+
+- 번호를 클라이언트가 세지 않고 서버가 보내는 것은 대상 고르기와 같은 곳(서버)이 순서를 정하게 하려는 것이다. (제안)
 
 ### 관리 툴 삭제 월드 상태
 
