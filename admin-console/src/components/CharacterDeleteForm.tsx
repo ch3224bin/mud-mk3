@@ -56,7 +56,7 @@ export default function CharacterDeleteForm({ character, onDeleted }: Props) {
             <button type="button" disabled={typed !== character.name || submitting} onClick={handleDelete}>
               삭제
             </button>
-            <button type="button" onClick={close}>
+            <button type="button" disabled={submitting} onClick={close}>
               취소
             </button>
           </div>

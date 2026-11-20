@@ -60,6 +60,18 @@ describe("CharacterDeleteForm", () => {
     expect(onDeleted).toHaveBeenCalledTimes(1);
   });
 
+  it("지우는 중에는 취소 가 꺼진다", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.deleteCharacter).mockReturnValue(new Promise(() => {}));
+    render(<CharacterDeleteForm character={character} onDeleted={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "캐릭터 삭제" }));
+    await user.type(screen.getByLabelText("캐릭터 이름"), "한백");
+    await user.click(screen.getByRole("button", { name: "삭제" }));
+
+    expect(screen.getByRole("button", { name: "취소" })).toBeDisabled();
+  });
+
   it("서버가 409 를 주면 칸을 연 채 detail 을 보인다", async () => {
     const user = userEvent.setup();
     const onDeleted = vi.fn();
