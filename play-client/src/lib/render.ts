@@ -60,7 +60,7 @@ function renderRoom(msg: RoomMessage): OutputLine[] {
 
 /** 시체 줄: 번호가 있으면 `2.청모랑의 시체`(입력 `봐 2.시체` 와 같은 모양), 지금 수습할 수 있으면 ` (수습 가능)` */
 function corpseLine(corpse: Corpse): string {
-  const name = corpse.ordinal === null ? corpse.name : `${corpse.ordinal}.${corpse.name}`;
+  const name = corpse.ordinal == null ? corpse.name : `${corpse.ordinal}.${corpse.name}`;
   return corpse.collectible ? `${name} (수습 가능)` : name;
 }
 

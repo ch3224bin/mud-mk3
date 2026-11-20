@@ -75,6 +75,8 @@ final class RoomViewAssembler {
     /**
      * 시체 줄(쓰러진 순). 둘 이상이면 1 부터 번호를 붙인다(시체 번호). 대상 고르기({@code 2.시체})와 같은 시체 저장소 순서라
      * N 번 줄이 곧 {@code N.시체} 다
+     *
+     * @see CorpseHandler#inRoom
      */
     private static List<CorpseView> corpseViews(List<Corpse> corpses, Long viewerCharacterId, Instant now) {
         boolean numbered = corpses.size() >= 2;
