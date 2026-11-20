@@ -1157,6 +1157,8 @@ async function run() {
     await e.waitFor(combatLine(`${ratName}와 싸움이 벌어진다.`), `${ratName} 교전 시작`, ratMark);
     await api(admin, "DELETE", `/api/admin/mobs/${rat.id}`, undefined, { expect: 204 });
     await e.waitFor(isQuietRoom("광장", (m) => !mobLine(m, ratName)), `몹 삭제 뒤 ${ratName} 없는 quiet room`, ratMark);
+    const killedRat = e.messages.slice(ratMark).find(combatLine(`${ratName}를 쓰러뜨렸습니다.`));
+    if (killedRat) fail(`몹 삭제 전에 E 가 ${ratName} 를 쓰러뜨림(삭제 때 교전 중이 아니었음): ${JSON.stringify(killedRat)}`);
     const lost = e.messages.slice(ratMark).find((m) => m.type === "system" && m.text?.startsWith("기혈이 다했습니다."));
     if (lost) fail(`몹 삭제 전에 E 가 ${ratName} 에게 짐: ${JSON.stringify(lost)}`);
     const squareAfterRat = await api(admin, "GET", `/api/admin/rooms/${square.id}`);
