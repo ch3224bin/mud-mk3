@@ -471,7 +471,7 @@ class CombatSpawnTest extends BaseGameTest {
         corpseRepository.save(new Corpse(1, map.entranceId(), "청모랑", characterIdOf(accountId), clock.instant(), List.of()));
 
         assertThat(lookAt("s1", "청모랑")).isEqualTo(SystemMessage.info("청모랑 (1급) — 푸른 털의 늑대. 멀쩡하다."));
-        assertThat(lookAt("s1", "청모랑의")).isEqualTo(SystemMessage.info("아직 자세히 볼 수 없습니다."));
+        assertThat(lookAt("s1", "청모랑의")).isEqualTo(SystemMessage.item("청모랑의 시체 — 거둘 것이 없다."));
         assertThat(lookAt("s1", "3.청모랑")).isEqualTo(SystemMessage.item("청모랑 — 늑대 모양 장난감이다."));
     }
 

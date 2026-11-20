@@ -123,17 +123,132 @@ class CombatRewardTest extends BaseGameTest {
         assertThat(sender.lastTo("a", RoomMessage.class).mobs()).isEmpty();
     }
 
+    // ---- 시체 보기
+
+    /** 처치자가 보면 남은 물건이 보이고, 시체·소지품은 그대로이며 같은 방에 알리지 않는다 */
     @Test
-    void lookCorpseNotYet() {
+    void lookCorpseShowsDrops() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long wolfHide = wolfHide();
+        Long hanbaek = enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        enter("b", "한립");
+        placeMob(map, wolfWithDrops(wolfHide, items.fang()), 1);
+        gameConnector.handle("a", KILL_WOLF);
+        sender.clear();
+
+        gameConnector.handle("a", "봐 시체");
+        gameConnector.handle("a", "보기 청모랑의 시체");
+        gameConnector.handle("a", "보 청모랑"); // 살아 있는 청모랑이 없으니 시체
+
+        SystemMessage expected = SystemMessage.item("청모랑의 시체 — 거둘 것: 청모랑 가죽 1, 늑대 이빨 1");
+        assertThat(sender.messagesTo("a")).containsExactly(expected, expected, expected);
+        assertThat(sender.messagesTo("b")).isEmpty();
+        assertThat(onlyCorpse(map.entranceId()).getRemaining()).hasSize(2);
+        assertThat(inventoryFinder.find(characterIdOf(hanbaek)).getEntries()).isEmpty();
+    }
+
+    /** 처치자가 아니어도 보이고, 처음 60초는 언제 수습할 수 있는지 둘째 줄에 붙는다 */
+    @Test
+    void lookCorpseOfOtherShare() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long wolfHide = wolfHide();
+        enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        enter("b", "한립");
+        placeMob(map, wolfWithDrops(wolfHide, items.fang()), 1);
+        gameConnector.handle("a", KILL_WOLF);
+        advance(26);
+        sender.clear();
+
+        gameConnector.handle("b", "보 시체");
+        advance(34);
+        gameConnector.handle("b", "보 시체");
+
+        assertThat(sender.messagesTo("b")).containsExactly(
+                SystemMessage.item("청모랑의 시체 — 거둘 것: 청모랑 가죽 1, 늑대 이빨 1\n"
+                        + "그 시체는 아직 다른 사람의 몫입니다. (34초 뒤 수습할 수 있습니다)"),
+                SystemMessage.item("청모랑의 시체 — 거둘 것: 청모랑 가죽 1, 늑대 이빨 1"));
+    }
+
+    /** 빈 시체는 거둘 것이 없다고 보이고, 보기만 해서는 사라지지 않는다 */
+    @Test
+    void lookEmptyCorpse() {
         GameMap map = prepareMap();
         enterAs("a", "한백", Realm.FOUNDATION_EARLY);
         placeMob(map, wolf(), 1);
         gameConnector.handle("a", KILL_WOLF);
         sender.clear();
 
-        gameConnector.handle("a", "보기 청모랑의 시체");
+        gameConnector.handle("a", "봐 시체");
 
-        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.info("아직 자세히 볼 수 없습니다."));
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("청모랑의 시체 — 거둘 것이 없다."));
+        assertThat(corpseRepository.findAllInRoom(map.entranceId())).hasSize(1);
+    }
+
+    /** 저물대가 차서 남긴 것만 보인다 */
+    @Test
+    void lookCorpseAfterPartialCollect() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long wolfHide = wolfHide();
+        Long hanbaek = enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        give(hanbaek, items.sword(), 1);
+        placeMob(map, wolfWithDrops(wolfHide, items.fang()), 1);
+        gameConnector.handle("a", KILL_WOLF);
+        gameConnector.handle("a", "수습 청모랑");
+        sender.clear();
+
+        gameConnector.handle("a", "봐 시체");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("청모랑의 시체 — 거둘 것: 늑대 이빨 1"));
+    }
+
+    /** 시체가 여럿이면 쓰러진 순서로 첫째, 둘째는 번호로. 첫 시체는 일부만 거둬 둘을 가른다 */
+    @Test
+    void lookSecondCorpseByOrdinal() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long wolfHide = wolfHide();
+        Long hanbaek = enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        give(hanbaek, items.sword(), 1);
+        placeMob(map, wolfWithDrops(wolfHide, items.fang()), 2);
+        gameConnector.handle("a", KILL_WOLF);
+        advanceAndTick(5); // 다음 일격까지 기다린다
+        gameConnector.handle("a", KILL_WOLF);
+        assertThat(corpseRepository.findAllInRoom(map.entranceId())).hasSize(2);
+        gameConnector.handle("a", "수습 시체"); // 첫 시체에서 가죽만 들어가고 이빨이 남는다
+        sender.clear();
+
+        gameConnector.handle("a", "봐 시체");
+        gameConnector.handle("a", "봐 2.시체");
+        gameConnector.handle("a", "봐 3.시체");
+
+        assertThat(sender.messagesTo("a")).containsExactly(
+                SystemMessage.item("청모랑의 시체 — 거둘 것: 늑대 이빨 1"),
+                SystemMessage.item("청모랑의 시체 — 거둘 것: 청모랑 가죽 1, 늑대 이빨 1"),
+                SystemMessage.error("그런 것은 보이지 않습니다."));
+    }
+
+    /** 드롭 표가 고쳐진 뒤 지워진 종류는 보이지 않는다(시체에서 빼지는 않음) */
+    @Test
+    void lookCorpseSkipsDeletedItemType() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        Long wolfHide = wolfHide();
+        enterAs("a", "한백", Realm.FOUNDATION_EARLY);
+        PlacedMob placed = placeMob(map, wolfWithDrops(wolfHide, items.fang()), 1);
+        gameConnector.handle("a", KILL_WOLF);
+        mobTypeEditor.update(placed.mobTypeId(),
+                MobFixture.request(withDrops(wolf(), List.of(new MobFixedDrop(wolfHide, 1)), List.of())));
+        itemTypeEditor.delete(items.fang());
+        entityManager.flush();
+        sender.clear();
+
+        gameConnector.handle("a", "봐 시체");
+
+        assertThat(sender.messagesTo("a")).containsExactly(SystemMessage.item("청모랑의 시체 — 거둘 것: 청모랑 가죽 1"));
+        assertThat(onlyCorpse(map.entranceId()).getRemaining()).hasSize(2);
     }
 
     /** 처치자는 피해(층 전 위력의 합)가 가장 많은 사람: 마지막 일격을 한 사람이 아니어도 시체는 처치자 몫 */

@@ -16,6 +16,7 @@ import mudmk3.application.inventory.provided.InventoryFinder;
 import mudmk3.application.npc.provided.NpcFinder;
 import mudmk3.application.technique.provided.ContainedTechniqueView;
 import mudmk3.application.technique.provided.TechniqueFinder;
+import mudmk3.domain.combat.Corpse;
 import mudmk3.domain.combat.MobInstance;
 import mudmk3.domain.floor.FloorStack;
 import mudmk3.domain.game.Amount;
@@ -37,6 +38,7 @@ import mudmk3.domain.shared.Realm;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -88,6 +90,8 @@ class ItemCommandHandler {
     private final CombatEngine combatEngine;
     private final CombatTexts combatTexts;
     private final RoomRefresher roomRefresher;
+    private final CorpseHandler corpseHandler;
+    private final Clock clock;
 
     /**
      * 물건 명령(주기·읽기 포함)과 인자 있는 {@code 보기} 를 처리한다. 교전 중에는 {@code 줍기}·{@code 주기}·{@code 읽기} 가 막힌다(D86).
@@ -276,7 +280,7 @@ class ItemCommandHandler {
 
     /**
      * 방의 대상(같은 방 플레이어 → NPC → 몹(방 보기 순서) → 시체 → 바닥 물건)에서 먼저 고르고, 없으면 내 소지품에서 고른다
-     * (D45·D89). 물건이면 이름과 묘사, 몹이면 급·체급·묘사·기혈 상태, 사람·NPC·시체면 아직 자세히 볼 수 없다
+     * (D45·D89). 물건이면 이름과 묘사, 몹이면 급·체급·묘사·기혈 상태, 시체면 남은 물건(시체 보기), 사람·NPC면 아직 자세히 볼 수 없다
      */
     private void look(OnlinePlayer player, String argument, BiConsumer<String, GameMessage> send) {
         String sessionId = player.getSessionId();
@@ -289,7 +293,7 @@ class ItemCommandHandler {
                 .forEach(other -> targets.add(LookTarget.other(other.getName())));
         npcFinder.findAllInRoom(roomId).forEach(npc -> targets.add(LookTarget.other(npc.getName())));
         combatEngine.mobsInRoom(roomId).forEach(mob -> targets.add(LookTarget.mob(mob)));
-        combatEngine.corpsesInRoom(roomId).forEach(corpse -> targets.add(LookTarget.other(corpse.name())));
+        combatEngine.corpsesInRoom(roomId).forEach(corpse -> targets.add(LookTarget.corpse(corpse)));
         roomFloor.look(roomId).forEach(stack -> targets.add(LookTarget.item(stack.itemType())));
 
         Optional<LookTarget> inRoom = ItemNames.select(targets, LookTarget::name, query);
@@ -297,7 +301,10 @@ class ItemCommandHandler {
             LookTarget target = inRoom.get();
             ItemType itemType = target.itemType();
             MobInstance mob = target.mob();
-            if (mob != null) {
+            Corpse corpse = target.corpse();
+            if (corpse != null) {
+                send.accept(sessionId, corpseHandler.look(corpse, player.getCharacterId(), clock.instant()));
+            } else if (mob != null) {
                 Realm viewerRealm = realms.realm(player.getCharacterId());
                 send.accept(sessionId, SystemMessage.info(combatTexts.lookMob(mob, viewerRealm)));
             } else {
@@ -326,18 +333,23 @@ class ItemCommandHandler {
                 + technique.stageCount() + "성 · " + technique.startRealmName() + "부터)";
     }
 
-    /** 보기 대상 하나. 물건이면 itemType, 몹이면 mob, 자세히 볼 수 없는 것(사람·NPC·시체)은 둘 다 null */
-    private record LookTarget(String name, @Nullable ItemType itemType, @Nullable MobInstance mob) {
+    /** 보기 대상 하나. 물건이면 itemType, 몹이면 mob, 시체면 corpse, 자세히 볼 수 없는 것(사람·NPC)은 셋 다 null */
+    private record LookTarget(String name, @Nullable ItemType itemType, @Nullable MobInstance mob,
+                              @Nullable Corpse corpse) {
         static LookTarget other(String name) {
-            return new LookTarget(name, null, null);
+            return new LookTarget(name, null, null, null);
         }
 
         static LookTarget item(ItemType itemType) {
-            return new LookTarget(itemType.getName(), itemType, null);
+            return new LookTarget(itemType.getName(), itemType, null, null);
         }
 
         static LookTarget mob(MobInstance mob) {
-            return new LookTarget(mob.getProfile().name(), null, mob);
+            return new LookTarget(mob.getProfile().name(), null, mob, null);
+        }
+
+        static LookTarget corpse(Corpse corpse) {
+            return new LookTarget(corpse.name(), null, null, corpse);
         }
     }
 

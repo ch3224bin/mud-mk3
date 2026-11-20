@@ -169,6 +169,13 @@ class CombatTexts {
         return "저물대에 자리가 없습니다. 남은 것: " + String.join(", ", parts);
     }
 
+    /** 시체 보기: {@code 청모랑의 시체 — 거둘 것: 청모랑 가죽 1, 늑대 이빨 1}, 없으면 {@code 청모랑의 시체 — 거둘 것이 없다.} */
+    static String lookCorpse(String corpseName, List<String> parts) {
+        return parts.isEmpty()
+                ? corpseName + " — 거둘 것이 없다."
+                : corpseName + " — 거둘 것: " + String.join(", ", parts);
+    }
+
     /** 빈 시체: {@code 청모랑의 시체에는 거둘 것이 없습니다.} */
     String emptyCorpse(String corpseName) {
         return corpseName + "에는 거둘 것이 없습니다.";

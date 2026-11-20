@@ -101,6 +101,25 @@ class CorpseHandler {
     }
 
     /**
+     * {@code 보기 <시체>}(command.md {@code ## 시체 보기}): 남은 줄을 지금 종류 이름으로 보인다(지워진 종류는 안 보이고 빼지도 않음).
+     * 누구나 보고, 보는 사람이 아직 수습할 수 없으면 둘째 줄에 수습 거절 문구를 붙인다. 시체를 바꾸지 않는다
+     */
+    SystemMessage look(Corpse corpse, Long viewerCharacterId, Instant now) {
+        Map<Long, ItemType> itemTypes = itemTypeFinder.findAllById(
+                corpse.getRemaining().stream().map(DropLine::itemTypeId).toList());
+        List<String> parts = corpse.getRemaining().stream()
+                .filter(line -> itemTypes.containsKey(line.itemTypeId()))
+                .map(line -> CombatTexts.dropPart(requireNonNull(itemTypes.get(line.itemTypeId())).getName(),
+                        line.count()))
+                .toList();
+        String text = CombatTexts.lookCorpse(corpse.name(), parts);
+        if (!corpse.collectibleBy(viewerCharacterId, now)) {
+            text = text + "\n" + combatTexts.otherShare(corpse.lockedFor(now));
+        }
+        return SystemMessage.item(text);
+    }
+
+    /**
      * {@code 수습 <시체>}: 시체 이름으로 찾고, 처음 60초는 처치자만 거둔다. 줄마다 들어가는 만큼 넣고 넣은 만큼 시체에서 뺀다.
      * 지워진 물건 종류 줄은 조용히 뺀다. 남은 것이 없으면 시체가 사라진다. 교전 중 막힘은 부르는 쪽이 본다
      */
