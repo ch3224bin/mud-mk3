@@ -12,6 +12,8 @@ import java.util.Optional;
 /**
  * 입력 한 줄을 명령으로 바꾼다. 앞뒤 공백을 자르고 여러 공백은 하나로 본다.
  * 명령어는 정해진 이름과 줄임말로만 알아듣는다(앞부분 일치 없음). 명령어가 아닌 첫 낱말은 신통 이름으로 본다.
+ * 방위 낱말(이름·영문·초성 약자, {@link Direction#fromCommand})은 아래 명령어 목록에 넣지 않고 {@link #parseOther} 에서 읽는다.
+ * 그래서 {@code ㅂ}(북)·{@code ㅅ}(서)는 다른 명령 줄임말로 쓰지 않는다(command.md 방위 초성 약자: 겹치면 방위가 먼저).
  */
 public final class CommandParser {
 
@@ -32,7 +34,7 @@ public final class CommandParser {
         String rest = space < 0 ? "" : normalized.substring(space + 1);
 
         return switch (word) {
-            case "보기", "ㅂ" -> new Command.Look(rest.isEmpty() ? null : rest);
+            case "보기", "봐", "보" -> new Command.Look(rest.isEmpty() ? null : rest);
             case "말하기" -> new Command.Say(rest);
             case "대화" -> parseTalk(rest);
             case "소지품", "ㅈ" -> rest.isEmpty() ? new Command.Inventory() : new Command.Unknown(word);
@@ -45,7 +47,7 @@ public final class CommandParser {
             case "주기" -> parseGive(rest);
             case "확인" -> rest.isEmpty() ? new Command.Confirm() : new Command.Unknown(word);
             case "취소" -> rest.isEmpty() ? new Command.Cancel() : new Command.Unknown(word);
-            case "상태", "ㅅ" -> rest.isEmpty() ? new Command.Status() : new Command.Unknown(word);
+            case "상태", "ㅅㅌ" -> rest.isEmpty() ? new Command.Status() : new Command.Unknown(word);
             case "공법" -> rest.isEmpty() ? new Command.Techniques() : new Command.Unknown(word);
             case "신통" -> rest.isEmpty() ? new Command.Abilities() : new Command.Unknown(word);
             case "읽기" -> new Command.Read(wholeName(rest));

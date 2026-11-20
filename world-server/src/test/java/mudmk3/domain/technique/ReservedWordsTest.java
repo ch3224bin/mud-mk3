@@ -16,6 +16,13 @@ class ReservedWordsTest {
     }
 
     @Test
+    void directionInitialsAndLookShortcuts() {
+        for (String word : new String[]{"ㄷ", "ㅅ", "ㄴ", "ㅂ", "ㅂㄷ", "ㅂㅅ", "ㄴㄷ", "ㄴㅅ", "ㅇ", "ㅇㄹ", "봐", "보", "ㅅㅌ"}) {
+            assertThat(ReservedWords.contains(word)).as(word).isTrue();
+        }
+    }
+
+    @Test
     void ignoresCase() {
         assertThat(ReservedWords.contains("E")).isTrue();
         assertThat(ReservedWords.contains("NE")).isTrue();
@@ -29,7 +36,7 @@ class ReservedWordsTest {
 
     @Test
     void listMatchesPlan() {
-        assertThat(ReservedWords.ALL).hasSize(105).doesNotHaveDuplicates();
+        assertThat(ReservedWords.ALL).hasSize(116).doesNotHaveDuplicates();
     }
 
     @Test

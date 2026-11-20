@@ -736,8 +736,10 @@ class GameConnectorTest extends BaseGameTest {
         assertThat(room.room().name()).isEqualTo("마을 어귀");
         assertThat(room.room().description()).isEqualTo("마을 어귀의 묘사다.");
 
-        gameConnector.handle("a", "ㅂ");
-        assertThat(sender.messagesTo("a", RoomMessage.class)).hasSize(2);
+        gameConnector.handle("a", "보");
+        gameConnector.handle("a", "봐");
+        assertThat(sender.messagesTo("a", RoomMessage.class)).hasSize(3)
+                .allSatisfy(message -> assertThat(message.room().name()).isEqualTo("마을 어귀"));
     }
 
     @Test
@@ -776,6 +778,38 @@ class GameConnectorTest extends BaseGameTest {
         sender.clear();
         gameConnector.handle("c", "보기");
         assertThat(sender.lastTo("c", RoomMessage.class).occupants()).isEmpty();
+    }
+
+    @Test
+    void moveByInitials() {
+        GameMap map = prepareMap();
+        Long hanbaek = enter("a", "한백");
+        enter("c", "여소");
+        sender.clear();
+
+        gameConnector.handle("a", "ㅂ");
+
+        assertThat(sender.lastTo("a", RoomMessage.class).room().name()).isEqualTo("우물가");
+        assertThat(sender.messagesTo("c"))
+                .containsExactly(new NoticeMessage("한백이 북쪽으로 떠난다.", "movement", "한백", "leave"));
+        assertThat(roomIdOf(hanbaek)).isEqualTo(map.wellId());
+
+        gameConnector.handle("a", "ㄴ");
+
+        assertThat(sender.lastTo("a", RoomMessage.class).room().name()).isEqualTo("마을 어귀");
+        assertThat(roomIdOf(hanbaek)).isEqualTo(map.entranceId());
+    }
+
+    @Test
+    void moveByInitialsNoExitFail() {
+        GameMap map = prepareMap();
+        Long hanbaek = enter("a", "한백");
+        sender.clear();
+
+        gameConnector.handle("a", "ㅅ");
+
+        assertThat(sender.messagesTo("a")).containsExactly(new SystemMessage("그쪽으로는 길이 없습니다.", "error"));
+        assertThat(roomIdOf(hanbaek)).isEqualTo(map.entranceId());
     }
 
     @Test
@@ -888,7 +922,7 @@ class GameConnectorTest extends BaseGameTest {
         sender.clear();
 
         gameConnector.handle("a", "말 안녕");
-        gameConnector.handle("a", "보");
+        gameConnector.handle("a", "보다");
 
         assertThat(sender.messagesTo("a")).containsExactly(
                 new SystemMessage(UNKNOWN, "error"), new SystemMessage(UNKNOWN, "error"));
@@ -950,7 +984,7 @@ class GameConnectorTest extends BaseGameTest {
         gameConnector.handle("a", "도움말");
 
         assertThat(sender.messagesTo("a")).containsExactly(new SystemMessage(
-                "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건> · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량] · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 확인 · 취소 · 누구 · 도움말 · 종료",
+                "명령: 보기(봐 보) · 동 서 남 북 북동 북서 남동 남서 위 아래 (ㄷ ㅅ ㄴ ㅂ ㅂㄷ ㅂㅅ ㄴㄷ ㄴㅅ ㅇ ㅇㄹ / e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말] · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅㅌ) · 공법 · 신통 · 읽기 <물건> · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량] · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건> · 확인 · 취소 · 누구 · 도움말 · 종료",
                 "info"));
     }
 
@@ -1865,6 +1899,20 @@ class GameConnectorTest extends BaseGameTest {
     }
 
     @Test
+    void lookShortcutsWithTarget() {
+        GameMap map = prepareMap();
+        Items items = prepareItems();
+        place(map.entranceId(), items.hide(), 3, null);
+        enter("a", "한백");
+        sender.clear();
+
+        assertOnly("a", "봐 가죽", SystemMessage.item("늑대 가죽 — 거칠고 질긴 늑대의 가죽이다."));
+        assertOnly("a", "보 가죽", SystemMessage.item("늑대 가죽 — 거칠고 질긴 늑대의 가죽이다."));
+        assertOnly("a", "봐 동", SystemMessage.error("그런 것은 보이지 않습니다."));
+        assertOnly("a", "보 ㄷ", SystemMessage.error("그런 것은 보이지 않습니다."));
+    }
+
+    @Test
     void lookPrefersRoomTargets() {
         GameMap map = prepareMap();
         prepareNpcs(map);
@@ -2502,7 +2550,7 @@ class GameConnectorTest extends BaseGameTest {
         enter("a", "한백");
         sender.clear();
 
-        gameConnector.handle("a", "ㅅ");
+        gameConnector.handle("a", "ㅅㅌ");
 
         assertThat(sender.messagesTo("a")).singleElement().isInstanceOf(StatusMessage.class);
     }

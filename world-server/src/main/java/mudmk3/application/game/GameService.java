@@ -92,8 +92,9 @@ public class GameService implements GameConnector, GameTicker, OfflineCharacterR
     static final String SAY_EMPTY = "무엇이라 말하시겠습니까?";
     static final String SAY_TOO_LONG = "말은 200자 이내로 하십시오.";
     static final String HELP =
-            "명령: 보기(ㅂ) · 동 서 남 북 북동 북서 남동 남서 위 아래 (e w s n ne nw se sw u d) · 말하기(') · 대화 <NPC> [낱말]"
-                    + " · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅ) · 공법 · 신통 · 읽기 <물건>"
+            "명령: 보기(봐 보) · 동 서 남 북 북동 북서 남동 남서 위 아래 (ㄷ ㅅ ㄴ ㅂ ㅂㄷ ㅂㅅ ㄴㄷ ㄴㅅ ㅇ ㅇㄹ / e w s n ne nw se sw u d)"
+                    + " · 말하기(') · 대화 <NPC> [낱말]"
+                    + " · 공격 <대상> · <신통> [대상] · 중지 · 수습 <시체> · 상태(ㅅㅌ) · 공법 · 신통 · 읽기 <물건>"
                     + " · 소지품(ㅈ) · 보기 <물건> · 줍기 <물건> [수량] · 버리기 <물건> [수량] · 주기 <대상> <물건> [수량]"
                     + " · 목록 · 사기 <물건> [수량] · 팔기 <물건> [수량] · 값 <물건>"
                     + " · 확인 · 취소 · 누구 · 도움말 · 종료";

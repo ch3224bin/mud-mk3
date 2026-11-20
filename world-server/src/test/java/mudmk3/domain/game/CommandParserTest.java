@@ -43,11 +43,42 @@ class CommandParserTest {
     }
 
     @Test
+    void moveByInitials() {
+        assertThat(parse("ㄷ")).isEqualTo(new Move(Direction.EAST));
+        assertThat(parse(" ㅅ ")).isEqualTo(new Move(Direction.WEST));
+        assertThat(parse("ㄴ")).isEqualTo(new Move(Direction.SOUTH));
+        assertThat(parse("ㅂ")).isEqualTo(new Move(Direction.NORTH));
+        assertThat(parse("ㅂㄷ")).isEqualTo(new Move(Direction.NORTHEAST));
+        assertThat(parse("ㅂㅅ")).isEqualTo(new Move(Direction.NORTHWEST));
+        assertThat(parse("ㄴㄷ")).isEqualTo(new Move(Direction.SOUTHEAST));
+        assertThat(parse("ㄴㅅ")).isEqualTo(new Move(Direction.SOUTHWEST));
+        assertThat(parse("ㅇ")).isEqualTo(new Move(Direction.UP));
+        assertThat(parse("ㅇㄹ")).isEqualTo(new Move(Direction.DOWN));
+    }
+
+    @Test
+    void moveByInitialsWithArgumentFail() {
+        assertThat(parse("ㄷ 한립")).isEqualTo(new Unknown("ㄷ"));
+        assertThat(parse("ㅂ 한립")).isEqualTo(new Unknown("ㅂ"));
+        assertThat(parse("ㅅ 한립")).isEqualTo(new Unknown("ㅅ"));
+    }
+
+    @Test
     void look() {
-        assertThat(parse("ㅂ")).isEqualTo(new Look(null));
+        assertThat(parse("봐")).isEqualTo(new Look(null));
+        assertThat(parse("보")).isEqualTo(new Look(null));
+        assertThat(parse("봐 늑대 가죽")).isEqualTo(new Look("늑대 가죽"));
+        assertThat(parse("보   청모랑 ")).isEqualTo(new Look("청모랑"));
         assertThat(parse("보기")).isEqualTo(new Look(null));
         assertThat(parse("보기 한립")).isEqualTo(new Look("한립"));
         assertThat(parse("보기   늙은   소나무 ")).isEqualTo(new Look("늙은 소나무"));
+    }
+
+    @Test
+    void lookKeepsDirectionArgument() {
+        assertThat(parse("봐 동")).isEqualTo(new Look("동"));
+        assertThat(parse("보 ㄷ")).isEqualTo(new Look("ㄷ"));
+        assertThat(parse("보기 e")).isEqualTo(new Look("e"));
     }
 
     @Test
@@ -87,7 +118,7 @@ class CommandParserTest {
     @Test
     void notCommandIsAbility() {
         assertThat(parse("말 안녕")).isEqualTo(new UseAbility("말", new ItemQuery("안녕", 0)));
-        assertThat(parse("보")).isEqualTo(new UseAbility("보", null));
+        assertThat(parse("보다")).isEqualTo(new UseAbility("보다", null));
     }
 
     @Test
@@ -106,14 +137,14 @@ class CommandParserTest {
     @Test
     void status() {
         assertThat(parse("상태")).isEqualTo(new Status());
-        assertThat(parse("ㅅ")).isEqualTo(new Status());
+        assertThat(parse("ㅅㅌ")).isEqualTo(new Status());
         assertThat(parse(" 상태 ")).isEqualTo(new Status());
     }
 
     @Test
     void statusWithArgumentFail() {
         assertThat(parse("상태 한립")).isEqualTo(new Unknown("상태"));
-        assertThat(parse("ㅅ 한립")).isEqualTo(new Unknown("ㅅ"));
+        assertThat(parse("ㅅㅌ 한립")).isEqualTo(new Unknown("ㅅㅌ"));
     }
 
     @Test

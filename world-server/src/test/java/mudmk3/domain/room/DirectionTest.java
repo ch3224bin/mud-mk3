@@ -30,7 +30,30 @@ class DirectionTest {
     }
 
     @Test
+    void fromCommandInitials() {
+        assertThat(Direction.fromCommand("ㄷ")).contains(EAST);
+        assertThat(Direction.fromCommand("ㅅ")).contains(WEST);
+        assertThat(Direction.fromCommand("ㄴ")).contains(SOUTH);
+        assertThat(Direction.fromCommand("ㅂ")).contains(NORTH);
+        assertThat(Direction.fromCommand("ㅂㄷ")).contains(NORTHEAST);
+        assertThat(Direction.fromCommand("ㅂㅅ")).contains(NORTHWEST);
+        assertThat(Direction.fromCommand("ㄴㄷ")).contains(SOUTHEAST);
+        assertThat(Direction.fromCommand("ㄴㅅ")).contains(SOUTHWEST);
+        assertThat(Direction.fromCommand("ㅇ")).contains(UP);
+        assertThat(Direction.fromCommand("ㅇㄹ")).contains(DOWN);
+    }
+
+    @Test
+    void initials() {
+        assertThat(EAST.initials()).isEqualTo("ㄷ");
+        assertThat(DOWN.initials()).isEqualTo("ㅇㄹ");
+    }
+
+    @Test
     void fromCommandFail() {
+        assertThat(Direction.fromCommand("ㅂㅂ")).isEmpty();
+        assertThat(Direction.fromCommand("ㄱ")).isEmpty();
+        assertThat(Direction.fromCommand("ᄃ")).isEmpty();
         assertThat(Direction.fromCommand("북쪽")).isEmpty();
         assertThat(Direction.fromCommand("말")).isEmpty();
         assertThat(Direction.fromCommand("")).isEmpty();
